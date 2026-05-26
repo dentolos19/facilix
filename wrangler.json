@@ -1,46 +1,31 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "facilix-development",
+  "name": "facilix",
   "main": "@tanstack/react-start/server-entry",
   "account_id": "d910f54eba4cf3d1634aa41c3d9a93bc",
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "logpush": true,
+  "observability": {
+    "logs": {
+      "enabled": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  },
+  "route": {
+    "pattern": "facilix.dennise.me",
+    "custom_domain": true
+  },
   "ai": {
     "binding": "AI"
   },
   "d1_databases": [
     {
-      "binding": "DB"
+      "binding": "DB",
+      "database_id": "5cfd5ce5-3633-4ccf-9bd5-0ed6ff9dda8e"
     }
-  ],
-  "env": {
-    "production": {
-      "name": "facilix",
-      "workers_dev": false,
-      "logpush": true,
-      "observability": {
-        "logs": {
-          "enabled": true
-        },
-        "traces": {
-          "enabled": true
-        }
-      },
-      "route": {
-        "pattern": "facilix.dennise.me",
-        "custom_domain": true
-      },
-      "ai": {
-        "binding": "AI",
-        "remote": true
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_id": "5cfd5ce5-3633-4ccf-9bd5-0ed6ff9dda8e",
-          "remote": true
-        }
-      ]
-    }
-  }
+  ]
 }
