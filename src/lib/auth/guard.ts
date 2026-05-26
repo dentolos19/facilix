@@ -33,7 +33,7 @@ export async function getSession(request: Request, binding: D1Database): Promise
 export async function requireSession(request: Request, binding: D1Database): Promise<SessionResult> {
   const session = await getSession(request, binding);
   if (!session) {
-    throw redirect({ to: "/login" });
+    throw redirect({ to: "/auth" });
   }
   return session;
 }
