@@ -1,0 +1,43 @@
+{
+  "name": "facilix",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "postinstall": "bun run types",
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types && tsr generate",
+    "check": "biome check --write"
+  },
+  "dependencies": {
+    "@cloudflare/vite-plugin": "^1.38.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/react-devtools": "latest",
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-router-devtools": "latest",
+    "@tanstack/react-router-ssr-query": "latest",
+    "@tanstack/react-start": "latest",
+    "@tanstack/router-plugin": "^1.168.11",
+    "lucide-react": "^0.545.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.5",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/devtools-vite": "latest",
+    "@tanstack/router-cli": "^1.167.10",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "shadcn": "^4.8.0",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.94.0"
+  }
+}
