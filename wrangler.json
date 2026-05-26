@@ -10,13 +10,12 @@
   },
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "facilix"
+      "binding": "DB"
     }
   ],
   "env": {
     "production": {
-      "name": "denizen",
+      "name": "facilix",
       "workers_dev": false,
       "logpush": true,
       "observability": {
@@ -27,6 +26,10 @@
           "enabled": true
         }
       },
+      "route": {
+        "pattern": "facilix.dennise.me",
+        "custom_domain": true
+      },
       "ai": {
         "binding": "AI",
         "remote": true
@@ -34,7 +37,7 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "facilix",
+          "database_id": "5cfd5ce5-3633-4ccf-9bd5-0ed6ff9dda8e",
           "remote": true
         }
       ]

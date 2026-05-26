@@ -13,8 +13,7 @@
     "types": "wrangler types && tsr generate",
     "check": "biome check --write",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply facilix-development --local",
-    "db:migrate:remote": "wrangler --env production d1 migrations apply facilix --remote"
+    "db:migrate": "wrangler d1 migrations apply DB"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.38.0",
