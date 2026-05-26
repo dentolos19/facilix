@@ -6,13 +6,12 @@
   "compatibility_date": "2026-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "ai": {
-    "binding": "AI",
-    "remote": true
+    "binding": "AI"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "facilix-development"
+      "database_name": "facilix"
     }
   ],
   "env": {
@@ -35,7 +34,8 @@
       "d1_databases": [
         {
           "binding": "DB",
-          "database_name": "facilix"
+          "database_name": "facilix",
+          "remote": true
         }
       ]
     }

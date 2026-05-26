@@ -13,7 +13,15 @@ const config = defineConfig({
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [cloudflare({ viteEnvironment: { name: "ssr" } }), tanstackStart(), viteReact(), tailwindcss(), devtools()],
+  plugins: [
+    cloudflare({
+      viteEnvironment: { name: "ssr" },
+    }),
+    tanstackStart(),
+    viteReact(),
+    tailwindcss(),
+    devtools(),
+  ],
 });
 
 export default config;
