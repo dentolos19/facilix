@@ -25,7 +25,13 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_id": "5cfd5ce5-3633-4ccf-9bd5-0ed6ff9dda8e"
+      "database_id": "10d86a6d-56da-4b68-9002-35ca3aa4776d"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "facilix"
     }
   ]
 }
