@@ -136,7 +136,7 @@ function LoginForm() {
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link className="underline underline-offset-2" to="/auth" search={{ mode: "signup" }}>
+            <Link className="underline underline-offset-2" search={{ mode: "signup" }} to="/auth">
               Sign up
             </Link>
           </p>
@@ -228,7 +228,7 @@ function SignUpForm() {
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link className="underline underline-offset-2" to="/auth" search={{ mode: "login" }}>
+            <Link className="underline underline-offset-2" search={{ mode: "login" }} to="/auth">
               Sign in
             </Link>
           </p>

@@ -1,4 +1,14 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const asset = sqliteTable("assets", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  size: integer("size").notNull(),
+  hash: text("hash").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
 
 export const user = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -50,7 +60,45 @@ export const verification = sqliteTable("verifications", {
   updatedAt: integer("updated_at", { mode: "timestamp" }),
 });
 
+export const facility = sqliteTable("facilities", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  data: blob("data").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const facilityDevices = sqliteTable("facility_devices", {
+  id: text("id").primaryKey(),
+  facilityId: text("facility_id")
+    .notNull()
+    .references(() => facility.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  status: text("status").notNull(),
+  location: blob("location").$type<Uint8Array>().notNull(),
+  data: blob("data").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const deviceLogs = sqliteTable("device_logs", {
+  id: text("id").primaryKey(),
+  deviceId: text("device_id")
+    .notNull()
+    .references(() => facilityDevices.id, { onDelete: "cascade" }),
+  severity: text("severity").notNull(),
+  type: text("type").notNull(),
+  message: text("message").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
+export type Asset = typeof asset.$inferSelect;
+export type Facility = typeof facility.$inferSelect;
+export type FacilityDevice = typeof facilityDevices.$inferSelect;
+export type DeviceLog = typeof deviceLogs.$inferSelect;
