@@ -1,4 +1,5 @@
-import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { CanvasLayoutData } from "#/lib/types";
 
 export const asset = sqliteTable("assets", {
   id: text("id").primaryKey(),
@@ -63,33 +64,47 @@ export const verification = sqliteTable("verifications", {
 export const facility = sqliteTable("facilities", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  data: blob("data").notNull(),
+  data: text("data", { mode: "json" }).$type<CanvasLayoutData>().notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const facilityDevices = sqliteTable("facility_devices", {
+export const facilityZone = sqliteTable("facility_zones", {
   id: text("id").primaryKey(),
   facilityId: text("facility_id")
     .notNull()
     .references(() => facility.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type").notNull(),
-  status: text("status").notNull(),
-  location: blob("location").$type<Uint8Array>().notNull(),
-  data: blob("data").notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
+  notes: text("notes"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
 
-export const deviceLogs = sqliteTable("device_logs", {
+export const facilityDevice = sqliteTable("facility_devices", {
+  id: text("id").primaryKey(),
+  facilityId: text("facility_id")
+    .notNull()
+    .references(() => facility.id, { onDelete: "cascade" }),
+  zoneId: text("zone_id").references(() => facilityZone.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  status: text("status").notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
+  notes: text("notes"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const deviceLog = sqliteTable("device_logs", {
   id: text("id").primaryKey(),
   deviceId: text("device_id")
     .notNull()
-    .references(() => facilityDevices.id, { onDelete: "cascade" }),
+    .references(() => facilityDevice.id, { onDelete: "cascade" }),
   severity: text("severity").notNull(),
   type: text("type").notNull(),
   message: text("message").notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -100,5 +115,5 @@ export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
 export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
-export type FacilityDevice = typeof facilityDevices.$inferSelect;
-export type DeviceLog = typeof deviceLogs.$inferSelect;
+export type FacilityDevice = typeof facilityDevice.$inferSelect;
+export type DeviceLog = typeof deviceLog.$inferSelect;
