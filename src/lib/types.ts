@@ -5,7 +5,8 @@ export type PlacedItemType = "Zone" | "Marker" | "CCTV" | "Sensor" | "Signal";
 /**
  * The in-memory representation of a single item on the canvas.
  * Layout fields (id/x/y/width/height) go into facility.data.
- * Everything else goes into facility_devices.
+ * - Zone items are persisted as rows in facility_zones.
+ * - Non-zone items are persisted as rows in facility_devices (with optional zoneId).
  */
 export interface PlacedItem {
   id: string;
@@ -15,11 +16,13 @@ export interface PlacedItem {
   y: number;
   width: number;
   height: number;
-  /** facility_devices columns */
+  /** Links a device to a zone (set on non-zone items only). */
+  zoneId: string | null;
+  /** facility_devices / facility_zones columns */
   name: string;
   status: string;
   notes: string;
-  /** Type-specific non-layout properties (stored in facility_device.data). */
+  /** Type-specific non-layout properties (stored in the relevant table's data column). */
   props: Record<string, string | number>;
 }
 
@@ -76,33 +79,65 @@ export function toCanvasData(items: PlacedItem[]): CanvasLayoutData {
   };
 }
 
-/** Build facility_device payloads from placed items. */
-export function toDevicePayloads(
+/** Build facility_zone payloads from zone items. */
+export function toZonePayloads(
   facilityId: string,
   items: PlacedItem[],
 ): {
   id: string;
   facilityId: string;
   name: string;
+  data: Record<string, string | number>;
+  notes: string;
+}[] {
+  return items
+    .filter((i) => i.type === "Zone")
+    .map((i) => ({
+      id: i.id,
+      facilityId,
+      name: i.name,
+      data: i.props,
+      notes: i.notes,
+    }));
+}
+
+/** Build facility_device payloads from non-zone items. */
+export function toDevicePayloads(
+  facilityId: string,
+  items: PlacedItem[],
+): {
+  id: string;
+  facilityId: string;
+  zoneId: string | null;
+  name: string;
   type: PlacedItemType;
   status: string;
   data: Record<string, string | number>;
   notes: string;
 }[] {
-  return items.map((i) => ({
-    id: i.id,
-    facilityId,
-    name: i.name,
-    type: i.type,
-    status: i.status,
-    data: i.props,
-    notes: i.notes,
-  }));
+  return items
+    .filter((i) => i.type !== "Zone")
+    .map((i) => ({
+      id: i.id,
+      facilityId,
+      zoneId: i.zoneId,
+      name: i.name,
+      type: i.type,
+      status: i.status,
+      data: i.props,
+      notes: i.notes,
+    }));
 }
 
-/** Reconstruct PlacedItem[] from a canvas layout + device rows. */
+/** Reconstruct PlacedItem[] from canvas layout + zone rows + device rows. */
 export function fromSnapshot(
   layout: CanvasLayoutData,
+  zones: {
+    id: string;
+    name: string;
+    data: Record<string, string | number>;
+    notes: string;
+  }[],
   devices: {
     id: string;
     name: string;
@@ -110,11 +145,29 @@ export function fromSnapshot(
     status: string;
     data: Record<string, string | number>;
     notes: string;
+    zoneId: string | null;
   }[],
 ): PlacedItem[] {
   const layoutById = new Map(layout.items.map((l) => [l.id, l]));
 
-  return devices.map((d) => {
+  const zoneItems: PlacedItem[] = zones.map((z) => {
+    const lay = layoutById.get(z.id);
+    return {
+      id: z.id,
+      type: "Zone" as PlacedItemType,
+      x: lay?.x ?? 0,
+      y: lay?.y ?? 0,
+      width: lay?.width ?? DEFAULT_SIZES.Zone.width,
+      height: lay?.height ?? DEFAULT_SIZES.Zone.height,
+      zoneId: null,
+      name: z.name,
+      status: "online",
+      notes: z.notes,
+      props: z.data,
+    };
+  });
+
+  const deviceItems: PlacedItem[] = devices.map((d) => {
     const lay = layoutById.get(d.id);
     return {
       id: d.id,
@@ -123,10 +176,13 @@ export function fromSnapshot(
       y: lay?.y ?? 0,
       width: lay?.width ?? DEFAULT_SIZES[d.type].width,
       height: lay?.height ?? DEFAULT_SIZES[d.type].height,
+      zoneId: d.zoneId,
       name: d.name,
       status: d.status,
       notes: d.notes,
       props: d.data,
     };
   });
+
+  return [...zoneItems, ...deviceItems];
 }

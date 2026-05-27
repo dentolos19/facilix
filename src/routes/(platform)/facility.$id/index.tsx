@@ -19,6 +19,7 @@ import {
 } from "#/components/ui/menubar.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
 import { Toggle } from "#/components/ui/toggle.tsx";
+import { loadFacility, saveFacility } from "#/functions/facilities";
 import type { PlacedItem, PlacedItemType } from "#/lib/types";
 import {
   DEFAULT_PROPS,
@@ -26,8 +27,8 @@ import {
   fromSnapshot,
   toCanvasData,
   toDevicePayloads,
+  toZonePayloads,
 } from "#/lib/types";
-import { loadFacility, saveFacility } from "#/functions/facilities";
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
   component: Page,
@@ -92,10 +93,7 @@ function generateMockLogs(items: PlacedItem[]): LogEntry[] {
   for (const item of items) {
     if (item.type !== "CCTV" && item.type !== "Sensor" && item.type !== "Signal") continue;
 
-    const pool =
-      item.type === "CCTV" ? CCTV_MESSAGES
-      : item.type === "Sensor" ? SENSOR_MESSAGES
-      : SIGNAL_MESSAGES;
+    const pool = item.type === "CCTV" ? CCTV_MESSAGES : item.type === "Sensor" ? SENSOR_MESSAGES : SIGNAL_MESSAGES;
     // generate 4-7 logs per device with staggered timestamps
     const count = 4 + (item.id.charCodeAt(item.id.length - 1) % 4);
     for (let i = 0; i < count; i++) {
@@ -147,7 +145,7 @@ function Page() {
     (async () => {
       try {
         const snapshot = await loadFacility({ data: { id: facilityId } });
-        const items = fromSnapshot(snapshot.canvasData, snapshot.devices);
+        const items = fromSnapshot(snapshot.canvasData, snapshot.zones, snapshot.devices);
         setPlacedItems(items);
       } catch (err) {
         toast.error("Failed to load facility data");
@@ -173,6 +171,7 @@ function Page() {
         y,
         width: size.width,
         height: size.height,
+        zoneId: null,
         name: type,
         status: "online",
         notes: "",
@@ -243,9 +242,11 @@ function Page() {
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
-      const canvasData = toCanvasData(placedItemsRef.current);
-      const devices = toDevicePayloads(facilityId, placedItemsRef.current);
-      await saveFacility({ data: { facilityId, canvasData, devices } });
+      const items = placedItemsRef.current;
+      const canvasData = toCanvasData(items);
+      const zones = toZonePayloads(facilityId, items);
+      const devices = toDevicePayloads(facilityId, items);
+      await saveFacility({ data: { facilityId, canvasData, zones, devices } });
       setIsDirty(false);
       toast.success("Facility saved");
     } catch (err) {
@@ -600,20 +601,24 @@ function PlacedShape({
       return (
         <>
           <Group
-            ref={zoneRef}
             draggable={!readOnly}
             height={def.height}
             name={`placed-${item.id}`}
             onClick={handleClick}
-            onDragEnd={readOnly ? undefined : (e) => {
-              setDragging(false);
-              onUpdateItem(item.id, {
-                x: Math.round(e.target.x()),
-                y: Math.round(e.target.y()),
-              });
-            }}
+            onDragEnd={
+              readOnly
+                ? undefined
+                : (e) => {
+                    setDragging(false);
+                    onUpdateItem(item.id, {
+                      x: Math.round(e.target.x()),
+                      y: Math.round(e.target.y()),
+                    });
+                  }
+            }
             onDragStart={readOnly ? undefined : () => setDragging(true)}
             onTap={handleClick}
+            ref={zoneRef}
             width={def.width}
             x={item.x}
             y={item.y}
@@ -626,33 +631,40 @@ function PlacedShape({
               strokeWidth={selectStroke}
               width={def.width}
             />
-            <Text fill={def.stroke} fontFamily="Geist Variable, sans-serif" fontSize={11} text={item.name} x={8} y={6} />
+            <Text
+              fill={def.stroke}
+              fontFamily="Geist Variable, sans-serif"
+              fontSize={11}
+              text={item.name}
+              x={8}
+              y={6}
+            />
             {isSelected && !readOnly && (
               <Rect
-                width={8}
+                cornerRadius={1}
+                fill="#60a5fa"
                 height={8}
+                listening={false}
+                opacity={0.4}
+                width={8}
                 x={def.width - 8}
                 y={def.height - 8}
-                fill="#60a5fa"
-                opacity={0.4}
-                cornerRadius={1}
-                listening={false}
               />
             )}
           </Group>
           {isSelected && !readOnly && (
             <Transformer
-              ref={trRef}
+              anchorCornerRadius={1}
+              anchorFill="#fff"
+              anchorSize={8}
+              anchorStroke="#60a5fa"
               borderStroke="#60a5fa"
               borderStrokeWidth={1}
-              anchorFill="#fff"
-              anchorStroke="#60a5fa"
-              anchorSize={8}
-              anchorCornerRadius={1}
-              rotateEnabled={false}
-              onTransformEnd={handleZoneTransformEnd}
-              keepRatio={false}
               enabledAnchors={["top-left", "top-right", "bottom-left", "bottom-right"]}
+              keepRatio={false}
+              onTransformEnd={handleZoneTransformEnd}
+              ref={trRef}
+              rotateEnabled={false}
             />
           )}
         </>
@@ -672,12 +684,12 @@ function PlacedShape({
           y={item.y}
         >
           <Rect
-            width={def.width + (isSelected ? 8 : 0)}
+            fill={isSelected ? "#fbbf24" : dragging ? "#fbbf24" : def.fill}
             height={def.height + (isSelected ? 8 : 0)}
             rotation={45}
-            fill={isSelected ? "#fbbf24" : dragging ? "#fbbf24" : def.fill}
             stroke={isSelected ? "#f59e0b" : dragging ? "#f59e0b" : def.stroke}
             strokeWidth={selectWidth}
+            width={def.width + (isSelected ? 8 : 0)}
             x={-(def.width + (isSelected ? 8 : 0)) / 2}
             y={-(def.height + (isSelected ? 8 : 0)) / 2}
           />
@@ -692,13 +704,13 @@ function PlacedShape({
           />
           {isSelected && (
             <Rect
-              width={def.width + 14}
+              dash={[3, 3]}
               height={def.height + 14}
+              listening={false}
               rotation={45}
               stroke="#f59e0b"
               strokeWidth={1}
-              dash={[3, 3]}
-              listening={false}
+              width={def.width + 14}
               x={-(def.width + 14) / 2}
               y={-(def.height + 14) / 2}
             />
@@ -727,25 +739,23 @@ function PlacedShape({
           />
           {/* Camera body - small rounded rect */}
           <Rect
-            width={R * 0.9}
-            height={R * 0.7}
             cornerRadius={2}
             fill={isSelected ? "#047857" : dragging ? "#059669" : "#065f46"}
+            height={R * 0.7}
+            width={R * 0.9}
             x={-R * 0.45}
             y={-R * 0.35}
           />
           {/* Camera lens */}
           <Circle
-            radius={R * 0.25}
             fill={isSelected ? "#6ee7b7" : "#a7f3d0"}
+            radius={R * 0.25}
             stroke={isSelected ? "#047857" : "#065f46"}
             strokeWidth={1}
           />
           {/* Flash / indicator dot */}
-          <Circle radius={2} fill="#fbbf24" x={R * 0.3} y={-R * 0.25} />
-          {isSelected && (
-            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#10b981" strokeWidth={1} />
-          )}
+          <Circle fill="#fbbf24" radius={2} x={R * 0.3} y={-R * 0.25} />
+          {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#10b981" strokeWidth={1} />}
         </Group>
       );
 
@@ -756,9 +766,9 @@ function PlacedShape({
           draggable={!readOnly}
           name={`placed-${item.id}`}
           onClick={handleClick}
-          onTap={handleClick}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
           onDragEnd={readOnly ? undefined : handleDragEnd}
+          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onTap={handleClick}
           x={item.x}
           y={item.y}
         >
@@ -771,19 +781,17 @@ function PlacedShape({
           {/* Wi-Fi arcs */}
           {[R * 0.35, R * 0.22, R * 0.1].map((r, i) => (
             <Arc
-              key={i}
               angle={90}
               fill="#fff"
               innerRadius={r * 0.5}
+              key={i}
               outerRadius={r}
               rotation={-45 + i * 22}
               x={0}
               y={0}
             />
           ))}
-          {isSelected && (
-            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#8b5cf6" strokeWidth={1} />
-          )}
+          {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#8b5cf6" strokeWidth={1} />}
         </Group>
       );
 
@@ -794,9 +802,9 @@ function PlacedShape({
           draggable={!readOnly}
           name={`placed-${item.id}`}
           onClick={handleClick}
-          onTap={handleClick}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
           onDragEnd={readOnly ? undefined : handleDragEnd}
+          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onTap={handleClick}
           x={item.x}
           y={item.y}
         >
@@ -807,18 +815,9 @@ function PlacedShape({
             strokeWidth={selectStroke}
           />
           {/* Exclamation mark: vertical bar + dot */}
-          <Rect
-            width={R * 0.2}
-            height={R * 0.6}
-            fill="#fff"
-            cornerRadius={1}
-            x={-R * 0.1}
-            y={-R * 0.5}
-          />
-          <Circle radius={R * 0.1} fill="#fff" x={0} y={R * 0.25} />
-          {isSelected && (
-            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#06b6d4" strokeWidth={1} />
-          )}
+          <Rect cornerRadius={1} fill="#fff" height={R * 0.6} width={R * 0.2} x={-R * 0.1} y={-R * 0.5} />
+          <Circle fill="#fff" radius={R * 0.1} x={0} y={R * 0.25} />
+          {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke="#06b6d4" strokeWidth={1} />}
         </Group>
       );
   }
@@ -861,9 +860,7 @@ function ComponentPalette() {
 
 /** Metadata for type-specific properties shown in the Properties panel. */
 const PROPS_META: Record<PlacedItemType, { key: string; label: string; type: "text" | "number" }[]> = {
-  Zone: [
-    { key: "color", label: "Color", type: "text" },
-  ],
+  Zone: [{ key: "color", label: "Color", type: "text" }],
   Marker: [
     { key: "label", label: "Label text", type: "text" },
     { key: "color", label: "Color", type: "text" },
