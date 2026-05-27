@@ -1,11 +1,23 @@
 "use client";
 
+import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type Konva from "konva";
+import { EyeIcon, PencilIcon, SettingsIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
 import { toast } from "sonner";
+import { Button } from "#/components/ui/button.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "#/components/ui/dialog.tsx";
 import { Input } from "#/components/ui/input.tsx";
 import { Label } from "#/components/ui/label.tsx";
 import {
@@ -18,8 +30,7 @@ import {
   MenubarTrigger,
 } from "#/components/ui/menubar.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
-import { Toggle } from "#/components/ui/toggle.tsx";
-import { loadFacility, saveFacility } from "#/functions/facilities";
+import { deleteFacility, loadFacility, saveFacility } from "#/functions/facilities";
 import type { PlacedItem, PlacedItemType } from "#/lib/types";
 import {
   DEFAULT_PROPS,
@@ -118,9 +129,14 @@ function Page() {
   const { id: facilityId } = Route.useParams();
   const [editMode, setEditMode] = useState<EditMode>("monitor");
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
+  const [facilityName, setFacilityName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsName, setSettingsName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Ref always pointing at latest placedItems (avoid stale closures) ────
   const placedItemsRef = useRef(placedItems);
@@ -145,6 +161,8 @@ function Page() {
     (async () => {
       try {
         const snapshot = await loadFacility({ data: { id: facilityId } });
+        setFacilityName(snapshot.name);
+        setSettingsName(snapshot.name);
         const items = fromSnapshot(snapshot.canvasData, snapshot.zones, snapshot.devices);
         setPlacedItems(items);
       } catch (err) {
@@ -246,7 +264,7 @@ function Page() {
       const canvasData = toCanvasData(items);
       const zones = toZonePayloads(facilityId, items);
       const devices = toDevicePayloads(facilityId, items);
-      await saveFacility({ data: { facilityId, canvasData, zones, devices } });
+      await saveFacility({ data: { facilityId, name: facilityName, canvasData, zones, devices } });
       setIsDirty(false);
       toast.success("Facility saved");
     } catch (err) {
@@ -255,29 +273,53 @@ function Page() {
     } finally {
       setIsSaving(false);
     }
-  }, [facilityId]);
+  }, [facilityId, facilityName]);
+
+  const handleSettingsSave = useCallback(async () => {
+    if (!settingsName.trim()) return;
+    setIsSaving(true);
+    try {
+      const items = placedItemsRef.current;
+      const canvasData = toCanvasData(items);
+      const zones = toZonePayloads(facilityId, items);
+      const devices = toDevicePayloads(facilityId, items);
+      await saveFacility({
+        data: { facilityId, name: settingsName.trim(), canvasData, zones, devices },
+      });
+      setFacilityName(settingsName.trim());
+      setSettingsOpen(false);
+      setIsDirty(false);
+      toast.success("Facility settings saved");
+    } catch (err) {
+      toast.error("Failed to save settings");
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [facilityId, settingsName]);
+
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await deleteFacility({ data: { id: facilityId } });
+      setConfirmDelete(false);
+      toast.success("Facility deleted");
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      toast.error("Failed to delete facility");
+      console.error(err);
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }, [facilityId, navigate]);
 
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
-  useEffect(() => {
-    if (editMode !== "edit") return;
-    const handler = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      }
-      if ((mod && e.key === "z" && e.shiftKey) || (mod && e.key === "y")) {
-        e.preventDefault();
-        handleRedo();
-      }
-      if (mod && e.key === "s") {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [editMode, handleUndo, handleRedo, handleSave]);
+  useHotkeys([
+    { hotkey: "Mod+Z", callback: () => handleUndo(), options: { enabled: editMode === "edit" && canUndo } },
+    { hotkey: "Mod+Shift+Z", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
+    { hotkey: "Mod+Y", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
+    { hotkey: "Mod+S", callback: () => handleSave(), options: { enabled: editMode === "edit" } },
+  ]);
 
   return (
     <div className="flex h-dvh w-dvw flex-col overflow-hidden">
@@ -286,9 +328,14 @@ function Page() {
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
           <MenubarContent>
-            <MenubarItem disabled={isSaving} onClick={handleSave}>
-              Save{isDirty ? " *" : ""} <MenubarShortcut>⌘S</MenubarShortcut>
-            </MenubarItem>
+            {editMode === "edit" && (
+              <>
+                <MenubarItem disabled={isSaving} onClick={handleSave}>
+                  Save{isDirty ? " *" : ""} <MenubarShortcut>⌘S</MenubarShortcut>
+                </MenubarItem>
+                <MenubarSeparator />
+              </>
+            )}
             <MenubarItem>
               Export… <MenubarShortcut>⇧⌘E</MenubarShortcut>
             </MenubarItem>
@@ -299,40 +346,96 @@ function Page() {
           </MenubarContent>
         </MenubarMenu>
 
-        <MenubarMenu>
-          <MenubarTrigger>Edit</MenubarTrigger>
-          <MenubarContent>
-            <MenubarItem disabled={!canUndo || editMode !== "edit"} onClick={handleUndo}>
-              Undo <MenubarShortcut>⌘Z</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem disabled={!canRedo || editMode !== "edit"} onClick={handleRedo}>
-              Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
-            </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem>
-              Delete <MenubarShortcut>⌫</MenubarShortcut>
-            </MenubarItem>
-          </MenubarContent>
-        </MenubarMenu>
+        {editMode === "edit" && (
+          <MenubarMenu>
+            <MenubarTrigger>Edit</MenubarTrigger>
+            <MenubarContent>
+              <MenubarItem disabled={!canUndo} onClick={handleUndo}>
+                Undo <MenubarShortcut>⌘Z</MenubarShortcut>
+              </MenubarItem>
+              <MenubarItem disabled={!canRedo} onClick={handleRedo}>
+                Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
+              </MenubarItem>
+              <MenubarSeparator />
+              <MenubarItem>
+                Delete <MenubarShortcut>⌫</MenubarShortcut>
+              </MenubarItem>
+            </MenubarContent>
+          </MenubarMenu>
+        )}
 
-        {/* ── Spacer + Monitor/Edit Switch ── */}
-        <div aria-label="Edit mode" className="ml-auto flex items-center gap-0.5" role="group">
-          <Toggle
-            aria-label="Monitor mode"
-            onPressedChange={() => setEditMode("monitor")}
-            pressed={editMode === "monitor"}
-            size="sm"
+        {/* ── Spacer + mode toggle + settings ── */}
+        <div className="ml-auto flex items-center gap-0.5">
+          <Button
+            aria-label={editMode === "monitor" ? "Switch to Edit mode" : "Switch to Monitor mode"}
+            onClick={() => setEditMode(editMode === "monitor" ? "edit" : "monitor")}
+            size="icon-sm"
+            variant="ghost"
           >
-            Monitor
-          </Toggle>
-          <Toggle
-            aria-label="Edit mode"
-            onPressedChange={() => setEditMode("edit")}
-            pressed={editMode === "edit"}
-            size="sm"
+            {editMode === "monitor" ? <PencilIcon /> : <EyeIcon />}
+          </Button>
+          <Dialog
+            onOpenChange={(open) => {
+              setSettingsOpen(open);
+              setConfirmDelete(false);
+              if (open) setSettingsName(facilityName);
+            }}
+            open={settingsOpen}
           >
-            Edit
-          </Toggle>
+            <DialogTrigger asChild>
+              <Button aria-label="Settings" size="icon-sm" variant="ghost">
+                <SettingsIcon />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Facility Settings</DialogTitle>
+                <DialogDescription>Edit facility metadata and preferences.</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3 p-1">
+                <Field label="Facility name">
+                  <Input
+                    onChange={(e) => setSettingsName(e.target.value)}
+                    placeholder="Enter facility name"
+                    value={settingsName}
+                  />
+                </Field>
+              </div>
+              <DialogFooter>
+                <div className="flex w-full items-center justify-between">
+                  <Button
+                    disabled={deleting}
+                    onClick={() => {
+                      if (!confirmDelete) {
+                        setConfirmDelete(true);
+                      } else {
+                        handleDelete();
+                      }
+                    }}
+                    size="sm"
+                    variant="destructive"
+                  >
+                    {deleting ? "Deleting…" : confirmDelete ? "Confirm delete?" : "Delete facility"}
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setSettingsOpen(false);
+                        setConfirmDelete(false);
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                    <Button disabled={!settingsName.trim() || isSaving} onClick={handleSettingsSave} size="sm">
+                      {isSaving ? "Saving…" : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </Menubar>
 

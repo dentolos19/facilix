@@ -55,6 +55,7 @@ export interface FacilitySnapshot {
 
 export interface SaveInput {
   facilityId: string;
+  name: string;
   canvasData: CanvasLayoutData;
   zones: ZoneRow[];
   devices: DeviceRow[];
@@ -151,6 +152,7 @@ export const loadFacility = createServerFn({ method: "GET" })
 export const saveFacility = createServerFn({ method: "POST" })
   .inputValidator((data: SaveInput) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
+    if (!data.name || typeof data.name !== "string") throw new Error("Name is required");
     if (!data.canvasData) throw new Error("Canvas data is required");
     if (!Array.isArray(data.zones)) throw new Error("Zones array is required");
     if (!Array.isArray(data.devices)) throw new Error("Devices array is required");
@@ -160,10 +162,10 @@ export const saveFacility = createServerFn({ method: "POST" })
     const db = createDatabase(env.DB);
     const now = new Date();
 
-    // 1. Update the facility row (canvas layout metadata)
+    // 1. Update the facility row (name + canvas layout metadata)
     await db
       .update(schema.facility)
-      .set({ data: data.canvasData, updatedAt: now })
+      .set({ name: data.name, data: data.canvasData, updatedAt: now })
       .where(eq(schema.facility.id, data.facilityId));
 
     // ── Zones ────────────────────────────────────────────────────────────
@@ -260,4 +262,18 @@ export const saveFacility = createServerFn({ method: "POST" })
 
     // Return the updated snapshot
     return loadFacility({ data: { id: data.facilityId } });
+  });
+
+/**
+ * Delete a facility and all its related zones, devices, and logs (cascade).
+ */
+export const deleteFacility = createServerFn({ method: "POST" })
+  .inputValidator((data: { id: string }) => {
+    if (!data.id) throw new Error("Facility ID is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const db = createDatabase(env.DB);
+    await db.delete(schema.facility).where(eq(schema.facility.id, data.id));
+    return { success: true };
   });

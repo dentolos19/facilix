@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
-import { signIn, signUp } from "#/lib/auth/client";
+import { Spinner } from "#/components/ui/spinner";
+import { signIn, signUp, useSession } from "#/lib/auth/client";
 
 type AuthMode = "login" | "signup";
 
@@ -38,6 +40,26 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { mode = "login" } = useSearch({ from: Route.id });
   const navigate = useNavigate();
+  const { data: session, isPending } = useSession();
+
+  // Auto-redirect to dashboard if already logged in
+  useEffect(() => {
+    if (!isPending && session) {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }, [session, isPending, navigate]);
+
+  if (isPending) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center p-4">
+        <Spinner className="size-8" />
+      </main>
+    );
+  }
+
+  if (session) {
+    return null;
+  }
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
@@ -75,6 +97,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,13 +105,13 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      await signIn.email({
-        email,
-        password,
-        callbackURL: "/",
-      });
+      await signIn.email({ email, password });
+      toast.success("Welcome back!");
+      navigate({ to: "/dashboard" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed. Please try again.");
+      const message = err instanceof Error ? err.message : "Sign in failed. Please try again.";
+      toast.error(message);
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -152,6 +175,7 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -159,14 +183,13 @@ function SignUpForm() {
     setLoading(true);
 
     try {
-      await signUp.email({
-        name,
-        email,
-        password,
-        callbackURL: "/",
-      });
+      await signUp.email({ name, email, password });
+      toast.success("Account created successfully! Welcome to Facilix.");
+      navigate({ to: "/dashboard" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign up failed. Please try again.");
+      const message = err instanceof Error ? err.message : "Sign up failed. Please try again.";
+      toast.error(message);
+      setError(message);
     } finally {
       setLoading(false);
     }
