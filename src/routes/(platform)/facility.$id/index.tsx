@@ -3,7 +3,7 @@
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type Konva from "konva";
-import { BoxIcon, EyeIcon, Grid3x3Icon, MapPinIcon, PencilIcon, RadioIcon, SettingsIcon, Trash2, WifiIcon } from "lucide-react";
+import { BoxIcon, EyeIcon, Grid3x3Icon, Loader2, MapPinIcon, PencilIcon, RadioIcon, Save, SettingsIcon, Trash2, WifiIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
@@ -267,7 +267,7 @@ function Page() {
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async ({ silent = false } = {}) => {
     setIsSaving(true);
     try {
       const items = placedItemsRef.current;
@@ -276,7 +276,7 @@ function Page() {
       const devices = toDevicePayloads(facilityId, items);
       await saveFacility({ data: { facilityId, name: facilityName, canvasData, zones, devices } });
       setIsDirty(false);
-      toast.success("Facility saved");
+      if (!silent) toast.success("Facility saved");
     } catch (err) {
       toast.error("Failed to save facility");
       console.error(err);
@@ -284,6 +284,25 @@ function Page() {
       setIsSaving(false);
     }
   }, [facilityId, facilityName]);
+
+  // ── Auto-save (2 s debounce) ────────────────────────────────────────────
+  useEffect(() => {
+    if (!isDirty || editMode !== "edit" || isSaving) return;
+    const timer = setTimeout(() => {
+      handleSave({ silent: true });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [isDirty, editMode, isSaving, handleSave]);
+
+  // ── Warn before closing tab with unsaved changes ───────────────────────
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
 
   const handleSettingsSave = useCallback(async () => {
     if (!settingsName.trim()) return;
@@ -340,7 +359,7 @@ function Page() {
           <MenubarContent>
             {editMode === "edit" && (
               <>
-                <MenubarItem disabled={isSaving} onClick={handleSave}>
+                <MenubarItem disabled={isSaving} onClick={() => handleSave()}>
                   Save{isDirty ? " *" : ""} <MenubarShortcut>⌘S</MenubarShortcut>
                 </MenubarItem>
                 <MenubarSeparator />
@@ -350,7 +369,13 @@ function Page() {
               Export… <MenubarShortcut>⇧⌘E</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
-            <MenubarItem onClick={() => navigate({ to: "/dashboard" })} variant="destructive">
+            <MenubarItem
+              onClick={() => {
+                if (isDirty) handleSave({ silent: true });
+                navigate({ to: "/dashboard" });
+              }}
+              variant="destructive"
+            >
               Back to Dashboard
             </MenubarItem>
           </MenubarContent>
@@ -374,11 +399,29 @@ function Page() {
           </MenubarMenu>
         )}
 
-        {/* ── Spacer + mode toggle + settings ── */}
+        {/* ── Spacer + save + mode toggle + settings ── */}
         <div className="ml-auto flex items-center gap-0.5">
+          {editMode === "edit" && (
+            <Button
+              aria-label={isSaving ? "Saving…" : "Save facility"}
+              disabled={isSaving}
+              onClick={() => handleSave()}
+              size="icon-sm"
+              variant="ghost"
+              className="relative"
+            >
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              {isDirty && !isSaving && (
+                <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500" />
+              )}
+            </Button>
+          )}
           <Button
             aria-label={editMode === "monitor" ? "Switch to Edit mode" : "Switch to Monitor mode"}
-            onClick={() => setEditMode(editMode === "monitor" ? "edit" : "monitor")}
+            onClick={() => {
+              if (editMode === "edit" && isDirty) handleSave({ silent: true });
+              setEditMode(editMode === "monitor" ? "edit" : "monitor");
+            }}
             size="icon-sm"
             variant="ghost"
           >
