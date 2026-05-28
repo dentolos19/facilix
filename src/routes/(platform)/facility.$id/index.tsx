@@ -3,7 +3,7 @@
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type Konva from "konva";
-import { EyeIcon, PencilIcon, SettingsIcon } from "lucide-react";
+import { BoxIcon, EyeIcon, Grid3x3Icon, MapPinIcon, PencilIcon, RadioIcon, SettingsIcon, Trash2, WifiIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
@@ -29,7 +29,9 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from "#/components/ui/menubar.tsx";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select.tsx";
 import { deleteFacility, loadFacility, saveFacility } from "#/functions/facilities";
 import type { PlacedItem, PlacedItemType } from "#/lib/types";
 import {
@@ -228,6 +230,14 @@ function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  const removePlacedItem = useCallback((id: string) => {
+    saveSnapshot();
+    setPlacedItems((prev) => prev.filter((item) => item.id !== id));
+    setSelectedItemId((prev) => (prev === id ? null : prev));
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Undo / Redo ──────────────────────────────────────────────────────────
 
@@ -487,7 +497,7 @@ function Page() {
           ) : (
             <PropertiesPanel
               editMode={editMode}
-              onSelectItem={setSelectedItemId}
+              onDeleteItem={removePlacedItem}
               onUpdateItem={updatePlacedItemData}
               onUpdateLayout={updatePlacedItem}
               placedItems={placedItems}
@@ -927,63 +937,87 @@ function PlacedShape({
 }
 
 /** Component palette shown in edit mode. */
-const PLACEABLE_ITEMS: { label: PlacedItemType; icon: string; description: string }[] = [
-  { label: "Zone", icon: "⊞", description: "Rooms, areas & locations" },
-  { label: "Marker", icon: "⚐", description: "Labels, notes & alerts" },
-  { label: "CCTV", icon: "◉", description: "AI cameras & live feeds" },
-  { label: "Sensor", icon: "◈", description: "IoT environmental sensors" },
-  { label: "Signal", icon: "⌔", description: "Connectivity & signal gateways" },
+const PLACEABLE_ITEMS: {
+  label: PlacedItemType;
+  icon: React.FC<{ className?: string }>;
+  description: string;
+  color: string;
+  bgColor: string;
+}[] = [
+  {
+    label: "Zone",
+    icon: Grid3x3Icon,
+    description: "Rooms, areas & locations",
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10",
+  },
+  {
+    label: "Marker",
+    icon: MapPinIcon,
+    description: "Labels, notes & alerts",
+    color: "text-amber-500",
+    bgColor: "bg-amber-500/10",
+  },
+  {
+    label: "CCTV",
+    icon: BoxIcon,
+    description: "AI cameras & live feeds",
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-500/10",
+  },
+  {
+    label: "Sensor",
+    icon: WifiIcon,
+    description: "IoT environmental sensors",
+    color: "text-violet-500",
+    bgColor: "bg-violet-500/10",
+  },
+  {
+    label: "Signal",
+    icon: RadioIcon,
+    description: "Connectivity & gateways",
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10",
+  },
 ];
 
 function ComponentPalette() {
   return (
-    <div className="flex h-full flex-col gap-2 p-4">
-      <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">Components</h3>
-      <p className="text-[11px] leading-relaxed text-muted-foreground/60">Drag items onto the canvas to place them.</p>
-      <div className="flex flex-col gap-1">
-        {PLACEABLE_ITEMS.map((item) => (
-          <button
-            className="flex cursor-grab items-center gap-2 rounded-none px-2.5 py-1.5 text-left text-xs text-foreground/80 transition-colors hover:bg-muted active:cursor-grabbing"
-            draggable
-            key={item.label}
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", item.label);
-              e.dataTransfer.effectAllowed = "copy";
-            }}
-            type="button"
-          >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-xs leading-none">{item.icon}</span>
-            <span>{item.label}</span>
-          </button>
-        ))}
+    <div className="flex h-full flex-col gap-4 p-4">
+      <div className="space-y-1">
+        <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">Components</h3>
+        <p className="text-[11px] leading-relaxed text-muted-foreground/60">Drag items onto the canvas to place them.</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {PLACEABLE_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:cursor-grabbing active:scale-[0.98]"
+              draggable
+              key={item.label}
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", item.label);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+              type="button"
+            >
+              <span
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${item.bgColor} transition-colors group-hover:scale-105`}
+              >
+                <Icon className={`h-4 w-4 ${item.color}`} />
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium text-foreground/90">{item.label}</span>
+                <span className="text-[10px] leading-tight text-muted-foreground/60">{item.description}</span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
-
-/** Metadata for type-specific properties shown in the Properties panel. */
-const PROPS_META: Record<PlacedItemType, { key: string; label: string; type: "text" | "number" }[]> = {
-  Zone: [{ key: "color", label: "Color", type: "text" }],
-  Marker: [
-    { key: "label", label: "Label text", type: "text" },
-    { key: "color", label: "Color", type: "text" },
-  ],
-  CCTV: [
-    { key: "label", label: "Label", type: "text" },
-    { key: "streamUrl", label: "Stream URL", type: "text" },
-    { key: "status", label: "Status", type: "text" },
-  ],
-  Sensor: [
-    { key: "label", label: "Label", type: "text" },
-    { key: "unit", label: "Unit", type: "text" },
-    { key: "threshold", label: "Threshold", type: "number" },
-  ],
-  Signal: [
-    { key: "label", label: "Label", type: "text" },
-    { key: "strength", label: "Signal strength", type: "number" },
-    { key: "frequency", label: "Frequency (MHz)", type: "number" },
-  ],
-};
 
 interface PropertiesPanelProps {
   editMode: EditMode;
@@ -994,7 +1028,7 @@ interface PropertiesPanelProps {
     data: Partial<Pick<PlacedItem, "name" | "notes"> & { props: Record<string, string | number> }>,
   ) => void;
   onUpdateLayout: (id: string, patch: Partial<Pick<PlacedItem, "width" | "height">>) => void;
-  onSelectItem: (id: string | null) => void;
+  onDeleteItem: (id: string) => void;
 }
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
@@ -1004,14 +1038,30 @@ function PropertiesPanel({
   selectedItemId,
   onUpdateItem,
   onUpdateLayout,
+  onDeleteItem,
 }: PropertiesPanelProps) {
   const selected = placedItems.find((i) => i.id === selectedItemId) ?? null;
-
   const isReadOnly = editMode === "monitor";
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4">
-      <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">Properties</h3>
+    <div className="flex h-full flex-col overflow-y-auto p-4">
+      {/* ── Header with title and delete button ── */}
+      <div className="mb-3 flex shrink-0 items-center justify-between">
+        <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Properties
+        </h3>
+        {selected && editMode === "edit" && (
+          <Button
+            aria-label="Delete component"
+            onClick={() => onDeleteItem(selected.id)}
+            size="icon-sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive/80"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        )}
+      </div>
 
       {!selected && (
         <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 text-center">
@@ -1024,127 +1074,386 @@ function PropertiesPanel({
       )}
 
       {selected && (
-        <div className="flex flex-col gap-3">
-          {/* Read-only badge */}
-          {isReadOnly && (
-            <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-              Read-only — switch to Edit to modify
-            </p>
-          )}
-
-          {/* ── Common fields ── */}
-          <Field label="Name" readOnly={isReadOnly}>
-            <Input
-              className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-              onChange={(e) => onUpdateItem(selected.id, { name: e.target.value })}
-              readOnly={isReadOnly}
-              value={selected.name}
-            />
-          </Field>
-
-          <Field label="Type">
-            <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
-              {selected.type}
-            </div>
-          </Field>
-
-          <Field label="Position" noGrow>
-            <div className="flex gap-2">
-              <Input
-                className="w-1/2 pointer-events-none opacity-60"
-                readOnly
-                tabIndex={-1}
-                value={Math.round(selected.x)}
-              />
-              <Input
-                className="w-1/2 pointer-events-none opacity-60"
-                readOnly
-                tabIndex={-1}
-                value={Math.round(selected.y)}
-              />
-            </div>
-          </Field>
-
-          {selected.type === "Zone" && (
-            <Field label="Size" noGrow>
-              <div className="flex gap-2">
-                <Input
-                  className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
-                  onChange={(e) => onUpdateLayout(selected.id, { width: Math.max(10, Number(e.target.value)) })}
-                  readOnly={isReadOnly}
-                  type="number"
-                  value={selected.width}
-                />
-                <Input
-                  className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
-                  onChange={(e) => onUpdateLayout(selected.id, { height: Math.max(10, Number(e.target.value)) })}
-                  readOnly={isReadOnly}
-                  type="number"
-                  value={selected.height}
-                />
-              </div>
-            </Field>
-          )}
-
-          <Field label="Notes" noGrow>
-            <textarea
-              className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
-              onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
-              readOnly={isReadOnly}
-              rows={3}
-              value={selected.notes}
-            />
-          </Field>
-
-          {/* ── Type-specific fields ── */}
-          {PROPS_META[selected.type].length > 0 && (
-            <div className="border-t border-border pt-2">
-              <h4 className="mb-2 font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                {selected.type} Properties
-              </h4>
+        <Accordion className="flex-1" defaultValue={["basic-info"]} type="multiple">
+          {/* ── Section 1: Basic Information (all types) ── */}
+          <AccordionItem value="basic-info">
+            <AccordionTrigger>Basic Information</AccordionTrigger>
+            <AccordionContent>
               <div className="flex flex-col gap-2">
-                {PROPS_META[selected.type].map((meta) => (
-                  <Field key={meta.key} label={meta.label} readOnly={isReadOnly}>
+                {isReadOnly && (
+                  <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                    Read-only — switch to Edit to modify
+                  </p>
+                )}
+
+                <Field label="Name" readOnly={isReadOnly}>
+                  <Input
+                    className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                    onChange={(e) => onUpdateItem(selected.id, { name: e.target.value })}
+                    readOnly={isReadOnly}
+                    value={selected.name}
+                  />
+                </Field>
+
+                <Field label="Type">
+                  <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                    {selected.type}
+                  </div>
+                </Field>
+
+                <Field label="Position" noGrow>
+                  <div className="flex gap-2">
+                    <Input
+                      className="w-1/2 pointer-events-none opacity-60"
+                      readOnly
+                      tabIndex={-1}
+                      value={Math.round(selected.x)}
+                    />
+                    <Input
+                      className="w-1/2 pointer-events-none opacity-60"
+                      readOnly
+                      tabIndex={-1}
+                      value={Math.round(selected.y)}
+                    />
+                  </div>
+                </Field>
+
+                {selected.type === "Zone" && (
+                  <Field label="Size" noGrow>
+                    <div className="flex gap-2">
+                      <Input
+                        className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
+                        onChange={(e) => onUpdateLayout(selected.id, { width: Math.max(10, Number(e.target.value)) })}
+                        readOnly={isReadOnly}
+                        type="number"
+                        value={selected.width}
+                      />
+                      <Input
+                        className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
+                        onChange={(e) => onUpdateLayout(selected.id, { height: Math.max(10, Number(e.target.value)) })}
+                        readOnly={isReadOnly}
+                        type="number"
+                        value={selected.height}
+                      />
+                    </div>
+                  </Field>
+                )}
+
+                <Field label="Notes" noGrow>
+                  <textarea
+                    className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
+                    onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
+                    readOnly={isReadOnly}
+                    rows={3}
+                    value={selected.notes}
+                  />
+                </Field>
+
+                <Field label="Color">
+                  <div className="flex gap-2">
+                    <input
+                      className="h-8 w-10 cursor-pointer rounded-none border border-input bg-transparent p-0.5 disabled:pointer-events-none disabled:opacity-60"
+                      disabled={isReadOnly}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { color: e.target.value } })}
+                      type="color"
+                      value={String(selected.props.color ?? "#3b82f6")}
+                    />
+                    <Input
+                      className={isReadOnly ? "flex-1 pointer-events-none opacity-60" : "flex-1"}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { color: e.target.value } })}
+                      readOnly={isReadOnly}
+                      value={String(selected.props.color ?? "")}
+                    />
+                  </div>
+                </Field>
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* ── Section 2: Data Source (varies by component type) ── */}
+          {selected.type === "Marker" && (
+            <AccordionItem value="data-source">
+              <AccordionTrigger>Data Source</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col gap-2">
+                  <Field label="Label">
                     <Input
                       className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                      onChange={(e) =>
-                        onUpdateItem(selected.id, {
-                          props: {
-                            [meta.key]: meta.type === "number" ? Number(e.target.value) : e.target.value,
-                          },
-                        })
-                      }
+                      onChange={(e) => onUpdateItem(selected.id, { props: { label: e.target.value } })}
+                      placeholder="Short display text"
                       readOnly={isReadOnly}
-                      type={meta.type}
-                      value={String(selected.props[meta.key] ?? "")}
+                      value={String(selected.props.label ?? "")}
                     />
                   </Field>
-                ))}
-              </div>
-            </div>
+                  <Field label="Marker Type">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { markerType: value } })}
+                      value={String(selected.props.markerType ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="info">Info</SelectItem>
+                        <SelectItem value="warning">Warning</SelectItem>
+                        <SelectItem value="alert">Alert</SelectItem>
+                        <SelectItem value="danger">Danger</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           )}
 
-          {/* ── Delete button in edit mode ── */}
-          {editMode === "edit" && (
-            <span className="block border-t border-border pt-2">
-              <span
-                className="inline-block cursor-pointer text-[11px] text-destructive transition-colors hover:text-destructive/80"
-                onClick={() => {
-                  // Handled via keyboard shortcut / context menu for now
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                Delete component
-              </span>
-            </span>
+          {selected.type === "CCTV" && (
+            <AccordionItem value="data-source">
+              <AccordionTrigger>Data Source</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col gap-2">
+                  <Field label="Device ID">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
+                      placeholder="e.g. cam-warehouse-01"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.deviceId ?? "")}
+                    />
+                  </Field>
+                  <Field label="Stream URL">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { streamUrl: e.target.value } })}
+                      placeholder="rtsp://192.168.1.100/stream1"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.streamUrl ?? "")}
+                    />
+                  </Field>
+                  <Field label="Status">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { status: value } })}
+                      value={String(selected.props.status ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="online">Online</SelectItem>
+                        <SelectItem value="offline">Offline</SelectItem>
+                        <SelectItem value="maintenance">Maintenance</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Protocol">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { protocol: value } })}
+                      value={String(selected.props.protocol ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select protocol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="rtsp">RTSP</SelectItem>
+                        <SelectItem value="http-flv">HTTP-FLV</SelectItem>
+                        <SelectItem value="hls">HLS</SelectItem>
+                        <SelectItem value="onvif">ONVIF</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Authentication">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { auth: value } })}
+                      value={String(selected.props.auth ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select auth type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="basic">Basic</SelectItem>
+                        <SelectItem value="digest">Digest</SelectItem>
+                        <SelectItem value="token">Token</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
           )}
-        </div>
+
+          {selected.type === "Sensor" && (
+            <AccordionItem value="data-source">
+              <AccordionTrigger>Data Source</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col gap-2">
+                  <Field label="Device ID">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
+                      placeholder="e.g. sensor-temp-02"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.deviceId ?? "")}
+                    />
+                  </Field>
+                  <Field label="Sensor Type">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
+                      value={String(selected.props.sensorType ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select sensor type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="temperature">Temperature</SelectItem>
+                        <SelectItem value="humidity">Humidity</SelectItem>
+                        <SelectItem value="pressure">Pressure</SelectItem>
+                        <SelectItem value="air-quality">Air Quality</SelectItem>
+                        <SelectItem value="vibration">Vibration</SelectItem>
+                        <SelectItem value="motion">Motion</SelectItem>
+                        <SelectItem value="gas">Gas</SelectItem>
+                        <SelectItem value="light">Light</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Unit">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { unit: e.target.value } })}
+                      placeholder="e.g. °C, %, ppm"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.unit ?? "")}
+                    />
+                  </Field>
+                  <Field label="Alert Threshold">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { threshold: Number(e.target.value) } })}
+                      placeholder="e.g. 50"
+                      readOnly={isReadOnly}
+                      type="number"
+                      value={String(selected.props.threshold ?? "")}
+                    />
+                  </Field>
+                  <Field label="Host / Broker">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { host: e.target.value } })}
+                      placeholder="e.g. mqtt.internal:1883"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.host ?? "")}
+                    />
+                  </Field>
+                  <Field label="Topic / Path">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { topic: e.target.value } })}
+                      placeholder="e.g. /warehouse/sensors/temperature"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.topic ?? "")}
+                    />
+                  </Field>
+                  <Field label="Poll Interval (s)">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { pollInterval: Number(e.target.value) } })}
+                      placeholder="e.g. 30"
+                      readOnly={isReadOnly}
+                      type="number"
+                      value={String(selected.props.pollInterval ?? "")}
+                    />
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+
+          {selected.type === "Signal" && (
+            <AccordionItem value="data-source">
+              <AccordionTrigger>Data Source</AccordionTrigger>
+              <AccordionContent>
+                <div className="flex flex-col gap-2">
+                  <Field label="Device ID">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
+                      placeholder="e.g. gw-delta-03"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.deviceId ?? "")}
+                    />
+                  </Field>
+                  <Field label="Signal Strength">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { strength: Number(e.target.value) } })}
+                      placeholder="0–100 %"
+                      readOnly={isReadOnly}
+                      type="number"
+                      value={String(selected.props.strength ?? "")}
+                    />
+                  </Field>
+                  <Field label="Frequency (MHz)">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { frequency: Number(e.target.value) } })}
+                      placeholder="e.g. 2400"
+                      readOnly={isReadOnly}
+                      type="number"
+                      value={String(selected.props.frequency ?? "")}
+                    />
+                  </Field>
+                  <Field label="Protocol">
+                    <Select
+                      disabled={isReadOnly}
+                      onValueChange={(value) => onUpdateItem(selected.id, { props: { protocol: value } })}
+                      value={String(selected.props.protocol ?? "")}
+                    >
+                      <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                        <SelectValue placeholder="Select protocol" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="wifi">Wi-Fi</SelectItem>
+                        <SelectItem value="zigbee">Zigbee</SelectItem>
+                        <SelectItem value="zwave">Z-Wave</SelectItem>
+                        <SelectItem value="lorawan">LoRaWAN</SelectItem>
+                        <SelectItem value="bluetooth">Bluetooth</SelectItem>
+                        <SelectItem value="cellular">Cellular</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Host">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { host: e.target.value } })}
+                      placeholder="e.g. 192.168.1.1"
+                      readOnly={isReadOnly}
+                      value={String(selected.props.host ?? "")}
+                    />
+                  </Field>
+                  <Field label="Port">
+                    <Input
+                      className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                      onChange={(e) => onUpdateItem(selected.id, { props: { port: Number(e.target.value) } })}
+                      placeholder="e.g. 8080"
+                      readOnly={isReadOnly}
+                      type="number"
+                      value={String(selected.props.port ?? "")}
+                    />
+                  </Field>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+        </Accordion>
       )}
     </div>
   );
 }
-
 /** Small wrapper for a labelled field row. */
 function Field({
   label,

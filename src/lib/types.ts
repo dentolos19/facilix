@@ -48,10 +48,10 @@ export interface CanvasItemLayout {
 /** Type-specific properties by device kind. */
 export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | number>> = {
   Zone: { color: "#3b82f6" },
-  Marker: { label: "", color: "#f59e0b" },
-  CCTV: { label: "", streamUrl: "", status: "online" },
-  Sensor: { label: "", unit: "°C", threshold: 50 },
-  Signal: { label: "", strength: 80, frequency: 2400 },
+  Marker: { label: "", color: "#f59e0b", markerType: "info" },
+  CCTV: { streamUrl: "", status: "online", color: "#10b981", protocol: "rtsp", auth: "none" },
+  Sensor: { unit: "°C", threshold: 50, color: "#8b5cf6", sensorType: "temperature", pollInterval: 30 },
+  Signal: { strength: 80, frequency: 2400, color: "#06b6d4", protocol: "wifi" },
 };
 
 /** Default width/height for each item type (canvas layout defaults). */
