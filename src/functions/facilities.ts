@@ -64,7 +64,7 @@ export interface SaveInput {
 // ─── CRUD server functions ────────────────────────────────────────────────
 
 export const getFacilities = createServerFn({ method: "GET" }).handler(async () => {
-  const db = createDatabase(env.DB);
+  const db = createDatabase(env.DATABASE);
   const facilities = await db.select().from(schema.facility);
   return facilities.map(toFacilityRow);
 });
@@ -77,7 +77,7 @@ export const createFacility = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const db = createDatabase(env.DB);
+    const db = createDatabase(env.DATABASE);
     const id = crypto.randomUUID();
     const now = new Date();
 
@@ -104,7 +104,7 @@ export const loadFacility = createServerFn({ method: "GET" })
     return data;
   })
   .handler(async ({ data }) => {
-    const db = createDatabase(env.DB);
+    const db = createDatabase(env.DATABASE);
 
     const [fac] = await db.select().from(schema.facility).where(eq(schema.facility.id, data.id)).limit(1);
 
@@ -159,7 +159,7 @@ export const saveFacility = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const db = createDatabase(env.DB);
+    const db = createDatabase(env.DATABASE);
     const now = new Date();
 
     // 1. Update the facility row (name + canvas layout metadata)
@@ -273,7 +273,7 @@ export const deleteFacility = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const db = createDatabase(env.DB);
+    const db = createDatabase(env.DATABASE);
     await db.delete(schema.facility).where(eq(schema.facility.id, data.id));
     return { success: true };
   });
