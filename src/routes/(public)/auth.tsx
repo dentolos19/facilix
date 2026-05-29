@@ -7,7 +7,7 @@ import { Input } from "#/components/ui/input";
 import { Spinner } from "#/components/ui/spinner";
 import { signIn, signUp, useSession } from "#/lib/auth/client";
 
-type AuthMode = "login" | "signup";
+type AuthMode = "login" | "register";
 
 const modeConfig = {
   login: {
@@ -17,9 +17,9 @@ const modeConfig = {
     loadingLabel: "Signing in…",
     footerPrefix: "Don't have an account?",
     footerLinkLabel: "Sign up",
-    otherMode: "signup" as AuthMode,
+    otherMode: "register" as AuthMode,
   },
-  signup: {
+  register: {
     title: "Create account",
     description: "Fill in your details to get started",
     submitLabel: "Create account",
@@ -30,10 +30,10 @@ const modeConfig = {
   },
 } as const;
 
-export const Route = createFileRoute("/auth")({
+export const Route = createFileRoute("/(public)/auth")({
   component: AuthPage,
   validateSearch: (search: Record<string, unknown>): { mode?: AuthMode } => ({
-    mode: search.mode === "signup" ? "signup" : "login",
+    mode: search.mode === "register" ? "register" : "login",
   }),
 });
 
@@ -77,16 +77,16 @@ function AuthPage() {
           </button>
           <button
             className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
-              mode === "signup"
+              mode === "register"
                 ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
-            onClick={() => navigate({ to: "/auth", search: { mode: "signup" }, replace: true })}
+            onClick={() => navigate({ to: "/auth", search: { mode: "register" }, replace: true })}
           >
             Create account
           </button>
         </div>
-        {mode === "login" ? <LoginForm /> : <SignUpForm />}
+        {mode === "login" ? <LoginForm /> : <RegisterForm />}
       </Card>
     </main>
   );
@@ -159,7 +159,7 @@ function LoginForm() {
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link className="underline underline-offset-2" search={{ mode: "signup" }} to="/auth">
+            <Link className="underline underline-offset-2" search={{ mode: "register" }} to="/auth">
               Sign up
             </Link>
           </p>
@@ -169,7 +169,7 @@ function LoginForm() {
   );
 }
 
-function SignUpForm() {
+function RegisterForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -198,8 +198,8 @@ function SignUpForm() {
   return (
     <>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">{modeConfig.signup.title}</CardTitle>
-        <CardDescription>{modeConfig.signup.description}</CardDescription>
+        <CardTitle className="text-2xl">{modeConfig.register.title}</CardTitle>
+        <CardDescription>{modeConfig.register.description}</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -247,7 +247,7 @@ function SignUpForm() {
           </div>
           {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <Button disabled={loading} type="submit">
-            {loading ? modeConfig.signup.loadingLabel : modeConfig.signup.submitLabel}
+            {loading ? modeConfig.register.loadingLabel : modeConfig.register.submitLabel}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}

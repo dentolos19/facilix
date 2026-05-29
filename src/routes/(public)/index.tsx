@@ -17,7 +17,7 @@ import {
 import { Button } from "#/components/ui/button";
 import { useSession } from "#/lib/auth/client";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/(public)/")({ component: Home });
 
 const features = [
   {
@@ -108,7 +108,7 @@ function Home() {
                 </Link>
               </Button>
               <Button asChild size="sm">
-                <Link search={{ mode: "signup" }} to="/auth">
+                <Link search={{ mode: "register" }} to="/auth">
                   Get started
                 </Link>
               </Button>
@@ -160,7 +160,7 @@ function Home() {
             ) : (
               <>
                 <Button asChild size="lg">
-                  <Link search={{ mode: "signup" }} to="/auth">
+                  <Link search={{ mode: "register" }} to="/auth">
                     Start mapping your factory <ChevronRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
@@ -260,7 +260,7 @@ function Home() {
             ground up for food safety compliance and industrial security requirements.
           </p>
           <Button asChild className="mt-6" size="sm" variant="outline">
-            <Link search={{ mode: "signup" }} to="/auth">
+            <Link search={{ mode: "register" }} to="/auth">
               Start building <ChevronRight className="ml-1 h-3 w-3" />
             </Link>
           </Button>

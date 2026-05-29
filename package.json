@@ -13,7 +13,7 @@
     "types": "wrangler types && tsr generate",
     "check": "biome check --write",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply DB"
+    "db:migrate": "wrangler d1 migrations apply DATABASE"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.38.0",

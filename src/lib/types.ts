@@ -2,6 +2,54 @@
 
 export type PlacedItemType = "Zone" | "Marker" | "CCTV" | "Sensor" | "Signal";
 
+/** Available icon shapes per component type. */
+export type MarkerShape = "diamond" | "pin" | "star" | "flag" | "circle";
+export type CctvShape = "camera" | "eye" | "video" | "monitor";
+export type SensorShape = "wifi" | "thermometer" | "droplet" | "wind" | "activity" | "sun";
+export type SignalShape = "exclamation" | "antenna" | "signal-bars" | "satellite";
+
+export type IconShape = MarkerShape | CctvShape | SensorShape | SignalShape;
+
+/** Default icon shape for each component type. */
+export const DEFAULT_ICON_SHAPES: Record<PlacedItemType, IconShape> = {
+  Zone: "diamond", // unused for zones but needed for type completeness
+  Marker: "diamond",
+  CCTV: "camera",
+  Sensor: "wifi",
+  Signal: "exclamation",
+};
+
+/** Available icon shapes for each non-zone component type. */
+export const ICON_SHAPE_OPTIONS: Record<string, { value: IconShape; label: string }[]> = {
+  Marker: [
+    { value: "diamond", label: "Diamond" },
+    { value: "pin", label: "Pin" },
+    { value: "star", label: "Star" },
+    { value: "flag", label: "Flag" },
+    { value: "circle", label: "Circle" },
+  ],
+  CCTV: [
+    { value: "camera", label: "Camera" },
+    { value: "eye", label: "Eye" },
+    { value: "video", label: "Video" },
+    { value: "monitor", label: "Monitor" },
+  ],
+  Sensor: [
+    { value: "wifi", label: "Wi-Fi" },
+    { value: "thermometer", label: "Thermometer" },
+    { value: "droplet", label: "Humidity" },
+    { value: "wind", label: "Wind" },
+    { value: "activity", label: "Activity" },
+    { value: "sun", label: "Sun" },
+  ],
+  Signal: [
+    { value: "exclamation", label: "Exclamation" },
+    { value: "antenna", label: "Antenna" },
+    { value: "signal-bars", label: "Signal Bars" },
+    { value: "satellite", label: "Satellite" },
+  ],
+};
+
 /**
  * The in-memory representation of a single item on the canvas.
  * Layout fields (id/x/y/width/height) go into facility.data.
@@ -47,11 +95,11 @@ export interface CanvasItemLayout {
 
 /** Type-specific properties by device kind. */
 export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | number>> = {
-  Zone: { color: "#3b82f6" },
-  Marker: { label: "", color: "#f59e0b", markerType: "info" },
-  CCTV: { streamUrl: "", status: "online", color: "#10b981", protocol: "rtsp", auth: "none" },
-  Sensor: { unit: "°C", threshold: 50, color: "#8b5cf6", sensorType: "temperature", pollInterval: 30 },
-  Signal: { strength: 80, frequency: 2400, color: "#06b6d4", protocol: "wifi" },
+  Zone: { iconColor: "#3b82f6" },
+  Marker: { label: "", iconColor: "#f59e0b", markerType: "info", iconShape: "diamond" },
+  CCTV: { videoSource: "simulation", simulationType: "ai-motion", streamUrl: "", deviceId: "", status: "online", iconColor: "#10b981", iconShape: "camera" },
+  Sensor: { unit: "°C", threshold: 50, iconColor: "#8b5cf6", sensorType: "temperature", pollInterval: 30, iconShape: "wifi" },
+  Signal: { strength: 80, frequency: 2400, iconColor: "#06b6d4", protocol: "wifi", iconShape: "exclamation" },
 };
 
 /** Default width/height for each item type (canvas layout defaults). */
