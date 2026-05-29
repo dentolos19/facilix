@@ -1,0 +1,59 @@
+# MediaMTX configuration for the CCTV simulator.
+# Docs: https://github.com/bluenviron/mediamtx
+
+# Logging
+logLevel: info
+
+# Authentication — allow all for local development
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass: ""
+    ips: []
+    permissions:
+      - action: publish
+        path: ""
+      - action: read
+        path: ""
+      - action: playback
+        path: ""
+  - user: any
+    pass: ""
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+
+# Control API (optional — for future dynamic control)
+api: true
+apiAddress: :9997
+
+# RTSP server
+rtsp: true
+rtspAddress: :8554
+
+# RTMP server
+rtmp: true
+rtmpAddress: :1935
+
+# HLS server (browser playback via hls.js / video.js)
+hls: true
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsAllowOrigins: ["*"]
+
+# WebRTC server (low-latency browser playback)
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: ["*"]
+
+# Path defaults: all paths accept publisher source
+pathDefaults:
+  source: publisher
+
+# Path settings
+paths:
+  all_others:

@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# Docker Compose — CCTV & Sensor Simulators
+#
+# Starts three services:
+#   mediamtx  — RTSP/RTMP/HLS streaming server
+#   cctv      — Python app that loops local MP4 files into MediaMTX
+#   sensors   — Python app that simulates IoT device sensor telemetry
+# ---------------------------------------------------------------------------
+
+services:
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: facilix-mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554" # RTSP
+      - "1935:1935" # RTMP
+      - "8888:8888" # HLS
+      - "8889:8889" # WebRTC
+      - "9997:9997" # API
+    volumes:
+      - ./services/cctv/mediamtx.yml:/mediamtx.yml:ro
+
+  cctv:
+    build:
+      context: ./services/cctv
+      dockerfile: Dockerfile
+    container_name: facilix-cctv
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
+    ports:
+      - "8000:8000" # HTTP API
+    volumes:
+      - ./public/simulation:/videos:ro
+    environment:
+      SIMULATOR_VIDEOS_DIR: /videos
+      MEDIAMTX_HOST: mediamtx
+      MEDIAMTX_RTSP_PORT: "8554"
+      MEDIAMTX_RTMP_PORT: "1935"
+      SIMULATOR_LOG_LEVEL: info
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  sensors:
+    build:
+      context: ./services/sensors
+      dockerfile: Dockerfile
+    container_name: facilix-sensors
+    restart: unless-stopped
+    ports:
+      - "8010:8010" # HTTP API
+    environment:
+      SENSORS_PORT: "8010"
+      SENSORS_LOG_LEVEL: info
+      SENSOR_DEFAULT_INTERVAL_SECONDS: "5"
+      SENSOR_HISTORY_LIMIT: "500"
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:8010/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

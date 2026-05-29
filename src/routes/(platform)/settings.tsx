@@ -49,10 +49,7 @@ function Page() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="theme-select">Theme</Label>
-              <Select
-                onValueChange={(value) => setTheme(value)}
-                value={mounted ? theme : undefined}
-              >
+              <Select onValueChange={(value) => setTheme(value)} value={mounted ? theme : undefined}>
                 <SelectTrigger className="w-full" id="theme-select">
                   <SelectValue placeholder="Select a theme" />
                 </SelectTrigger>
@@ -74,7 +71,6 @@ function Page() {
           </div>
         </CardContent>
       </Card>
-
     </div>
   );
 }

@@ -13,6 +13,12 @@ out/
 *.d.ts
 *.tsbuildinfo
 
+# Environment files (Python)
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+
 # User files
 .env*
 !.env*.template
