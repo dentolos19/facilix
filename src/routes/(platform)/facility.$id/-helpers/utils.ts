@@ -1,6 +1,6 @@
 import type { PlacedItem } from "#/lib/types";
-import type { LogEntry } from "./types";
 import { CCTV_MESSAGES, SENSOR_MESSAGES, SIGNAL_MESSAGES } from "./constants";
+import type { LogEntry } from "./types";
 
 /** Convert a hex color to an rgba string with the given alpha. */
 export function hexToRgba(hex: string, alpha: number): string {

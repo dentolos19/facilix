@@ -97,8 +97,23 @@ export interface CanvasItemLayout {
 export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | number>> = {
   Zone: { iconColor: "#3b82f6" },
   Marker: { label: "", iconColor: "#f59e0b", markerType: "info", iconShape: "diamond" },
-  CCTV: { videoSource: "simulation", simulationType: "ai-motion", streamUrl: "", deviceId: "", status: "online", iconColor: "#10b981", iconShape: "camera" },
-  Sensor: { unit: "°C", threshold: 50, iconColor: "#8b5cf6", sensorType: "temperature", pollInterval: 30, iconShape: "wifi" },
+  CCTV: {
+    videoSource: "simulation",
+    simulationType: "ai-motion",
+    streamUrl: "",
+    deviceId: "",
+    status: "online",
+    iconColor: "#10b981",
+    iconShape: "camera",
+  },
+  Sensor: {
+    unit: "°C",
+    threshold: 50,
+    iconColor: "#8b5cf6",
+    sensorType: "temperature",
+    pollInterval: 30,
+    iconShape: "wifi",
+  },
   Signal: { strength: 80, frequency: 2400, iconColor: "#06b6d4", protocol: "wifi", iconShape: "exclamation" },
 };
 

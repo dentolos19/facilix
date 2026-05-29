@@ -1,3 +1,4 @@
+import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import type { LogEntry } from "../-helpers/types";
 
 /** Time-ordered feed of all IoT device logs (monitor left panel). */
@@ -11,37 +12,39 @@ export function MonitorLogsPanel({
   onSelectDevice: (id: string | null) => void;
 }) {
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto p-4">
-      <h3 className="shrink-0 font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
-        Device Logs
-      </h3>
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-2 p-4">
+        <h3 className="shrink-0 font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Device Logs
+        </h3>
 
-      {logs.length === 0 && (
-        <div className="flex flex-1 items-center justify-center">
-          <span className="text-[11px] text-muted-foreground/50">No IoT devices placed</span>
+        {logs.length === 0 && (
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-[11px] text-muted-foreground/50">No IoT devices placed</span>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1">
+          {logs.slice(0, 200).map((log) => (
+            <button
+              className={`flex flex-col gap-0.5 rounded-none px-2 py-1.5 text-left text-[11px] leading-relaxed transition-colors hover:bg-muted ${
+                selectedDeviceId === log.deviceId ? "bg-muted" : ""
+              }`}
+              key={log.id}
+              onClick={() => onSelectDevice(selectedDeviceId === log.deviceId ? null : log.deviceId)}
+              type="button"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="shrink-0 font-medium text-foreground/80">{log.deviceName}</span>
+                <LogLevelBadge level={log.level} />
+              </div>
+              <span className="text-muted-foreground/70">{log.message}</span>
+              <span className="text-muted-foreground/40">{log.timestamp.toLocaleTimeString()}</span>
+            </button>
+          ))}
         </div>
-      )}
-
-      <div className="flex flex-col gap-1">
-        {logs.slice(0, 200).map((log) => (
-          <button
-            className={`flex flex-col gap-0.5 rounded-none px-2 py-1.5 text-left text-[11px] leading-relaxed transition-colors hover:bg-muted ${
-              selectedDeviceId === log.deviceId ? "bg-muted" : ""
-            }`}
-            key={log.id}
-            onClick={() => onSelectDevice(selectedDeviceId === log.deviceId ? null : log.deviceId)}
-            type="button"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="shrink-0 font-medium text-foreground/80">{log.deviceName}</span>
-              <LogLevelBadge level={log.level} />
-            </div>
-            <span className="text-muted-foreground/70">{log.message}</span>
-            <span className="text-muted-foreground/40">{log.timestamp.toLocaleTimeString()}</span>
-          </button>
-        ))}
       </div>
-    </div>
+    </ScrollArea>
   );
 }
 

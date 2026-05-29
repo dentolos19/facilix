@@ -1,7 +1,7 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2Icon, Loader2Icon, PlusIcon } from "lucide-react";
+import { Building2Icon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/components/ui/button.tsx";
@@ -88,48 +88,55 @@ function Page() {
           <p className="text-xs text-muted-foreground">Manage your facilities and their devices</p>
         </div>
 
-        <Sheet onOpenChange={setIsSheetOpen} open={isSheetOpen}>
-          <SheetTrigger asChild>
-            <Button size="sm">
-              <PlusIcon />
-              New Facility
+        <div className="flex items-center gap-2">
+          <Link to="/settings">
+            <Button aria-label="Settings" size="icon-sm" variant="ghost">
+              <SettingsIcon className="size-4" />
             </Button>
-          </SheetTrigger>
-          <SheetContent side="right">
-            <SheetHeader>
-              <SheetTitle>Create Facility</SheetTitle>
-              <SheetDescription>Add a new facility to manage devices and monitors.</SheetDescription>
-            </SheetHeader>
+          </Link>
+          <Sheet onOpenChange={setIsSheetOpen} open={isSheetOpen}>
+            <SheetTrigger asChild>
+              <Button size="sm">
+                <PlusIcon />
+                New Facility
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <SheetHeader>
+                <SheetTitle>Create Facility</SheetTitle>
+                <SheetDescription>Add a new facility to manage devices and monitors.</SheetDescription>
+              </SheetHeader>
 
-            <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
-              <div className="flex-1 p-4">
-                <Field>
-                  <FieldLabel>Name</FieldLabel>
-                  <Input
-                    autoFocus
-                    disabled={isCreating}
-                    onChange={(e) => setNewFacilityName(e.target.value)}
-                    placeholder="e.g., Main Warehouse"
-                    value={newFacilityName}
-                  />
-                </Field>
-              </div>
+              <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
+                <div className="flex-1 p-4">
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                      autoFocus
+                      disabled={isCreating}
+                      onChange={(e) => setNewFacilityName(e.target.value)}
+                      placeholder="e.g., Main Warehouse"
+                      value={newFacilityName}
+                    />
+                  </Field>
+                </div>
 
-              <SheetFooter>
-                <Button disabled={isCreating || !newFacilityName.trim()} type="submit">
-                  {isCreating ? (
-                    <>
-                      <Loader2Icon className="animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    "Create Facility"
-                  )}
-                </Button>
-              </SheetFooter>
-            </form>
-          </SheetContent>
-        </Sheet>
+                <SheetFooter>
+                  <Button disabled={isCreating || !newFacilityName.trim()} type="submit">
+                    {isCreating ? (
+                      <>
+                        <Loader2Icon className="animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Facility"
+                    )}
+                  </Button>
+                </SheetFooter>
+              </form>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       {isLoading ? (

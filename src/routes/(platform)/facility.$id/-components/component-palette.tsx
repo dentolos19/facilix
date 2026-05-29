@@ -1,40 +1,47 @@
+import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import { PLACEABLE_ITEMS } from "../-helpers/constants";
 
 /** Component palette shown in edit mode. */
 export function ComponentPalette() {
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <div className="space-y-1">
-        <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">Components</h3>
-        <p className="text-[11px] leading-relaxed text-muted-foreground/60">Drag items onto the canvas to place them.</p>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        {PLACEABLE_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:cursor-grabbing active:scale-[0.98]"
-              draggable
-              key={item.label}
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/plain", item.label);
-                e.dataTransfer.effectAllowed = "copy";
-              }}
-              type="button"
-            >
-              <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${item.bgColor} transition-colors group-hover:scale-105`}
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-4 p-4">
+        <div className="space-y-1">
+          <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Components
+          </h3>
+          <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+            Drag items onto the canvas to place them.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {PLACEABLE_ITEMS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:cursor-grabbing active:scale-[0.98]"
+                draggable
+                key={item.label}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", item.label);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
+                type="button"
               >
-                <Icon className={`h-4 w-4 ${item.color}`} />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <span className="font-medium text-foreground/90">{item.label}</span>
-                <span className="text-[10px] leading-tight text-muted-foreground/60">{item.description}</span>
-              </div>
-            </button>
-          );
-        })}
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${item.bgColor} transition-colors group-hover:scale-105`}
+                >
+                  <Icon className={`h-4 w-4 ${item.color}`} />
+                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium text-foreground/90">{item.label}</span>
+                  <span className="text-[10px] leading-tight text-muted-foreground/60">{item.description}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

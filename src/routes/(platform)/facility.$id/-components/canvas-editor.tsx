@@ -1,13 +1,13 @@
 import type Konva from "konva";
+import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import { useTheme } from "next-themes";
 import type { PlacedItem, PlacedItemType } from "#/lib/types";
 import { DEFAULT_ICON_SHAPES, DEFAULT_PROPS } from "#/lib/types";
-import type { CanvasEditorProps } from "../-helpers/types";
 import { ITEM_DEFS, PLACEABLE_ITEMS } from "../-helpers/constants";
-import { darkenHex, getCanvasColors, hexToRgba, lightenHex } from "../-helpers/utils";
 import { useIsomorphicLayoutEffect, useResizeObserver } from "../-helpers/hooks";
+import type { CanvasEditorProps } from "../-helpers/types";
+import { darkenHex, getCanvasColors, hexToRgba, lightenHex } from "../-helpers/utils";
 
 /** Canvas that accepts drag-and-drop from the component palette. */
 export function CanvasEditor({
@@ -323,7 +323,9 @@ function PlacedShape({
                 y={R - 8}
               />
               <Circle fill="#fff" radius={R * 0.35} y={-4} />
-              {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} y={-4} />}
+              {isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} y={-4} />
+              )}
             </>
           )}
           {iconShape === "star" && (
@@ -338,17 +340,7 @@ function PlacedShape({
               {[0, 72, 144, 216, 288].map((angle, i) => {
                 const outerR = R * 0.55;
                 const innerR = R * 0.25;
-                return (
-                  <Rect
-                    fill="#fff"
-                    height={innerR}
-                    key={i}
-                    rotation={angle}
-                    width={2}
-                    x={-1}
-                    y={-outerR}
-                  />
-                );
+                return <Rect fill="#fff" height={innerR} key={i} rotation={angle} width={2} x={-1} y={-outerR} />;
               })}
               <Text
                 fill="#fff"
@@ -359,7 +351,9 @@ function PlacedShape({
                 x={-7}
                 y={-9}
               />
-              {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+              {isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+              )}
             </>
           )}
           {iconShape === "flag" && (
@@ -373,14 +367,10 @@ function PlacedShape({
               {/* Flag pole */}
               <Rect fill="#fff" height={R * 0.8} width={2} x={-R * 0.2} y={-R * 0.4} />
               {/* Flag body */}
-              <Rect
-                fill="#fff"
-                height={R * 0.4}
-                width={R * 0.45}
-                x={-R * 0.15}
-                y={-R * 0.4}
-              />
-              {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+              <Rect fill="#fff" height={R * 0.4} width={R * 0.45} x={-R * 0.15} y={-R * 0.4} />
+              {isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+              )}
             </>
           )}
           {iconShape === "circle" && (
@@ -400,7 +390,9 @@ function PlacedShape({
                 x={-5}
                 y={-6}
               />
-              {isSelected && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+              {isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+              )}
             </>
           )}
         </Group>
@@ -429,7 +421,13 @@ function PlacedShape({
               {/* Camera body */}
               <Rect
                 cornerRadius={2}
-                fill={isSelected ? darkenHex(itemColor, 0.35) : dragging ? darkenHex(itemColor, 0.3) : darkenHex(itemColor, 0.25)}
+                fill={
+                  isSelected
+                    ? darkenHex(itemColor, 0.35)
+                    : dragging
+                      ? darkenHex(itemColor, 0.3)
+                      : darkenHex(itemColor, 0.25)
+                }
                 height={R * 0.7}
                 width={R * 0.9}
                 x={-R * 0.45}
@@ -458,10 +456,7 @@ function PlacedShape({
                 y={-R * 0.275}
               />
               {/* Iris */}
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
-                radius={R * 0.22}
-              />
+              <Circle fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)} radius={R * 0.22} />
               {/* Pupil */}
               <Circle fill={isSelected ? darkenHex(itemColor, 0.4) : "#1a1a2e"} radius={R * 0.1} />
             </>
@@ -515,7 +510,9 @@ function PlacedShape({
               <Rect fill="#fff" height={2} width={R * 0.5} x={-R * 0.25} y={R * 0.15} />
             </>
           )}
-          {isSelected && !readOnly && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+          {isSelected && !readOnly && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+          )}
         </Group>
       );
 
@@ -556,14 +553,7 @@ function PlacedShape({
           {iconShape === "thermometer" && (
             <>
               {/* Thermometer body */}
-              <Rect
-                cornerRadius={R * 0.15}
-                fill="#fff"
-                height={R * 0.7}
-                width={R * 0.25}
-                x={-R * 0.125}
-                y={-R * 0.5}
-              />
+              <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.7} width={R * 0.25} x={-R * 0.125} y={-R * 0.5} />
               {/* Bulb */}
               <Circle fill="#fff" radius={R * 0.18} y={R * 0.05} />
               {/* Mercury */}
@@ -581,23 +571,9 @@ function PlacedShape({
           {iconShape === "droplet" && (
             <>
               {/* Water droplet */}
-              <Rect
-                cornerRadius={R * 0.15}
-                fill="#fff"
-                height={R * 0.55}
-                width={R * 0.4}
-                x={-R * 0.2}
-                y={-R * 0.15}
-              />
+              <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.55} width={R * 0.4} x={-R * 0.2} y={-R * 0.15} />
               {/* Droplet top point - approximated with a small rect */}
-              <Rect
-                fill="#fff"
-                height={R * 0.3}
-                rotation={45}
-                width={R * 0.3}
-                x={-R * 0.05}
-                y={-R * 0.45}
-              />
+              <Rect fill="#fff" height={R * 0.3} rotation={45} width={R * 0.3} x={-R * 0.05} y={-R * 0.45} />
             </>
           )}
           {iconShape === "wind" && (
@@ -611,36 +587,10 @@ function PlacedShape({
           {iconShape === "activity" && (
             <>
               {/* Activity/pulse line */}
-              <Rect
-                fill="#fff"
-                height={2}
-                width={R * 0.3}
-                x={-R * 0.4}
-                y={0}
-              />
-              <Rect
-                fill="#fff"
-                height={2}
-                width={R * 0.15}
-                rotation={-50}
-                x={-R * 0.1}
-                y={-R * 0.15}
-              />
-              <Rect
-                fill="#fff"
-                height={2}
-                width={R * 0.35}
-                rotation={50}
-                x={-R * 0.05}
-                y={R * 0.05}
-              />
-              <Rect
-                fill="#fff"
-                height={2}
-                width={R * 0.3}
-                x={R * 0.15}
-                y={0}
-              />
+              <Rect fill="#fff" height={2} width={R * 0.3} x={-R * 0.4} y={0} />
+              <Rect fill="#fff" height={2} rotation={-50} width={R * 0.15} x={-R * 0.1} y={-R * 0.15} />
+              <Rect fill="#fff" height={2} rotation={50} width={R * 0.35} x={-R * 0.05} y={R * 0.05} />
+              <Rect fill="#fff" height={2} width={R * 0.3} x={R * 0.15} y={0} />
             </>
           )}
           {iconShape === "sun" && (
@@ -665,7 +615,9 @@ function PlacedShape({
               })}
             </>
           )}
-          {isSelected && !readOnly && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+          {isSelected && !readOnly && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+          )}
         </Group>
       );
 
@@ -700,8 +652,24 @@ function PlacedShape({
               {/* Antenna base */}
               <Rect fill="#fff" height={2} width={R * 0.4} x={-R * 0.2} y={R * 0.15} />
               {/* Signal arcs */}
-              <Arc angle={60} fill="transparent" innerRadius={R * 0.25} outerRadius={R * 0.35} rotation={-30} stroke="#fff" strokeWidth={1.5} />
-              <Arc angle={60} fill="transparent" innerRadius={R * 0.4} outerRadius={R * 0.5} rotation={-30} stroke="#fff" strokeWidth={1.5} />
+              <Arc
+                angle={60}
+                fill="transparent"
+                innerRadius={R * 0.25}
+                outerRadius={R * 0.35}
+                rotation={-30}
+                stroke="#fff"
+                strokeWidth={1.5}
+              />
+              <Arc
+                angle={60}
+                fill="transparent"
+                innerRadius={R * 0.4}
+                outerRadius={R * 0.5}
+                rotation={-30}
+                stroke="#fff"
+                strokeWidth={1.5}
+              />
             </>
           )}
           {iconShape === "signal-bars" && (
@@ -716,21 +684,24 @@ function PlacedShape({
           {iconShape === "satellite" && (
             <>
               {/* Satellite dish */}
-              <Rect
-                cornerRadius={R * 0.3}
-                fill="#fff"
-                height={R * 0.35}
-                width={R * 0.5}
-                x={-R * 0.25}
-                y={-R * 0.175}
-              />
+              <Rect cornerRadius={R * 0.3} fill="#fff" height={R * 0.35} width={R * 0.5} x={-R * 0.25} y={-R * 0.175} />
               {/* Antenna arm */}
-              <Rect fill="#fff" height={2} width={R * 0.3} x={0} y={-R * 0.05} rotation={-30} />
+              <Rect fill="#fff" height={2} rotation={-30} width={R * 0.3} x={0} y={-R * 0.05} />
               {/* Signal waves */}
-              <Arc angle={40} fill="transparent" innerRadius={R * 0.3} outerRadius={R * 0.4} rotation={-20} stroke="#fff" strokeWidth={1.5} />
+              <Arc
+                angle={40}
+                fill="transparent"
+                innerRadius={R * 0.3}
+                outerRadius={R * 0.4}
+                rotation={-20}
+                stroke="#fff"
+                strokeWidth={1.5}
+              />
             </>
           )}
-          {isSelected && !readOnly && <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />}
+          {isSelected && !readOnly && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
+          )}
         </Group>
       );
   }

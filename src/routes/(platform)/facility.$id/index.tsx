@@ -2,11 +2,10 @@
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, PencilIcon, EyeIcon, Save, SettingsIcon } from "lucide-react";
+import { EyeIcon, Loader2, PencilIcon, Save, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/components/ui/button.tsx";
-import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,7 @@ import {
   MenubarTrigger,
 } from "#/components/ui/menubar.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
 import { deleteFacility, loadFacility, saveFacility } from "#/functions/facilities";
 import type { PlacedItem, PlacedItemType } from "#/lib/types";
 import {
@@ -38,13 +38,12 @@ import {
   toDevicePayloads,
   toZonePayloads,
 } from "#/lib/types";
-
-import type { EditMode } from "./-helpers/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
-import { PropertiesPanel } from "./-components/properties-panel";
-import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
 import { DeviceLogPanel } from "./-components/device-log-panel";
+import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
+import { PropertiesPanel } from "./-components/properties-panel";
+import type { EditMode } from "./-helpers/types";
 import { generateMockLogs } from "./-helpers/utils";
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
@@ -211,23 +210,26 @@ function Page() {
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
-  const handleSave = useCallback(async ({ silent = false } = {}) => {
-    setIsSaving(true);
-    try {
-      const items = placedItemsRef.current;
-      const canvasData = toCanvasData(items);
-      const zones = toZonePayloads(facilityId, items);
-      const devices = toDevicePayloads(facilityId, items);
-      await saveFacility({ data: { facilityId, name: facilityName, canvasData, zones, devices } });
-      setIsDirty(false);
-      if (!silent) toast.success("Facility saved");
-    } catch (err) {
-      toast.error("Failed to save facility");
-      console.error(err);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [facilityId, facilityName]);
+  const handleSave = useCallback(
+    async ({ silent = false } = {}) => {
+      setIsSaving(true);
+      try {
+        const items = placedItemsRef.current;
+        const canvasData = toCanvasData(items);
+        const zones = toZonePayloads(facilityId, items);
+        const devices = toDevicePayloads(facilityId, items);
+        await saveFacility({ data: { facilityId, name: facilityName, canvasData, zones, devices } });
+        setIsDirty(false);
+        if (!silent) toast.success("Facility saved");
+      } catch (err) {
+        toast.error("Failed to save facility");
+        console.error(err);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [facilityId, facilityName],
+  );
 
   // ── Auto-save (2 s debounce) ────────────────────────────────────────────
   useEffect(() => {
@@ -350,11 +352,11 @@ function Page() {
               <TooltipTrigger asChild>
                 <Button
                   aria-label={isSaving ? "Saving…" : "Save facility"}
+                  className="relative"
                   disabled={isSaving}
                   onClick={() => handleSave()}
                   size="icon-sm"
                   variant="ghost"
-                  className="relative"
                 >
                   {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                   {isDirty && !isSaving && (
