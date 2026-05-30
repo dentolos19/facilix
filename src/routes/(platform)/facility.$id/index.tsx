@@ -497,7 +497,11 @@ function Page() {
         {/* Right panel — properties (edit) / device logs (monitor) */}
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitor" ? (
-            <DeviceLogPanel logs={logs} selectedDeviceId={selectedItemId} />
+            <DeviceLogPanel
+              logs={logs}
+              selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}
+              selectedDeviceId={selectedItemId}
+            />
           ) : (
             <PropertiesPanel
               editMode={editMode}

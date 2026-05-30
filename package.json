@@ -13,7 +13,15 @@
     "types": "wrangler types && tsr generate",
     "check": "biome check --write",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "wrangler d1 migrations apply DATABASE"
+    "db:migrate": "wrangler d1 migrations apply DATABASE",
+    "services": "docker compose up --build",
+    "services:start": "docker compose up -d",
+    "services:stop": "docker compose stop",
+    "services:logs": "docker compose logs -f",
+    "services:cctv": "docker compose up --build mediamtx cctv",
+    "services:cctv:logs": "docker compose logs -f mediamtx cctv",
+    "services:sensors": "docker compose up sensors",
+    "services:sensors:logs": "docker compose logs -f sensors"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.38.0",
@@ -31,6 +39,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "hls.js": "^1.6.16",
     "konva": "^10.3.0",
     "lucide-react": "^1.16.0",
     "next-themes": "^0.4.6",

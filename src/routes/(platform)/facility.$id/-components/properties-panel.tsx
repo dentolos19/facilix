@@ -5,6 +5,8 @@ import { Input } from "#/components/ui/input.tsx";
 import { Label } from "#/components/ui/label.tsx";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select.tsx";
+import { FALLBACK_SIMULATION_STREAMS } from "#/lib/simulation/cctv";
+import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "#/lib/types";
 import type { PropertiesPanelProps } from "../-helpers/types";
 
@@ -231,27 +233,47 @@ export function PropertiesPanel({
                       </Select>
                     </Field>
                     {String(selected.props.videoSource ?? "simulation") === "simulation" ? (
-                      <Field label="Simulation Type">
-                        <Select
-                          disabled={isReadOnly}
-                          onValueChange={(value) => onUpdateItem(selected.id, { props: { simulationType: value } })}
-                          value={String(selected.props.simulationType ?? "ai-motion")}
-                        >
-                          <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
-                            <SelectValue placeholder="Select simulation type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ai-motion">AI Motion Detection</SelectItem>
-                            <SelectItem value="object-detection">Object Detection</SelectItem>
-                            <SelectItem value="line-crossing">Line Crossing</SelectItem>
-                            <SelectItem value="zone-intrusion">Zone Intrusion</SelectItem>
-                            <SelectItem value="loitering">Loitering</SelectItem>
-                            <SelectItem value="people-counting">People Counting</SelectItem>
-                            <SelectItem value="tampering">Tampering Detection</SelectItem>
-                            <SelectItem value="lpr">License Plate Recognition</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </Field>
+                      <>
+                        <Field label="Simulation Stream">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { simulationStream: value } })}
+                            value={String(selected.props.simulationStream ?? "")}
+                          >
+                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+                              <SelectValue placeholder="Select a video file" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FALLBACK_SIMULATION_STREAMS.map((s) => (
+                                <SelectItem key={s.name} value={s.name}>
+                                  {s.name}.mp4
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Simulation Type">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { simulationType: value } })}
+                            value={String(selected.props.simulationType ?? "ai-motion")}
+                          >
+                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+                              <SelectValue placeholder="Select simulation type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ai-motion">AI Motion Detection</SelectItem>
+                              <SelectItem value="object-detection">Object Detection</SelectItem>
+                              <SelectItem value="line-crossing">Line Crossing</SelectItem>
+                              <SelectItem value="zone-intrusion">Zone Intrusion</SelectItem>
+                              <SelectItem value="loitering">Loitering</SelectItem>
+                              <SelectItem value="people-counting">People Counting</SelectItem>
+                              <SelectItem value="tampering">Tampering Detection</SelectItem>
+                              <SelectItem value="lpr">License Plate Recognition</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                      </>
                     ) : (
                       <Field label="Stream URL">
                         <Input
@@ -277,83 +299,255 @@ export function PropertiesPanel({
                 <AccordionTrigger>Data Source</AccordionTrigger>
                 <AccordionContent>
                   <div className="flex flex-col gap-2">
-                    <Field label="Device ID">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
-                        placeholder="e.g. sensor-temp-02"
-                        readOnly={isReadOnly}
-                        value={String(selected.props.deviceId ?? "")}
-                      />
-                    </Field>
-                    <Field label="Sensor Type">
+                    <Field label="Data Source">
                       <Select
                         disabled={isReadOnly}
-                        onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
-                        value={String(selected.props.sensorType ?? "")}
+                        onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorDataSource: value } })}
+                        value={String(selected.props.sensorDataSource ?? "simulation")}
                       >
-                        <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
-                          <SelectValue placeholder="Select sensor type" />
+                        <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+                          <SelectValue placeholder="Select data source" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="temperature">Temperature</SelectItem>
-                          <SelectItem value="humidity">Humidity</SelectItem>
-                          <SelectItem value="pressure">Pressure</SelectItem>
-                          <SelectItem value="air-quality">Air Quality</SelectItem>
-                          <SelectItem value="vibration">Vibration</SelectItem>
-                          <SelectItem value="motion">Motion</SelectItem>
-                          <SelectItem value="gas">Gas</SelectItem>
-                          <SelectItem value="light">Light</SelectItem>
+                          <SelectItem value="simulation">Simulation</SelectItem>
+                          <SelectItem value="http-pull">HTTP Pull</SelectItem>
+                          <SelectItem value="http-push">HTTP Push / Ingest</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
-                    <Field label="Unit">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { unit: e.target.value } })}
-                        placeholder="e.g. °C, %, ppm"
-                        readOnly={isReadOnly}
-                        value={String(selected.props.unit ?? "")}
-                      />
-                    </Field>
-                    <Field label="Alert Threshold">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { threshold: Number(e.target.value) } })}
-                        placeholder="e.g. 50"
-                        readOnly={isReadOnly}
-                        type="number"
-                        value={String(selected.props.threshold ?? "")}
-                      />
-                    </Field>
-                    <Field label="Host / Broker">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { host: e.target.value } })}
-                        placeholder="e.g. mqtt.internal:1883"
-                        readOnly={isReadOnly}
-                        value={String(selected.props.host ?? "")}
-                      />
-                    </Field>
-                    <Field label="Topic / Path">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { topic: e.target.value } })}
-                        placeholder="e.g. /warehouse/sensors/temperature"
-                        readOnly={isReadOnly}
-                        value={String(selected.props.topic ?? "")}
-                      />
-                    </Field>
-                    <Field label="Poll Interval (s)">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { pollInterval: Number(e.target.value) } })}
-                        placeholder="e.g. 30"
-                        readOnly={isReadOnly}
-                        type="number"
-                        value={String(selected.props.pollInterval ?? "")}
-                      />
-                    </Field>
+
+                    {String(selected.props.sensorDataSource ?? "simulation") === "simulation" ? (
+                      <>
+                        <Field label="Simulation Device">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) =>
+                              onUpdateItem(selected.id, { props: { simulationDeviceId: value } })
+                            }
+                            value={String(selected.props.simulationDeviceId ?? "")}
+                          >
+                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+                              <SelectValue placeholder="Select a sensor device" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FALLBACK_SIMULATION_SENSORS.map((s) => (
+                                <SelectItem key={s.deviceId} value={s.deviceId}>
+                                  {s.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Sensor Type">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
+                            value={String(selected.props.sensorType ?? "")}
+                          >
+                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                              <SelectValue placeholder="Select sensor type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="temperature">Temperature</SelectItem>
+                              <SelectItem value="humidity">Humidity</SelectItem>
+                              <SelectItem value="pressure">Pressure</SelectItem>
+                              <SelectItem value="air_quality">Air Quality</SelectItem>
+                              <SelectItem value="vibration">Vibration</SelectItem>
+                              <SelectItem value="motion">Motion</SelectItem>
+                              <SelectItem value="leak">Leak</SelectItem>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="door_contact">Door Contact</SelectItem>
+                              <SelectItem value="battery">Battery</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Poll Interval (s)">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) =>
+                              onUpdateItem(selected.id, { props: { pollInterval: Number(e.target.value) } })
+                            }
+                            placeholder="e.g. 30"
+                            readOnly={isReadOnly}
+                            type="number"
+                            value={String(selected.props.pollInterval ?? "")}
+                          />
+                        </Field>
+                      </>
+                    ) : String(selected.props.sensorDataSource ?? "") === "http-pull" ? (
+                      <>
+                        <Field label="Device ID">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
+                            placeholder="e.g. sensor-temp-02"
+                            readOnly={isReadOnly}
+                            value={String(selected.props.deviceId ?? "")}
+                          />
+                        </Field>
+                        <Field label="Pull URL">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) => onUpdateItem(selected.id, { props: { pullUrl: e.target.value } })}
+                            placeholder="http://device-ip:8080/sensor/reading"
+                            readOnly={isReadOnly}
+                            value={String(selected.props.pullUrl ?? "")}
+                          />
+                        </Field>
+                        <Field label="Sensor Type">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
+                            value={String(selected.props.sensorType ?? "")}
+                          >
+                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                              <SelectValue placeholder="Select sensor type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="temperature">Temperature</SelectItem>
+                              <SelectItem value="humidity">Humidity</SelectItem>
+                              <SelectItem value="pressure">Pressure</SelectItem>
+                              <SelectItem value="air_quality">Air Quality</SelectItem>
+                              <SelectItem value="vibration">Vibration</SelectItem>
+                              <SelectItem value="motion">Motion</SelectItem>
+                              <SelectItem value="leak">Leak</SelectItem>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="door_contact">Door Contact</SelectItem>
+                              <SelectItem value="battery">Battery</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Unit">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) => onUpdateItem(selected.id, { props: { unit: e.target.value } })}
+                            placeholder="e.g. °C, %, ppm"
+                            readOnly={isReadOnly}
+                            value={String(selected.props.unit ?? "")}
+                          />
+                        </Field>
+                        <Field label="Alert Threshold">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) =>
+                              onUpdateItem(selected.id, { props: { threshold: Number(e.target.value) } })
+                            }
+                            placeholder="e.g. 50"
+                            readOnly={isReadOnly}
+                            type="number"
+                            value={String(selected.props.threshold ?? "")}
+                          />
+                        </Field>
+                        <Field label="Payload Format">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { payloadFormat: value } })}
+                            value={String(selected.props.payloadFormat ?? "facilix")}
+                          >
+                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                              <SelectValue placeholder="Select format" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="facilix">Facilix</SelectItem>
+                              <SelectItem value="thingsboard">ThingsBoard</SelectItem>
+                              <SelectItem value="senml">SenML (RFC 8428)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Poll Interval (s)">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) =>
+                              onUpdateItem(selected.id, { props: { pollInterval: Number(e.target.value) } })
+                            }
+                            placeholder="e.g. 30"
+                            readOnly={isReadOnly}
+                            type="number"
+                            value={String(selected.props.pollInterval ?? "")}
+                          />
+                        </Field>
+                      </>
+                    ) : (
+                      <>
+                        <Field label="Device ID">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
+                            placeholder="e.g. sensor-temp-02"
+                            readOnly={isReadOnly}
+                            value={String(selected.props.deviceId ?? "")}
+                          />
+                        </Field>
+                        <Field label="Ingest Endpoint">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            placeholder="POST /api/sensors/ingest/{device_id}"
+                            readOnly
+                            value={`/api/sensors/ingest/${String(selected.props.deviceId ?? "{id}")}`}
+                          />
+                        </Field>
+                        <Field label="Payload Format">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { payloadFormat: value } })}
+                            value={String(selected.props.payloadFormat ?? "facilix")}
+                          >
+                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                              <SelectValue placeholder="Select format" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="facilix">Facilix</SelectItem>
+                              <SelectItem value="thingsboard">ThingsBoard</SelectItem>
+                              <SelectItem value="senml">SenML (RFC 8428)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Sensor Type">
+                          <Select
+                            disabled={isReadOnly}
+                            onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
+                            value={String(selected.props.sensorType ?? "")}
+                          >
+                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
+                              <SelectValue placeholder="Select sensor type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="temperature">Temperature</SelectItem>
+                              <SelectItem value="humidity">Humidity</SelectItem>
+                              <SelectItem value="pressure">Pressure</SelectItem>
+                              <SelectItem value="air_quality">Air Quality</SelectItem>
+                              <SelectItem value="vibration">Vibration</SelectItem>
+                              <SelectItem value="motion">Motion</SelectItem>
+                              <SelectItem value="leak">Leak</SelectItem>
+                              <SelectItem value="light">Light</SelectItem>
+                              <SelectItem value="door_contact">Door Contact</SelectItem>
+                              <SelectItem value="battery">Battery</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Unit">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) => onUpdateItem(selected.id, { props: { unit: e.target.value } })}
+                            placeholder="e.g. °C, %, ppm"
+                            readOnly={isReadOnly}
+                            value={String(selected.props.unit ?? "")}
+                          />
+                        </Field>
+                        <Field label="Alert Threshold">
+                          <Input
+                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                            onChange={(e) =>
+                              onUpdateItem(selected.id, { props: { threshold: Number(e.target.value) } })
+                            }
+                            placeholder="e.g. 50"
+                            readOnly={isReadOnly}
+                            type="number"
+                            value={String(selected.props.threshold ?? "")}
+                          />
+                        </Field>
+                      </>
+                    )}
                   </div>
                 </AccordionContent>
               </AccordionItem>
