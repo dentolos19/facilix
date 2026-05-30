@@ -11,8 +11,8 @@ function toFacilityRow(f: typeof schema.facility.$inferSelect): FacilityRow {
     id: f.id,
     name: f.name,
     data: f.data as CanvasLayoutData,
-    createdAt: f.createdAt.toISOString(),
-    updatedAt: f.updatedAt.toISOString(),
+    createdAt: f.createdAt,
+    updatedAt: f.updatedAt,
   };
 }
 
@@ -78,17 +78,12 @@ export const createFacility = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
-    const id = crypto.randomUUID();
-    const now = new Date();
 
     const [facility] = await db
       .insert(schema.facility)
       .values({
-        id,
         name: data.name,
         data: { version: 1, items: [] },
-        createdAt: now,
-        updatedAt: now,
       })
       .returning();
 
@@ -134,8 +129,8 @@ export const loadFacility = createServerFn({ method: "GET" })
         data: d.data,
         notes: d.notes ?? "",
       })),
-      createdAt: fac.createdAt.toISOString(),
-      updatedAt: fac.updatedAt.toISOString(),
+      createdAt: fac.createdAt,
+      updatedAt: fac.updatedAt,
     };
 
     return snapshot;
@@ -160,12 +155,11 @@ export const saveFacility = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
-    const now = new Date();
 
     // 1. Update the facility row (name + canvas layout metadata)
     await db
       .update(schema.facility)
-      .set({ name: data.name, data: data.canvasData, updatedAt: now })
+      .set({ name: data.name, data: data.canvasData })
       .where(eq(schema.facility.id, data.facilityId));
 
     // ── Zones ────────────────────────────────────────────────────────────
@@ -196,8 +190,6 @@ export const saveFacility = createServerFn({ method: "POST" })
           name: zone.name,
           data: zone.data,
           notes: zone.notes,
-          createdAt: now,
-          updatedAt: now,
         })
         .onConflictDoUpdate({
           target: schema.facilityZone.id,
@@ -205,7 +197,6 @@ export const saveFacility = createServerFn({ method: "POST" })
             name: zone.name,
             data: zone.data,
             notes: zone.notes,
-            updatedAt: now,
           },
         });
     }
@@ -243,8 +234,6 @@ export const saveFacility = createServerFn({ method: "POST" })
           status: dev.status,
           data: dev.data,
           notes: dev.notes,
-          createdAt: now,
-          updatedAt: now,
         })
         .onConflictDoUpdate({
           target: schema.facilityDevice.id,
@@ -255,7 +244,6 @@ export const saveFacility = createServerFn({ method: "POST" })
             status: dev.status,
             data: dev.data,
             notes: dev.notes,
-            updatedAt: now,
           },
         });
     }
