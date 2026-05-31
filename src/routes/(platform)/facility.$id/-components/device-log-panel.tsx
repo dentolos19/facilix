@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { ExternalLinkIcon } from "lucide-react";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import type { PlacedItem } from "#/lib/types";
@@ -22,6 +24,7 @@ export function DeviceLogPanel({
     [logs, selectedDeviceId],
   );
 
+  const navigate = useNavigate();
   const device = deviceLogs[0];
   const isCCTV = selectedDevice?.type === "CCTV";
   const isSensor = selectedDevice?.type === "Sensor";
@@ -64,9 +67,20 @@ export function DeviceLogPanel({
           <div className="flex flex-col gap-2">
             {/* Device summary */}
             <div className="rounded-none border border-border bg-muted/20 p-2">
-              <p className="text-xs font-medium text-foreground">{selectedDevice.name}</p>
-              <p className="text-[11px] text-muted-foreground/70">Type: {selectedDevice.type}</p>
-              <p className="text-[11px] text-muted-foreground/70">Status: {selectedDevice.status}</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-foreground">{selectedDevice.name}</p>
+                  <p className="text-[11px] text-muted-foreground/70">Type: {selectedDevice.type}</p>
+                  <p className="text-[11px] text-muted-foreground/70">Status: {selectedDevice.status}</p>
+                </div>
+                <button
+                  className="flex size-6 items-center justify-center rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors"
+                  onClick={() => navigate({ to: "/device/$id", params: { id: selectedDevice.id } })}
+                  aria-label="View device details"
+                >
+                  <ExternalLinkIcon className="size-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Video feed for CCTVs */}

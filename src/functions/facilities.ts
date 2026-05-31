@@ -252,6 +252,56 @@ export const saveFacility = createServerFn({ method: "POST" })
     return loadFacility({ data: { id: data.facilityId } });
   });
 
+export interface DeviceDetail {
+  id: string;
+  facilityId: string;
+  facilityName: string;
+  zoneId: string | null;
+  name: string;
+  type: PlacedItemType;
+  status: string;
+  data: Record<string, string | number>;
+  notes: string;
+}
+
+/**
+ * Fetch a single device by its ID, including the owning facility name.
+ */
+export const getDevice = createServerFn({ method: "GET" })
+  .inputValidator((data: { id: string }) => {
+    if (!data.id) throw new Error("Device ID is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const db = createDatabase(env.DATABASE);
+
+    const [device] = await db
+      .select()
+      .from(schema.facilityDevice)
+      .where(eq(schema.facilityDevice.id, data.id))
+      .limit(1);
+
+    if (!device) throw new Error("Device not found");
+
+    const [fac] = await db
+      .select({ name: schema.facility.name })
+      .from(schema.facility)
+      .where(eq(schema.facility.id, device.facilityId))
+      .limit(1);
+
+    return {
+      id: device.id,
+      facilityId: device.facilityId,
+      facilityName: fac?.name ?? "Unknown Facility",
+      zoneId: device.zoneId,
+      name: device.name,
+      type: device.type as PlacedItemType,
+      status: device.status,
+      data: device.data,
+      notes: device.notes ?? "",
+    } satisfies DeviceDetail;
+  });
+
 /**
  * Delete a facility and all its related zones, devices, and logs (cascade).
  */
