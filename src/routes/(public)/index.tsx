@@ -87,10 +87,8 @@ function Home() {
       {/* ──────── Navigation ──────── */}
       <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-sm md:px-10">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-primary text-[10px] font-bold uppercase tracking-widest text-primary-foreground">
-            Fx
-          </div>
-          <span className="text-sm font-semibold tracking-tight">Facilix</span>
+          <img alt="Facilix" className="h-6 w-6 rounded-lg" src="/icon.png" />
+          <span className="text-base font-semibold tracking-tight">Facilix</span>
         </div>
         <nav className="flex items-center gap-3">
           {session ? (

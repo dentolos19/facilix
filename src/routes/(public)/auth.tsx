@@ -63,7 +63,7 @@ function AuthPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+      <Card className="w-full max-w-sm pt-0">
         <div className="flex border-b border-border">
           <button
             className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
@@ -105,7 +105,10 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      await signIn.email({ email, password });
+      const result = await signIn.email({ email, password });
+      if (result?.error) {
+        throw new Error(result.error.message ?? "Invalid email or password.");
+      }
       toast.success("Welcome back!");
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -183,7 +186,10 @@ function RegisterForm() {
     setLoading(true);
 
     try {
-      await signUp.email({ name, email, password });
+      const result = await signUp.email({ name, email, password });
+      if (result?.error) {
+        throw new Error(result.error.message ?? "Registration failed. Please try again.");
+      }
       toast.success("Account created successfully! Welcome to Facilix.");
       navigate({ to: "/dashboard" });
     } catch (err) {

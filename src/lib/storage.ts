@@ -15,7 +15,7 @@ export function createStorage({ bucket, db: binding }: { bucket: R2Bucket; db: D
     async createFile(data: ArrayBuffer, metadata: { name: string; type: string }) {
       const id = crypto.randomUUID();
       const hash = hex(await crypto.subtle.digest("SHA-256", data));
-      const now = new Date().toISOString();
+      const now = new Date();
 
       await bucket.put(id, data, {
         httpMetadata: { contentType: metadata.type },
@@ -88,7 +88,7 @@ export function createStorage({ bucket, db: binding }: { bucket: R2Bucket; db: D
         for (const obj of listed.objects) {
           if (assetIds.has(obj.key)) continue;
 
-          const now = new Date().toISOString();
+          const now = new Date();
 
           created.push({
             id: obj.key,

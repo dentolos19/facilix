@@ -28,8 +28,8 @@ export const Route = createFileRoute("/(platform)/dashboard")({
 interface Facility {
   id: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 function Page() {
@@ -178,9 +178,7 @@ function Page() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    Created {new Date(facility.createdAt).toLocaleDateString()}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Created {facility.createdAt.toLocaleDateString()}</p>
                 </CardContent>
               </Card>
             </Link>

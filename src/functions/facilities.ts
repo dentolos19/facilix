@@ -22,8 +22,8 @@ export type FacilityRow = {
   id: string;
   name: string;
   data: CanvasLayoutData;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export interface ZoneRow {
@@ -49,8 +49,8 @@ export interface FacilitySnapshot {
   canvasData: CanvasLayoutData;
   zones: ZoneRow[];
   devices: DeviceRow[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface SaveInput {

@@ -9,13 +9,13 @@ export const asset = sqliteTable("assets", {
   type: text("type").notNull(),
   size: integer("size").notNull(),
   hash: text("hash").notNull(),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const user = sqliteTable("users", {
@@ -26,30 +26,30 @@ export const user = sqliteTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull(),
   image: text("image"),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const session = sqliteTable("sessions", {
   id: text("id")
     .primaryKey()
     .$default(() => crypto.randomUUID()),
-  expiresAt: text("expires_at")
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
+    .$default(() => new Date()),
   token: text("token").notNull().unique(),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   userId: text("userId")
@@ -69,17 +69,17 @@ export const account = sqliteTable("accounts", {
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),
-  accessTokenExpiresAt: text("access_token_expires_at"),
-  refreshTokenExpiresAt: text("refresh_token_expires_at"),
+  accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
+  refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp_ms" }),
   scope: text("scope"),
   password: text("password"),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const verification = sqliteTable("verifications", {
@@ -88,13 +88,13 @@ export const verification = sqliteTable("verifications", {
     .$default(() => crypto.randomUUID()),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
-  expiresAt: text("expires_at")
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  createdAt: text("created_at").$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date()),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const facility = sqliteTable("facilities", {
@@ -103,13 +103,13 @@ export const facility = sqliteTable("facilities", {
     .$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   data: text("data", { mode: "json" }).$type<CanvasLayoutData>().notNull(),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const facilityZone = sqliteTable("facility_zones", {
@@ -122,13 +122,13 @@ export const facilityZone = sqliteTable("facility_zones", {
   name: text("name").notNull(),
   data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
   notes: text("notes"),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const facilityDevice = sqliteTable("facility_devices", {
@@ -144,13 +144,13 @@ export const facilityDevice = sqliteTable("facility_devices", {
   status: text("status").notNull(),
   data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
   notes: text("notes"),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export const deviceLog = sqliteTable("device_logs", {
@@ -164,13 +164,13 @@ export const deviceLog = sqliteTable("device_logs", {
   type: text("type").notNull(),
   message: text("message").notNull(),
   data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
-  createdAt: text("created_at")
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
+    .$default(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
-    .$default(() => new Date().toISOString())
-    .$onUpdate(() => new Date().toISOString()),
+    .$default(() => new Date())
+    .$onUpdate(() => new Date()),
 });
 
 export type User = typeof user.$inferSelect;
