@@ -35,7 +35,7 @@ jobs:
 
       - name: Deploy to Cloudflare
         run: |
+          bun run db:migrate --remote
           echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
-          bun run db:migrate --remote
           bun run deploy

@@ -27,6 +27,7 @@
     "@cloudflare/vite-plugin": "^1.38.0",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
+    "@mediapipe/tasks-vision": "^0.10.35",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-hotkeys": "^0.10.0",

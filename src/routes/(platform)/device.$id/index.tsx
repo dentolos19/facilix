@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { Loader2Icon, VideoIcon } from "lucide-react";
-import { getDevice } from "#/functions/facilities";
+import { useEffect, useState } from "react";
 import type { DeviceDetail } from "#/functions/facilities";
+import { getDevice } from "#/functions/facilities";
 import { CctvDeviceDetail } from "./-components/cctv-device";
+import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-detail-layout";
 import { SensorDeviceDetail } from "./-components/sensor-device";
 
 export const Route = createFileRoute("/(platform)/device/$id/")({
@@ -73,14 +74,8 @@ function Page() {
 /** Fallback for other device types (Signal, Marker, Zone). */
 function GenericDeviceDetail({ device }: { device: DeviceDetail }) {
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
-      <div>
-        <h1 className="font-heading text-sm font-medium text-foreground">{device.name}</h1>
-        <p className="text-[11px] text-muted-foreground/60">
-          {device.facilityName} &middot; {device.type}
-        </p>
-      </div>
-      <div className="flex flex-1 items-center justify-center">
+    <DeviceDetailLayout device={device} sidebar={<DeviceDetailSidebar device={device} />}>
+      <div className="flex h-full items-center justify-center rounded-none border border-border bg-muted/20">
         <div className="flex flex-col items-center gap-2">
           <VideoIcon className="size-6 text-muted-foreground/30" />
           <span className="text-[11px] text-muted-foreground/50">
@@ -88,6 +83,6 @@ function GenericDeviceDetail({ device }: { device: DeviceDetail }) {
           </span>
         </div>
       </div>
-    </div>
+    </DeviceDetailLayout>
   );
 }

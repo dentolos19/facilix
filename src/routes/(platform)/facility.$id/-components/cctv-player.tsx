@@ -1,17 +1,10 @@
 import Hls from "hls.js";
-import {
-  MaximizeIcon,
-  PauseIcon,
-  PlayIcon,
-  Volume2Icon,
-  VolumeXIcon,
-  VideoIcon,
-  XIcon,
-} from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { MaximizeIcon, PauseIcon, PlayIcon, VideoIcon, Volume2Icon, VolumeXIcon, XIcon } from "lucide-react";
+import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "#/components/ui/button.tsx";
 import { Dialog, DialogContent } from "#/components/ui/dialog.tsx";
 import { cn } from "#/lib/utils.ts";
+import { ObjectDetectionOverlay } from "./object-detection-overlay";
 
 export interface CctvPlayerProps {
   /** HLS manifest URL (.m3u8) – when falsy the component shows a setup prompt. */
@@ -20,6 +13,13 @@ export interface CctvPlayerProps {
   streamName?: string;
   /** Called when the stream URL or availability changes. */
   onStatusChange?: (ok: boolean) => void;
+  /** Enable browser-based object detection overlay using MediaPipe. */
+  objectDetectionEnabled?: boolean;
+  /** Show playback controls inline on the player instead of only in the expanded dialog. */
+  showAdvancedControls?: boolean;
+  /** Allow clicking the player to open the expanded dialog. */
+  enableExpandedDialog?: boolean;
+  className?: string;
 }
 
 type PlayerState = "loading" | "playing" | "error" | "idle";
@@ -128,10 +128,11 @@ function HlsVideoElement({
   return (
     <>
       <video
-        ref={videoRef}
         className={cn("size-full object-contain", className)}
+        crossOrigin="anonymous"
         muted
         playsInline
+        ref={videoRef}
         {...videoProps}
       />
 
@@ -158,49 +159,246 @@ function HlsVideoElement({
 
 // ─── Main CCTV Player ───────────────────────────────────────────────────────
 
-export function CctvPlayer({ hlsUrl, streamName, onStatusChange }: CctvPlayerProps) {
+export function CctvPlayer({
+  hlsUrl,
+  streamName,
+  onStatusChange,
+  objectDetectionEnabled,
+  showAdvancedControls = false,
+  enableExpandedDialog = true,
+  className,
+}: CctvPlayerProps) {
   const [expanded, setExpanded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const controls = usePlaybackControls(videoRef);
 
   if (!hlsUrl) {
-    return <Placeholder icon={VideoIcon} text="Connect a stream source to view live footage" />;
+    return (
+      <Placeholder
+        className={cn(showAdvancedControls ? "h-full min-h-0" : "aspect-video", className)}
+        icon={VideoIcon}
+        text="Connect a stream source to view live footage"
+      />
+    );
   }
+
+  const openExpanded = () => {
+    if (enableExpandedDialog) setExpanded(true);
+  };
 
   return (
     <>
-      {/* Small player — click to expand */}
+      {/* Player */}
       <div
-        className="relative aspect-video w-full overflow-hidden rounded-none border border-border bg-muted/40 cursor-pointer"
-        onClick={() => setExpanded(true)}
-        onKeyDown={(e: KeyboardEvent) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setExpanded(true);
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Open expanded video view"
+        aria-label={enableExpandedDialog ? "Open expanded video view" : undefined}
+        className={cn(
+          "relative w-full overflow-hidden rounded-none border border-border bg-muted/40",
+          showAdvancedControls ? "h-full min-h-0" : "aspect-video",
+          enableExpandedDialog && "cursor-pointer",
+          className,
+        )}
+        onClick={enableExpandedDialog ? openExpanded : undefined}
+        onKeyDown={
+          enableExpandedDialog
+            ? (e: KeyboardEvent) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                openExpanded();
+              }
+            : undefined
+        }
+        role={enableExpandedDialog ? "button" : undefined}
+        tabIndex={enableExpandedDialog ? 0 : undefined}
       >
         <HlsVideoElement hlsUrl={hlsUrl} onStatusChange={onStatusChange} videoRef={videoRef} />
 
+        {showAdvancedControls && !controls.playing && (
+          <button
+            aria-label="Play"
+            className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center bg-black/10"
+            onClick={(event) => {
+              event.stopPropagation();
+              controls.togglePlay();
+            }}
+          >
+            <span className="flex size-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition-transform hover:scale-105">
+              <PlayIcon className="size-7 fill-white" />
+            </span>
+          </button>
+        )}
+
+        {showAdvancedControls && (
+          <InlinePlaybackControls
+            currentTime={controls.currentTime}
+            muted={controls.muted}
+            onVolumeChange={controls.setVideoVolume}
+            playing={controls.playing}
+            toggleFullscreen={controls.toggleFullscreen}
+            toggleMute={controls.toggleMute}
+            togglePlay={controls.togglePlay}
+            volume={controls.volume}
+          />
+        )}
+
+        {/* Object detection overlay */}
+        <ObjectDetectionOverlay enabled={!!objectDetectionEnabled} videoRef={videoRef} />
+
         {/* REC/LIVE indicator */}
-        <div className="absolute top-2 left-2 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5 pointer-events-none">
+        <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5 pointer-events-none">
           <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
           <span className="text-[9px] font-medium text-white/80 uppercase">LIVE</span>
           {streamName && <span className="ml-1 text-[9px] text-white/60">{streamName}</span>}
         </div>
       </div>
 
-      {/* Expanded dialog */}
-      <CctvExpandedDialog
-        hlsUrl={hlsUrl}
-        streamName={streamName}
-        open={expanded}
-        onOpenChange={setExpanded}
-      />
+      {enableExpandedDialog && (
+        <CctvExpandedDialog hlsUrl={hlsUrl} onOpenChange={setExpanded} open={expanded} streamName={streamName} />
+      )}
     </>
   );
+}
+
+function usePlaybackControls(videoRef: React.RefObject<HTMLVideoElement | null>) {
+  const [playing, setPlaying] = useState(true);
+  const [muted, setMuted] = useState(true);
+  const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const sync = () => {
+      setPlaying(!video.paused);
+      setMuted(video.muted);
+      setVolume(video.volume);
+      setCurrentTime(video.currentTime);
+    };
+
+    video.addEventListener("play", sync);
+    video.addEventListener("pause", sync);
+    video.addEventListener("timeupdate", sync);
+    video.addEventListener("volumechange", sync);
+    sync();
+
+    return () => {
+      video.removeEventListener("play", sync);
+      video.removeEventListener("pause", sync);
+      video.removeEventListener("timeupdate", sync);
+      video.removeEventListener("volumechange", sync);
+    };
+  }, [videoRef]);
+
+  const togglePlay = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) video.play();
+    else video.pause();
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setMuted(video.muted);
+  };
+
+  const setVideoVolume = (nextVolume: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = nextVolume;
+    video.muted = nextVolume === 0;
+    setVolume(nextVolume);
+    setMuted(nextVolume === 0);
+  };
+
+  const toggleFullscreen = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      video.requestFullscreen();
+    }
+  };
+
+  return { currentTime, muted, playing, setVideoVolume, toggleFullscreen, toggleMute, togglePlay, volume };
+}
+
+function InlinePlaybackControls({
+  currentTime,
+  muted,
+  playing,
+  toggleFullscreen,
+  toggleMute,
+  togglePlay,
+  volume,
+  onVolumeChange,
+}: {
+  currentTime: number;
+  muted: boolean;
+  playing: boolean;
+  toggleFullscreen: () => void;
+  toggleMute: () => void;
+  togglePlay: () => void;
+  volume: number;
+  onVolumeChange: (volume: number) => void;
+}) {
+  return (
+    <div className="absolute right-0 bottom-0 left-0 z-20 bg-gradient-to-t from-black/85 to-transparent px-3 pt-10 pb-3">
+      <div className="flex items-center gap-1">
+        <button
+          aria-label={playing ? "Pause" : "Play"}
+          className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePlay();
+          }}
+        >
+          {playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
+        </button>
+        <button
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleMute();
+          }}
+        >
+          {muted ? <VolumeXIcon className="size-4" /> : <Volume2Icon className="size-4" />}
+        </button>
+        <input
+          aria-label="Volume"
+          className="h-1 w-20 cursor-pointer accent-white/80"
+          max={1}
+          min={0}
+          onChange={(event) => onVolumeChange(parseFloat(event.target.value))}
+          onClick={(event) => event.stopPropagation()}
+          step={0.05}
+          type="range"
+          value={muted ? 0 : volume}
+        />
+        <span className="ml-1 font-mono text-[11px] text-white/60 tabular-nums">{formatTime(currentTime)}</span>
+        <div className="flex-1" />
+        <button
+          aria-label="Fullscreen"
+          className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+          onClick={(event) => {
+            event.stopPropagation();
+            toggleFullscreen();
+          }}
+        >
+          <MaximizeIcon className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatTime(t: number) {
+  const mins = Math.floor(t / 60);
+  const secs = Math.floor(t % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 // ─── Expanded Dialog ────────────────────────────────────────────────────────
@@ -318,28 +516,28 @@ function CctvExpandedDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
         className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] p-0 gap-0 bg-black overflow-hidden"
         showCloseButton={false}
       >
         <div
           className="relative aspect-video w-full bg-black"
-          onMouseMove={resetHideTimer}
           onMouseEnter={() => setShowControls(true)}
           onMouseLeave={() => {
             clearTimeout(hideTimer.current);
             hideTimer.current = setTimeout(() => setShowControls(false), 2000);
           }}
+          onMouseMove={resetHideTimer}
         >
           <HlsVideoElement hlsUrl={hlsUrl} videoRef={videoRef} />
 
           {/* Large centered play button when paused */}
           {!playing && state === "playing" && (
             <button
+              aria-label="Play"
               className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
               onClick={togglePlay}
-              aria-label="Play"
             >
               <div className="flex size-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition-transform hover:scale-105">
                 <PlayIcon className="size-7 text-white fill-white" />
@@ -357,15 +555,13 @@ function CctvExpandedDialog({
             <div className="flex items-center gap-2">
               <span className="size-2 rounded-full bg-red-500 animate-pulse" />
               <span className="text-[11px] font-medium text-white/80 uppercase">LIVE</span>
-              {streamName && (
-                <span className="text-[11px] text-white/60 font-mono">{streamName}</span>
-              )}
+              {streamName && <span className="text-[11px] text-white/60 font-mono">{streamName}</span>}
             </div>
             <Button
-              size="icon-sm"
-              variant="ghost"
               className="text-white/70 hover:text-white hover:bg-white/10"
               onClick={() => onOpenChange(false)}
+              size="icon-sm"
+              variant="ghost"
             >
               <XIcon className="size-4" />
               <span className="sr-only">Close</span>
@@ -383,45 +579,43 @@ function CctvExpandedDialog({
               <div className="flex items-center gap-1">
                 {/* Play/Pause */}
                 <button
+                  aria-label={playing ? "Pause" : "Play"}
                   className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                   onClick={togglePlay}
-                  aria-label={playing ? "Pause" : "Play"}
                 >
                   {playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
                 </button>
 
                 {/* Volume */}
                 <button
+                  aria-label={muted ? "Unmute" : "Mute"}
                   className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                   onClick={toggleMute}
-                  aria-label={muted ? "Unmute" : "Mute"}
                 >
                   {muted ? <VolumeXIcon className="size-4" /> : <Volume2Icon className="size-4" />}
                 </button>
                 <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={muted ? 0 : volume}
-                  onChange={handleVolumeChange}
-                  className="w-16 h-1 accent-white/80 cursor-pointer"
                   aria-label="Volume"
+                  className="w-16 h-1 accent-white/80 cursor-pointer"
+                  max={1}
+                  min={0}
+                  onChange={handleVolumeChange}
+                  step={0.05}
+                  type="range"
+                  value={muted ? 0 : volume}
                 />
 
                 {/* Time */}
-                <span className="text-[11px] text-white/60 font-mono tabular-nums ml-1">
-                  {formatTime(currentTime)}
-                </span>
+                <span className="text-[11px] text-white/60 font-mono tabular-nums ml-1">{formatTime(currentTime)}</span>
 
                 {/* Spacer */}
                 <div className="flex-1" />
 
                 {/* Fullscreen */}
                 <button
+                  aria-label="Fullscreen"
                   className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
                   onClick={toggleFullscreen}
-                  aria-label="Fullscreen"
                 >
                   <MaximizeIcon className="size-4" />
                 </button>
@@ -436,9 +630,17 @@ function CctvExpandedDialog({
 
 // ─── Placeholder ────────────────────────────────────────────────────────────
 
-function Placeholder({ icon: Icon, text }: { icon: React.FC<{ className?: string }>; text: string }) {
+function Placeholder({
+  className,
+  icon: Icon,
+  text,
+}: {
+  className?: string;
+  icon: React.FC<{ className?: string }>;
+  text: string;
+}) {
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-none border border-border bg-muted/40">
+    <div className={cn("relative w-full overflow-hidden rounded-none border border-border bg-muted/40", className)}>
       <div className="flex h-full flex-col items-center justify-center gap-2">
         <Icon className="size-6 text-muted-foreground/40" />
         <span className="text-[11px] text-muted-foreground/50">{text}</span>
