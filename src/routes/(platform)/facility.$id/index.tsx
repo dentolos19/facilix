@@ -28,8 +28,8 @@ import {
 } from "#/components/ui/menubar.tsx";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
-import { deleteFacility, loadFacility, saveFacility } from "#/functions/facilities";
-import { getMonitorStatus, startMonitor, stopMonitor } from "#/functions/monitors";
+import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import { getMonitorStatus, startMonitor, stopMonitor } from "#/lib/functions/monitor";
 import type { FacilityEvent, MonitorStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";

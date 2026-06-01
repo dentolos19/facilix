@@ -28,9 +28,9 @@ import {
 } from "#/components/ui/sheet.tsx";
 import { Spinner } from "#/components/ui/spinner.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
-import { createFacility, getFacilities } from "#/functions/facilities.ts";
-import { getMonitorStatuses } from "#/functions/monitors.ts";
-import type { FacilityStatusEntry, MonitorStatus } from "#/lib/monitoring/types";
+import { createFacility, getFacilities } from "#/lib/functions/facility";
+import { getMonitorStatuses } from "#/lib/functions/monitor";
+import type { MonitorStatus } from "#/lib/monitoring/types";
 
 export const Route = createFileRoute("/(platform)/dashboard")({
   component: Page,

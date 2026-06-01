@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "#/components/ui/button.tsx";
-import type { DeviceDetail } from "#/functions/facilities";
+import type { DeviceDetail } from "#/lib/functions/facility";
 
 export interface DeviceInfoProperty {
   label: string;

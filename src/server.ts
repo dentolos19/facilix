@@ -1,5 +1,5 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
-import { handleMonitorApiRequest, type MonitorApiAction } from "#/lib/bindings/monitor-api";
+import { handleMonitorApiRequest, type MonitorApiAction } from "#/lib/monitoring/api";
 
 export { Monitor } from "#/lib/bindings/monitor";
 export { Observer } from "#/lib/bindings/observer";

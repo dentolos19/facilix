@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { recordFacilityEvent, validateDevice } from "#/lib/bindings/monitor-helpers";
 import { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
+import { recordFacilityEvent, validateDevice } from "#/lib/monitoring/utils";
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB limit
 

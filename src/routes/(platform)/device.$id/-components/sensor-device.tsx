@@ -1,6 +1,6 @@
 import { ActivityIcon, BatteryIcon, WifiIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeviceDetail } from "#/functions/facilities";
+import type { DeviceDetail } from "#/lib/functions/facility";
 import type { NormalizedReading, SimulationSensorDevice } from "#/lib/simulation/sensors";
 import { fetchSimulationLatestReading, fetchSimulationSensor } from "#/lib/simulation/sensors";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./device-detail-layout";

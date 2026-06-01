@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2Icon, VideoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeviceDetail } from "#/functions/facilities";
-import { getDevice } from "#/functions/facilities";
+import type { DeviceDetail } from "#/lib/functions/facility";
+import { getDevice } from "#/lib/functions/facility";
 import { CctvDeviceDetail } from "./-components/cctv-device";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-detail-layout";
 import { SensorDeviceDetail } from "./-components/sensor-device";

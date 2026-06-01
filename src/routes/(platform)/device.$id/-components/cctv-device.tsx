@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Switch } from "#/components/ui/switch.tsx";
-import type { DeviceDetail } from "#/functions/facilities";
+import type { DeviceDetail } from "#/lib/functions/facility";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./device-detail-layout";

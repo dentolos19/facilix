@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
-import { recordFacilityEvent, validateDevice } from "#/lib/bindings/monitor-helpers";
 import { createDatabase } from "#/lib/database";
+import { recordFacilityEvent, validateDevice } from "#/lib/monitoring/utils";
 
 /**
  * POST /api/facility/:id/monitor/events

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
-import { recordFacilityEvent, validateDevice } from "./monitor-helpers";
+import { recordFacilityEvent, validateDevice } from "./utils";
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 const MIN_CONFIDENCE = 0.4;
