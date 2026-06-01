@@ -2,6 +2,9 @@ import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import type { FacilityStatusEntry, MonitorStatus } from "#/lib/monitoring/types";
 
+/** Origin the monitor container uses to call back to the Worker API. */
+const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -58,6 +61,9 @@ export const getMonitorStatus = createServerFn({ method: "GET" })
 
 /**
  * Start a facility's Monitor container.
+ *
+ * Passes per-instance environment variables so the Python container knows
+ * which facility to monitor and where to POST frames, events, and segments.
  */
 export const startMonitor = createServerFn({ method: "POST" })
   .inputValidator((data: { facilityId: string }) => {
@@ -67,7 +73,15 @@ export const startMonitor = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const stub = env.MONITOR.getByName(data.facilityId);
-      await stub.startAndWaitForPorts();
+      await stub.startAndWaitForPorts({
+        startOptions: {
+          envVars: {
+            FACILITY_ID: data.facilityId,
+            APP_ORIGIN: APP_ORIGIN,
+            MONITOR_INGEST_TOKEN: env.MONITOR_INGEST_TOKEN ?? "",
+          },
+        },
+      });
       return { facilityId: data.facilityId, status: "running" } satisfies MonitorActionResult;
     } catch {
       return { facilityId: data.facilityId, status: "error" } satisfies MonitorActionResult;

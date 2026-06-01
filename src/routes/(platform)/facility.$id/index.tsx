@@ -2,7 +2,7 @@
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { EyeIcon, Loader2, PencilIcon, PlayIcon, Save, SettingsIcon, SquareIcon } from "lucide-react";
+import { EyeIcon, Loader2, PencilIcon, PlayIcon, Save, SettingsIcon, SquareIcon, TerminalIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/components/ui/button.tsx";
@@ -33,6 +33,7 @@ import { getMonitorStatus, startMonitor, stopMonitor } from "#/functions/monitor
 import type { FacilityEvent, MonitorStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
+import { ContainerLogsDialog } from "./-components/container-logs-dialog";
 import { DeviceEventPanel } from "./-components/device-event-panel";
 import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
@@ -140,6 +141,7 @@ function Page() {
   const [monitorStatus, setMonitorStatus] = useState<MonitorStatus>("stopped");
   const [isMonitorChanging, setIsMonitorChanging] = useState(false);
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
+  const [containerLogsOpen, setContainerLogsOpen] = useState(false);
 
   // ── Ref always pointing at latest placedItems (avoid stale closures) ────
   const placedItemsRef = useRef(placedItems);
@@ -612,6 +614,21 @@ function Page() {
             <TooltipContent>{editMode === "monitor" ? "Edit mode" : "Monitor mode"}</TooltipContent>
           </Tooltip>
 
+          {/* Container Logs button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label="View container logs"
+                onClick={() => setContainerLogsOpen(true)}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <TerminalIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Container Logs</TooltipContent>
+          </Tooltip>
+
           <Dialog
             onOpenChange={(open) => {
               setSettingsOpen(open);
@@ -709,6 +726,9 @@ function Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Container Logs Dialog ── */}
+      <ContainerLogsDialog events={events} onOpenChange={setContainerLogsOpen} open={containerLogsOpen} />
 
       {/* ── Resizable Panels ── */}
       <ResizablePanelGroup className="flex-1" orientation="horizontal">

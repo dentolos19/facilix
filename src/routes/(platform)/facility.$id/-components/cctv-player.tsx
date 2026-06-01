@@ -518,7 +518,7 @@ function CctvExpandedDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[95vw] w-[95vw] sm:max-w-[95vw] p-0 gap-0 bg-black overflow-hidden"
+        className="max-w-[85vw] w-[85vw] sm:max-w-[85vw] p-0 gap-0 bg-black overflow-hidden"
         showCloseButton={false}
       >
         <div
