@@ -1,5 +1,5 @@
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { CanvasLayoutData } from "#/lib/types";
+import type { CanvasLayoutData } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 export const asset = sqliteTable("assets", {
   id: text("id")

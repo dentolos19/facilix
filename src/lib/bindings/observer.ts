@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import type { FacilityEvent, ObserverSocketMessage } from "#/lib/monitoring/types";
 
 interface Observation {
   id: string;
@@ -8,20 +9,37 @@ interface Observation {
   createdAt: string;
 }
 
+function toEvent(row: {
+  id: string;
+  device_id: string;
+  type: string;
+  data: string;
+  created_at: string;
+}): FacilityEvent {
+  return {
+    id: row.id,
+    deviceId: row.device_id,
+    type: row.type,
+    data: row.data,
+    createdAt: row.created_at,
+  };
+}
+
 /**
  * Observer — A Durable Object for coordinating real-time event observation
  * across the Facilix platform.
  *
- * This is a sample DO demonstrating:
- *   - SQLite storage for persistent state (auto-created in constructor)
- *   - RPC methods for type-safe, direct communication from Workers
- *   - Alarms for periodic maintenance (automatic event cleanup)
- *   - Concurrency-safe initialization via `blockConcurrencyWhile`
+ * One instance per facility, keyed by facility ID.
+ * Supports both RPC calls (from server functions) and WebSocket connections
+ * (from browser clients).
  *
- * Usage (from a Worker fetch handler):
- *   const stub = env.OBSERVER.getByName("sensor-room-1");
- *   await stub.recordObservation("obs-001", "device-abc", "motion", '{"zone":"A"}');
- *   const recent = stub.queryObservations("device-abc");
+ * RPC (from server functions):
+ *   const stub = env.OBSERVER.getByName(facilityId);
+ *   await stub.recordEvent("device-abc", "monitor:started", "{}");
+ *   const events = stub.queryEvents("device-abc");
+ *
+ * WebSocket (from the browser):
+ *   const ws = new WebSocket(`${location.origin}/api/facility/${id}/observer/ws`);
  */
 export class Observer extends DurableObject<Env> {
   private lastCleanup = 0;
@@ -59,12 +77,78 @@ export class Observer extends DurableObject<Env> {
     });
   }
 
+  // ── WebSocket handler (called via DO stub .fetch()) ────────────────
+
+  async fetch(request: Request): Promise<Response> {
+    const upgrade = request.headers.get("Upgrade")?.toLowerCase();
+    if (upgrade !== "websocket") {
+      return new Response("Observer DO ready", { status: 200 });
+    }
+
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+
+    this.ctx.acceptWebSocket(server);
+
+    // Send an initial snapshot of recent events
+    const recent = this.queryEvents(undefined, undefined, 200);
+    this.send(server, { type: "snapshot", events: recent });
+
+    return new Response(null, {
+      status: 101,
+      webSocket: client,
+    });
+  }
+
+  async webSocketMessage(ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {
+    // Clients are read-only — we ignore incoming messages for now.
+    // Future: could support subscription filters here.
+  }
+
+  async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
+    // WebSocket cleanup is automatic — no manual bookkeeping needed.
+  }
+
+  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+    // Errors are automatically handled — no-op.
+  }
+
   // ── RPC Methods ─────────────────────────────────────────────────────
 
   /**
-   * Record a new observation for a device.
-   * Schedules a cleanup alarm on the first observation so old data doesn't
-   * accumulate indefinitely.
+   * Record a new event and broadcast it to all connected WebSocket clients.
+   * This is the primary method for recording events.
+   */
+  async recordEvent(deviceId: string, type: string, data: string): Promise<{ success: boolean }> {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    this.ctx.storage.sql.exec(
+      `INSERT INTO observations (id, device_id, type, data, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      id,
+      deviceId,
+      type,
+      data,
+      now,
+    );
+
+    const event: FacilityEvent = { id, deviceId, type, data, createdAt: now };
+
+    // Broadcast to all connected WebSocket clients
+    this.broadcast({ type: "event", event });
+
+    // Schedule a cleanup alarm if one isn't pending
+    if (this.lastCleanup === 0) {
+      await this.ctx.storage.setAlarm(Date.now() + 60_000);
+      this.lastCleanup = Date.now();
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Record a new observation for a device (legacy API, also broadcasts).
    */
   async recordObservation(id: string, deviceId: string, type: string, data: string): Promise<{ success: boolean }> {
     const now = new Date().toISOString();
@@ -79,6 +163,9 @@ export class Observer extends DurableObject<Env> {
       now,
     );
 
+    const event: FacilityEvent = { id, deviceId, type, data, createdAt: now };
+    this.broadcast({ type: "event", event });
+
     // Schedule a cleanup alarm if one isn't pending
     if (this.lastCleanup === 0) {
       await this.ctx.storage.setAlarm(Date.now() + 60_000);
@@ -89,8 +176,49 @@ export class Observer extends DurableObject<Env> {
   }
 
   /**
+   * Query events, optionally filtered by device and/or type
+   * within a time window. Results are newest-first.
+   */
+  queryEvents(deviceId?: string, type?: string, limit: number = 100): FacilityEvent[] {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (deviceId) {
+      conditions.push("device_id = ?");
+      params.push(deviceId);
+    }
+
+    if (type) {
+      conditions.push("type = ?");
+      params.push(type);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const results = this.ctx.storage.sql.exec<{
+      id: string;
+      device_id: string;
+      type: string;
+      data: string;
+      created_at: string;
+    }>(
+      `SELECT id, device_id, type, data, created_at
+       FROM observations
+       ${where}
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      ...params,
+      limit,
+    );
+
+    return results.toArray().map(toEvent);
+  }
+
+  /**
    * Query observations, optionally filtered by device and/or type
    * within a time window. Results are newest-first.
+   *
+   * @deprecated Use `queryEvents` instead.
    */
   queryObservations(deviceId?: string, type?: string, since?: string, limit: number = 100): Observation[] {
     const conditions: string[] = [];
@@ -146,6 +274,30 @@ export class Observer extends DurableObject<Env> {
     }>("SELECT type, COUNT(*) AS count FROM observations GROUP BY type");
 
     return Object.fromEntries(results.toArray().map((r) => [r.type, r.count]));
+  }
+
+  // ── Internal helpers ───────────────────────────────────────────────
+
+  /** Send a JSON message to a single WebSocket client. */
+  private send(ws: WebSocket, msg: ObserverSocketMessage): void {
+    try {
+      ws.send(JSON.stringify(msg));
+    } catch {
+      // Client disconnected — ignore.
+    }
+  }
+
+  /** Broadcast a JSON message to every connected WebSocket client. */
+  private broadcast(msg: ObserverSocketMessage): void {
+    const sockets = this.ctx.getWebSockets();
+    const payload = JSON.stringify(msg);
+    for (const ws of sockets) {
+      try {
+        ws.send(payload);
+      } catch {
+        // Client disconnected — ignore.
+      }
+    }
   }
 
   // ── Alarms ───────────────────────────────────────────────────────────

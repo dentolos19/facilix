@@ -7,8 +7,8 @@ import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select.tsx";
 import { FALLBACK_SIMULATION_STREAMS } from "#/lib/simulation/cctv";
 import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
-import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "#/lib/types";
 import type { PropertiesPanelProps } from "../-helpers/types";
+import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({

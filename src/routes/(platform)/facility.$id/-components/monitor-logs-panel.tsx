@@ -20,7 +20,7 @@ export function MonitorLogsPanel({
 
         {logs.length === 0 && (
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-[11px] text-muted-foreground/50">No IoT devices placed</span>
+            <span className="text-[11px] text-muted-foreground/50">No events yet</span>
           </div>
         )}
 

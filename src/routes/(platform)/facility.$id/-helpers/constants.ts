@@ -1,44 +1,5 @@
 import { BoxIcon, Grid3x3Icon, MapPinIcon, RadioIcon, WifiIcon } from "lucide-react";
-import type { PlacedItemType } from "#/lib/types";
-
-export const CCTV_MESSAGES: [string, "info" | "warn" | "error"][] = [
-  ["Motion detected — sector A4", "info"],
-  ["Person identified at loading bay 2", "info"],
-  ["Object left unattended near conveyor B", "warn"],
-  ["Camera feed signal restored", "info"],
-  ["Motion detected — north entrance", "info"],
-  ["Unauthorised access attempt — door 7", "error"],
-  ["Motion detected — warehouse aisle 3", "info"],
-  ["Camera feed lost — sector C1", "error"],
-  ["Vehicle detected at gate 1", "info"],
-  ["PPE violation — missing hard hat", "warn"],
-];
-
-export const SENSOR_MESSAGES: [string, "info" | "warn" | "error"][] = [
-  ["Temperature: 24.5 °C — normal", "info"],
-  ["Temperature: 31.2 °C — exceeds threshold", "warn"],
-  ["Humidity: 62 % — normal", "info"],
-  ["Air quality: PM2.5 = 45 µg/m³ — moderate", "info"],
-  ["Vibration detected — machine #3", "warn"],
-  ["Temperature: 22.1 °C — normal", "info"],
-  ["Air quality: PM2.5 = 82 µg/m³ — unhealthy", "warn"],
-  ["Temperature: 19.8 °C — normal", "info"],
-  ["CO₂: 1200 ppm — elevated", "warn"],
-  ["Gas leak detected — sensor unit alpha", "error"],
-];
-
-export const SIGNAL_MESSAGES: [string, "info" | "warn" | "error"][] = [
-  ["Signal strength: 92 % — excellent", "info"],
-  ["Signal strength: 67 % — good", "info"],
-  ["Signal strength: 34 % — weak", "warn"],
-  ["Connection established — gateway delta", "info"],
-  ["Packet loss: 12 % — checking link", "warn"],
-  ["Signal strength: 45 % — moderate", "info"],
-  ["Connection dropped — reconnecting", "error"],
-  ["Frequency: 2.4 GHz — channel 6", "info"],
-  ["Interference detected — switching channel", "warn"],
-  ["Signal restored — all clear", "info"],
-];
+import type { PlacedItemType } from "./types";
 
 /** Visual dimensions and colours for each component type (fallback defaults). */
 export const ITEM_DEFS: Record<

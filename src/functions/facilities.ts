@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
 import { createDatabase, schema } from "#/lib/database";
-import type { CanvasLayoutData, PlacedItemType } from "#/lib/types";
+import type { CanvasLayoutData, PlacedItemType } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 

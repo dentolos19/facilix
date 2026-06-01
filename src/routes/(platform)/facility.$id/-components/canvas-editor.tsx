@@ -2,11 +2,10 @@ import type Konva from "konva";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import type { PlacedItem, PlacedItemType } from "#/lib/types";
-import { DEFAULT_ICON_SHAPES, DEFAULT_PROPS } from "#/lib/types";
 import { ITEM_DEFS, PLACEABLE_ITEMS } from "../-helpers/constants";
 import { useIsomorphicLayoutEffect, useResizeObserver } from "../-helpers/hooks";
-import type { CanvasEditorProps } from "../-helpers/types";
+import type { CanvasEditorProps, PlacedItem, PlacedItemType } from "../-helpers/types";
+import { DEFAULT_ICON_SHAPES, DEFAULT_PROPS } from "../-helpers/types";
 import { darkenHex, getCanvasColors, hexToRgba, lightenHex } from "../-helpers/utils";
 
 /** Canvas that accepts drag-and-drop from the component palette. */

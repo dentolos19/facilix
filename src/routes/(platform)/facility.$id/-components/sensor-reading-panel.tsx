@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { NormalizedReading } from "#/lib/simulation/sensors";
 import { fetchSimulationLatestReading } from "#/lib/simulation/sensors";
-import type { PlacedItem } from "#/lib/types";
+import type { PlacedItem } from "../-helpers/types";
 
 export interface SensorReadingPanelProps {
   selectedDevice: PlacedItem;

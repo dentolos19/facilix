@@ -1,7 +1,3 @@
-import type { PlacedItem } from "#/lib/types";
-import { CCTV_MESSAGES, SENSOR_MESSAGES, SIGNAL_MESSAGES } from "./constants";
-import type { LogEntry } from "./types";
-
 /** Convert a hex color to an rgba string with the given alpha. */
 export function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
@@ -40,32 +36,4 @@ export function getCanvasColors() {
     border: style.getPropertyValue("--border").trim(),
     mutedForeground: style.getPropertyValue("--muted-foreground").trim(),
   };
-}
-
-/** Generate a stable set of mock log entries for every IoT device. */
-export function generateMockLogs(items: PlacedItem[]): LogEntry[] {
-  const logs: LogEntry[] = [];
-  const now = Date.now();
-
-  for (const item of items) {
-    if (item.type !== "CCTV" && item.type !== "Sensor" && item.type !== "Signal") continue;
-
-    const pool = item.type === "CCTV" ? CCTV_MESSAGES : item.type === "Sensor" ? SENSOR_MESSAGES : SIGNAL_MESSAGES;
-    // generate 4-7 logs per device with staggered timestamps
-    const count = 4 + (item.id.charCodeAt(item.id.length - 1) % 4);
-    for (let i = 0; i < count; i++) {
-      const [msg, level] = pool[i % pool.length];
-      logs.push({
-        id: `${item.id}-log-${i}`,
-        deviceId: item.id,
-        deviceName: item.name,
-        deviceType: item.type,
-        timestamp: new Date(now - (count - i) * 90_000), // one every 90s
-        level,
-        message: msg,
-      });
-    }
-  }
-
-  return logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 }

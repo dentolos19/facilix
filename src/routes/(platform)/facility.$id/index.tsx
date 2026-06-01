@@ -2,7 +2,7 @@
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { EyeIcon, Loader2, PencilIcon, Save, SettingsIcon } from "lucide-react";
+import { EyeIcon, Loader2, PencilIcon, PlayIcon, Save, SettingsIcon, SquareIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/components/ui/button.tsx";
@@ -29,7 +29,14 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
 import { deleteFacility, loadFacility, saveFacility } from "#/functions/facilities";
-import type { PlacedItem, PlacedItemType } from "#/lib/types";
+import { getMonitorStatus, startMonitor, stopMonitor } from "#/functions/monitors";
+import type { FacilityEvent, MonitorStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
+import { CanvasEditor } from "./-components/canvas-editor";
+import { ComponentPalette } from "./-components/component-palette";
+import { DeviceEventPanel } from "./-components/device-event-panel";
+import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
+import { PropertiesPanel } from "./-components/properties-panel";
+import type { EditMode, LogEntry, PlacedItem, PlacedItemType } from "./-helpers/types";
 import {
   DEFAULT_PROPS,
   DEFAULT_SIZES,
@@ -37,14 +44,7 @@ import {
   toCanvasData,
   toDevicePayloads,
   toZonePayloads,
-} from "#/lib/types";
-import { CanvasEditor } from "./-components/canvas-editor";
-import { ComponentPalette } from "./-components/component-palette";
-import { DeviceEventPanel } from "./-components/device-event-panel";
-import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
-import { PropertiesPanel } from "./-components/properties-panel";
-import type { EditMode } from "./-helpers/types";
-import { generateMockLogs } from "./-helpers/utils";
+} from "./-helpers/types";
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
   component: Page,
@@ -69,6 +69,55 @@ function Field({
   );
 }
 
+/** Map a raw FacilityEvent (from the Observer DO) to a LogEntry for the UI. */
+function eventToLogEntry(event: FacilityEvent, deviceMap: Map<string, PlacedItem>): LogEntry {
+  let level: LogEntry["level"] = "info";
+  let message = event.type;
+
+  try {
+    const parsed = JSON.parse(event.data);
+    if (typeof parsed.level === "string" && ["info", "warn", "error"].includes(parsed.level)) {
+      level = parsed.level as LogEntry["level"];
+    }
+    if (typeof parsed.message === "string") {
+      message = parsed.message;
+    }
+  } catch {
+    // data is not JSON — use the raw string
+    if (event.data && event.data !== "{}") {
+      message = event.data;
+    }
+  }
+
+  const device = deviceMap.get(event.deviceId);
+
+  return {
+    id: event.id,
+    deviceId: event.deviceId,
+    deviceName: device?.name ?? event.deviceId,
+    deviceType: device?.type ?? "Sensor",
+    timestamp: new Date(event.createdAt),
+    level,
+    message,
+  };
+}
+
+/** Human-readable label for a MonitorStatus value. */
+function monitorStatusLabel(status: MonitorStatus): string {
+  switch (status) {
+    case "running":
+      return "Running";
+    case "starting":
+      return "Starting…";
+    case "stopping":
+      return "Stopping…";
+    case "stopped":
+      return "Stopped";
+    case "error":
+      return "Error";
+  }
+}
+
 function Page() {
   const navigate = useNavigate();
   const { id: facilityId } = Route.useParams();
@@ -82,6 +131,15 @@ function Page() {
   const [settingsName, setSettingsName] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Observer WebSocket events ──────────────────────────────────────────
+  const [events, setEvents] = useState<FacilityEvent[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // ── Monitor container status ───────────────────────────────────────────
+  const [monitorStatus, setMonitorStatus] = useState<MonitorStatus>("stopped");
+  const [isMonitorChanging, setIsMonitorChanging] = useState(false);
+  const [editConfirmOpen, setEditConfirmOpen] = useState(false);
 
   // ── Ref always pointing at latest placedItems (avoid stale closures) ────
   const placedItemsRef = useRef(placedItems);
@@ -119,6 +177,75 @@ function Page() {
     })();
   }, [facilityId]);
 
+  // ── Connect to the Observer DO via WebSocket ──────────────────────────
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/api/facility/${facilityId}/observer/ws`;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let isDestroyed = false;
+
+    function connect() {
+      if (isDestroyed) return;
+      ws = new WebSocket(wsUrl);
+
+      ws.addEventListener("open", () => {
+        if (isDestroyed) return ws?.close();
+      });
+
+      ws.addEventListener("message", (event: MessageEvent) => {
+        if (isDestroyed) return;
+        try {
+          const msg: ObserverSocketMessage = JSON.parse(event.data);
+          switch (msg.type) {
+            case "snapshot":
+              setEvents(msg.events);
+              break;
+            case "event":
+              setEvents((prev) => [msg.event, ...prev]);
+              break;
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+
+      ws.addEventListener("close", () => {
+        ws = null;
+        if (!isDestroyed) {
+          // Reconnect after 3 seconds
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      });
+
+      ws.addEventListener("error", () => {
+        // close event will fire after error, triggering reconnect
+      });
+    }
+
+    connect();
+
+    return () => {
+      isDestroyed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+      wsRef.current = null;
+    };
+  }, [facilityId]);
+
+  // ── Fetch initial monitor status on mount ──────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await getMonitorStatus({ data: { facilityId } });
+        setMonitorStatus(result.status);
+      } catch {
+        // Non-critical; default to stopped
+      }
+    })();
+  }, [facilityId]);
+
   // ── Mutations ────────────────────────────────────────────────────────────
 
   const addPlacedItem = useCallback((type: PlacedItemType, x: number, y: number) => {
@@ -146,7 +273,12 @@ function Page() {
   }, []);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const logs = useMemo(() => generateMockLogs(placedItems), [placedItems]);
+
+  // Derive LogEntry[] from raw Observer events, enriched with device names
+  const logs = useMemo(() => {
+    const deviceMap = new Map(placedItems.map((i) => [i.id, i]));
+    return events.map((e) => eventToLogEntry(e, deviceMap));
+  }, [events, placedItems]);
 
   const updatePlacedItem = useCallback(
     (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => {
@@ -207,6 +339,36 @@ function Page() {
     setCanRedo(stack.length > 0);
     setIsDirty(true);
   }, []);
+
+  // ── Monitor container controls ───────────────────────────────────────────
+
+  const handleStartMonitor = useCallback(async () => {
+    setIsMonitorChanging(true);
+    try {
+      const result = await startMonitor({ data: { facilityId } });
+      setMonitorStatus(result.status);
+      toast.success("Monitor started");
+    } catch {
+      toast.error("Failed to start monitor");
+      setMonitorStatus("error");
+    } finally {
+      setIsMonitorChanging(false);
+    }
+  }, [facilityId]);
+
+  const handleStopMonitor = useCallback(async () => {
+    setIsMonitorChanging(true);
+    try {
+      const result = await stopMonitor({ data: { facilityId } });
+      setMonitorStatus(result.status);
+      toast.success("Monitor stopped");
+    } catch {
+      toast.error("Failed to stop monitor");
+      setMonitorStatus("error");
+    } finally {
+      setIsMonitorChanging(false);
+    }
+  }, [facilityId]);
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
@@ -288,6 +450,39 @@ function Page() {
     }
   }, [facilityId, navigate]);
 
+  // ── Edit mode guard ──────────────────────────────────────────────────────
+
+  const handleEditToggle = useCallback(() => {
+    if (editMode === "edit") {
+      // Switching from edit → monitor — save if dirty then switch
+      if (isDirty) handleSave({ silent: true });
+      setEditMode("monitor");
+      return;
+    }
+
+    // Switching from monitor → edit
+    if (monitorStatus === "running" || monitorStatus === "starting") {
+      setEditConfirmOpen(true);
+    } else {
+      setEditMode("edit");
+    }
+  }, [editMode, isDirty, handleSave, monitorStatus]);
+
+  const handleConfirmEdit = useCallback(async () => {
+    setEditConfirmOpen(false);
+    setIsMonitorChanging(true);
+    try {
+      await stopMonitor({ data: { facilityId } });
+      setMonitorStatus("stopped");
+      setEditMode("edit");
+    } catch {
+      toast.error("Failed to stop monitor before editing");
+      setMonitorStatus("error");
+    } finally {
+      setIsMonitorChanging(false);
+    }
+  }, [facilityId]);
+
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
   useHotkeys([
     { hotkey: "Mod+Z", callback: () => handleUndo(), options: { enabled: editMode === "edit" && canUndo } },
@@ -345,8 +540,42 @@ function Page() {
           </MenubarMenu>
         )}
 
-        {/* ── Spacer + save + mode toggle + settings ── */}
+        {/* ── Spacer + monitor toggle + save + mode toggle + settings ── */}
         <div className="ml-auto flex items-center gap-0.5">
+          {/* Monitor start / stop button (monitor mode only) */}
+          {editMode === "monitor" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label={
+                    isMonitorChanging
+                      ? "Changing…"
+                      : monitorStatus === "running"
+                        ? "Stop monitor"
+                        : monitorStatus === "stopped"
+                          ? "Start monitor"
+                          : "Start monitor"
+                  }
+                  disabled={isMonitorChanging || monitorStatus === "starting" || monitorStatus === "stopping"}
+                  onClick={monitorStatus === "running" ? handleStopMonitor : handleStartMonitor}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  {isMonitorChanging || monitorStatus === "starting" || monitorStatus === "stopping" ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : monitorStatus === "running" ? (
+                    <SquareIcon className="size-4" />
+                  ) : (
+                    <PlayIcon className="size-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isMonitorChanging ? "Working…" : monitorStatus === "running" ? "Stop monitor" : "Start monitor"}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
           {editMode === "edit" && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -367,14 +596,13 @@ function Page() {
               <TooltipContent>Save</TooltipContent>
             </Tooltip>
           )}
+
+          {/* Edit / Monitor mode toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 aria-label={editMode === "monitor" ? "Switch to Edit mode" : "Switch to Monitor mode"}
-                onClick={() => {
-                  if (editMode === "edit" && isDirty) handleSave({ silent: true });
-                  setEditMode(editMode === "monitor" ? "edit" : "monitor");
-                }}
+                onClick={handleEditToggle}
                 size="icon-sm"
                 variant="ghost"
               >
@@ -383,6 +611,7 @@ function Page() {
             </TooltipTrigger>
             <TooltipContent>{editMode === "monitor" ? "Edit mode" : "Monitor mode"}</TooltipContent>
           </Tooltip>
+
           <Dialog
             onOpenChange={(open) => {
               setSettingsOpen(open);
@@ -452,6 +681,34 @@ function Page() {
           </Dialog>
         </div>
       </Menubar>
+
+      {/* ── Confirmation dialog: edit while monitor is running ── */}
+      <Dialog onOpenChange={setEditConfirmOpen} open={editConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Stop monitor before editing?</DialogTitle>
+            <DialogDescription>
+              This facility is currently {monitorStatusLabel(monitorStatus)}. You must stop the monitor before editing
+              the facility layout and devices. Do you want to stop the monitor and switch to edit mode?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setEditConfirmOpen(false)} size="sm" variant="outline">
+              Cancel
+            </Button>
+            <Button disabled={isMonitorChanging} onClick={handleConfirmEdit} size="sm" variant="default">
+              {isMonitorChanging ? (
+                <>
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  Stopping…
+                </>
+              ) : (
+                "Stop and edit"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Resizable Panels ── */}
       <ResizablePanelGroup className="flex-1" orientation="horizontal">
