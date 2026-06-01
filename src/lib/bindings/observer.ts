@@ -1,12 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
 
-interface ObserverEvent {
+interface Observation {
   id: string;
+  deviceId: string;
   type: string;
-  source: string;
-  payload: string;
-  timestamp: number;
-  acknowledged: boolean;
+  data: string;
+  createdAt: string;
 }
 
 /**
@@ -21,8 +20,8 @@ interface ObserverEvent {
  *
  * Usage (from a Worker fetch handler):
  *   const stub = env.OBSERVER.getByName("sensor-room-1");
- *   await stub.recordEvent("evt-001", "motion", "camera-3", '{"zone":"A"}');
- *   const events = stub.queryEvents("motion");
+ *   await stub.recordObservation("obs-001", "device-abc", "motion", '{"zone":"A"}');
+ *   const recent = stub.queryObservations("device-abc");
  */
 export class Observer extends DurableObject<Env> {
   private lastCleanup = 0;
@@ -30,29 +29,32 @@ export class Observer extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
 
-    // blockConcurrencyWhile ensures schema is created before any request is
+    // blockConcurrencyWhile ensures the table exists before any request is
     // delivered — use it for one-time setup only, never for per-request work.
     ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(`
-        CREATE TABLE IF NOT EXISTS events (
+        CREATE TABLE IF NOT EXISTS observations (
           id          TEXT PRIMARY KEY,
+          device_id   TEXT NOT NULL,
           type        TEXT NOT NULL,
-          source      TEXT NOT NULL,
-          payload     TEXT NOT NULL DEFAULT '{}',
-          timestamp   INTEGER NOT NULL,
-          acknowledged INTEGER NOT NULL DEFAULT 0,
-          created_at  TEXT DEFAULT (datetime('now'))
+          data        TEXT NOT NULL DEFAULT '{}',
+          created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )
       `);
 
       ctx.storage.sql.exec(`
-        CREATE INDEX IF NOT EXISTS idx_events_type
-        ON events(type)
+        CREATE INDEX IF NOT EXISTS idx_observations_device_id
+        ON observations(device_id)
       `);
 
       ctx.storage.sql.exec(`
-        CREATE INDEX IF NOT EXISTS idx_events_timestamp
-        ON events(timestamp)
+        CREATE INDEX IF NOT EXISTS idx_observations_type
+        ON observations(type)
+      `);
+
+      ctx.storage.sql.exec(`
+        CREATE INDEX IF NOT EXISTS idx_observations_created_at
+        ON observations(created_at)
       `);
     });
   }
@@ -60,69 +62,88 @@ export class Observer extends DurableObject<Env> {
   // ── RPC Methods ─────────────────────────────────────────────────────
 
   /**
-   * Record a new observation event.
-   * Scheduling a cleanup alarm on the first event so old data doesn't
+   * Record a new observation for a device.
+   * Schedules a cleanup alarm on the first observation so old data doesn't
    * accumulate indefinitely.
    */
-  async recordEvent(id: string, type: string, source: string, payload: string): Promise<{ success: boolean }> {
-    const now = Date.now();
+  async recordObservation(id: string, deviceId: string, type: string, data: string): Promise<{ success: boolean }> {
+    const now = new Date().toISOString();
 
     this.ctx.storage.sql.exec(
-      `INSERT OR IGNORE INTO events (id, type, source, payload, timestamp)
+      `INSERT OR IGNORE INTO observations (id, device_id, type, data, created_at)
        VALUES (?, ?, ?, ?, ?)`,
       id,
+      deviceId,
       type,
-      source,
-      JSON.stringify(payload),
+      data,
       now,
     );
 
-    // Schedule an alarm for event cleanup if one isn't pending
+    // Schedule a cleanup alarm if one isn't pending
     if (this.lastCleanup === 0) {
-      await this.ctx.storage.setAlarm(now + 60_000); // 1 minute from now
-      this.lastCleanup = now;
+      await this.ctx.storage.setAlarm(Date.now() + 60_000);
+      this.lastCleanup = Date.now();
     }
 
     return { success: true };
   }
 
-  /** Query recent events by type within an optional time window. */
-  queryEvents(type: string, since?: number, limit: number = 100): ObserverEvent[] {
-    const sinceMs = since ?? Date.now() - 3_600_000; // default: last hour
+  /**
+   * Query observations, optionally filtered by device and/or type
+   * within a time window. Results are newest-first.
+   */
+  queryObservations(deviceId?: string, type?: string, since?: string, limit: number = 100): Observation[] {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
 
-    const results = this.ctx.storage.sql.exec<ObserverEvent>(
-      `SELECT id, type, source, payload, timestamp, acknowledged
-       FROM events
-       WHERE type = ? AND timestamp >= ?
-       ORDER BY timestamp DESC
+    if (deviceId) {
+      conditions.push("device_id = ?");
+      params.push(deviceId);
+    }
+
+    if (type) {
+      conditions.push("type = ?");
+      params.push(type);
+    }
+
+    if (since) {
+      conditions.push("created_at >= ?");
+      params.push(since);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const results = this.ctx.storage.sql.exec<{
+      id: string;
+      device_id: string;
+      type: string;
+      data: string;
+      created_at: string;
+    }>(
+      `SELECT id, device_id, type, data, created_at
+       FROM observations
+       ${where}
+       ORDER BY created_at DESC
        LIMIT ?`,
-      type,
-      sinceMs,
+      ...params,
       limit,
     );
 
     return results.toArray().map((row) => ({
       id: row.id,
+      deviceId: row.device_id,
       type: row.type,
-      source: row.source,
-      payload: row.payload,
-      timestamp: row.timestamp,
-      acknowledged: row.acknowledged === 1,
+      data: row.data,
+      createdAt: row.created_at,
     }));
   }
 
-  /** Mark a single event as acknowledged. */
-  async acknowledgeEvent(id: string): Promise<{ success: boolean }> {
-    this.ctx.storage.sql.exec("UPDATE events SET acknowledged = 1 WHERE id = ?", id);
-    return { success: true };
-  }
-
-  /** Return a summary of event counts grouped by type. */
+  /** Return a summary of observation counts grouped by type. */
   getSummary(): Record<string, number> {
     const results = this.ctx.storage.sql.exec<{
       type: string;
       count: number;
-    }>("SELECT type, COUNT(*) AS count FROM events GROUP BY type");
+    }>("SELECT type, COUNT(*) AS count FROM observations GROUP BY type");
 
     return Object.fromEntries(results.toArray().map((r) => [r.type, r.count]));
   }
@@ -130,21 +151,20 @@ export class Observer extends DurableObject<Env> {
   // ── Alarms ───────────────────────────────────────────────────────────
 
   /**
-   * Alarm handler — runs on the schedule set by `recordEvent`.
+   * Alarm handler — runs on the schedule set by `recordObservation`.
    *
-   * Purges events older than 24 hours, then reschedules itself for the next
-   * hour. If there are no events left, the alarm chain stops automatically.
+   * Purges observations older than 24 hours, then reschedules itself for the
+   * next hour. If no data remains, the alarm chain stops automatically.
    */
   async alarm(): Promise<void> {
-    const cutoff = Date.now() - 86_400_000; // 24 hours
+    const cutoff = new Date(Date.now() - 86_400_000).toISOString();
 
-    this.ctx.storage.sql.exec("DELETE FROM events WHERE timestamp < ?", cutoff);
+    this.ctx.storage.sql.exec("DELETE FROM observations WHERE created_at < ?", cutoff);
 
-    // Only keep the chain alive if there's data worth cleaning later
-    const remaining = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM events");
+    const remaining = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations");
 
     if (remaining.one().cnt > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + 3_600_000); // next hour
+      await this.ctx.storage.setAlarm(Date.now() + 3_600_000);
     } else {
       this.lastCleanup = 0;
     }

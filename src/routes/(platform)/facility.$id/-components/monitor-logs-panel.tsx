@@ -15,7 +15,7 @@ export function MonitorLogsPanel({
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-2 p-4">
         <h3 className="shrink-0 font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          Device Logs
+          Global Events
         </h3>
 
         {logs.length === 0 && (

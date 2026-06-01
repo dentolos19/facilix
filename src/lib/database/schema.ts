@@ -153,7 +153,7 @@ export const facilityDevice = sqliteTable("facility_devices", {
     .$onUpdate(() => new Date()),
 });
 
-export const deviceLog = sqliteTable("device_logs", {
+export const deviceEvent = sqliteTable("device_events", {
   id: text("id")
     .primaryKey()
     .$default(() => crypto.randomUUID()),
@@ -180,4 +180,4 @@ export type Verification = typeof verification.$inferSelect;
 export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
-export type DeviceLog = typeof deviceLog.$inferSelect;
+export type DeviceEvent = typeof deviceEvent.$inferSelect;

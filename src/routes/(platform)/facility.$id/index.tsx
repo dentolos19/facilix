@@ -40,7 +40,7 @@ import {
 } from "#/lib/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
-import { DeviceLogPanel } from "./-components/device-log-panel";
+import { DeviceEventPanel } from "./-components/device-event-panel";
 import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
 import type { EditMode } from "./-helpers/types";
@@ -497,7 +497,7 @@ function Page() {
         {/* Right panel — properties (edit) / device logs (monitor) */}
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitor" ? (
-            <DeviceLogPanel
+            <DeviceEventPanel
               logs={logs}
               selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}
               selectedDeviceId={selectedItemId}

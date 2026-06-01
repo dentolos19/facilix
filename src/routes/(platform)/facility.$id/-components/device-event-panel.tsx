@@ -10,7 +10,7 @@ import { LogLevelBadge } from "./monitor-logs-panel";
 import { SensorReadingPanel } from "./sensor-reading-panel";
 
 /** Individual log entries for a single selected device (monitor right panel). */
-export function DeviceLogPanel({
+export function DeviceEventPanel({
   logs,
   selectedDeviceId,
   selectedDevice,
@@ -19,13 +19,13 @@ export function DeviceLogPanel({
   selectedDeviceId: string | null;
   selectedDevice?: PlacedItem | null;
 }) {
-  const deviceLogs = useMemo(
+  const deviceEvents = useMemo(
     () => (selectedDeviceId ? logs.filter((l) => l.deviceId === selectedDeviceId) : []),
     [logs, selectedDeviceId],
   );
 
   const navigate = useNavigate();
-  const device = deviceLogs[0];
+  const device = deviceEvents[0];
   const isCCTV = selectedDevice?.type === "CCTV";
   const isSensor = selectedDevice?.type === "Sensor";
 
@@ -52,14 +52,14 @@ export function DeviceLogPanel({
         {!selectedDeviceId && (
           <div className="flex flex-1 items-center justify-center px-2 text-center">
             <span className="text-[11px] text-muted-foreground/50">
-              Click an IoT device on the map to view its logs
+              Click an IoT device on the map to view its events
             </span>
           </div>
         )}
 
-        {selectedDeviceId && deviceLogs.length === 0 && !selectedDevice && (
+        {selectedDeviceId && deviceEvents.length === 0 && !selectedDevice && (
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-[11px] text-muted-foreground/50">No logs for this device</span>
+            <span className="text-[11px] text-muted-foreground/50">No events for this device</span>
           </div>
         )}
 
@@ -103,13 +103,13 @@ export function DeviceLogPanel({
             {isSensor && selectedDevice && <SensorReadingPanel selectedDevice={selectedDevice} />}
 
             {/* Log entries */}
-            {deviceLogs.length > 0 && (
+            {deviceEvents.length > 0 && (
               <>
                 <h4 className="font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                  Log History
+                  Event History
                 </h4>
                 <div className="flex flex-col gap-1">
-                  {deviceLogs.map((log) => (
+                  {deviceEvents.map((log) => (
                     <div
                       className="flex flex-col gap-0.5 rounded-none border-l-2 px-2.5 py-1.5 text-[11px] leading-relaxed"
                       key={log.id}

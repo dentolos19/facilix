@@ -142,7 +142,7 @@ export const loadFacility = createServerFn({ method: "GET" })
  * - Updates facilities.data with canvas-layout metadata only.
  * - Upserts / deletes zone rows to match the incoming zones array.
  * - Upserts / deletes device rows to match the incoming devices array, preserving
- *   IDs so device_log FK references stay valid.
+ *   IDs so device_event FK references stay valid.
  */
 export const saveFacility = createServerFn({ method: "POST" })
   .inputValidator((data: SaveInput) => {
