@@ -84,6 +84,7 @@ def get_client() -> httpx.AsyncClient:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -136,6 +137,7 @@ async def fetch_config() -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 # CCTV monitoring
 # ---------------------------------------------------------------------------
+
 
 async def monitor_cctv(
     device_id: str,
@@ -314,6 +316,7 @@ async def upload_segment(device_id: str, segment_data: bytes, duration: float) -
 # Sensor monitoring
 # ---------------------------------------------------------------------------
 
+
 async def monitor_sensor(
     device_id: str,
     device_name: str,
@@ -428,6 +431,7 @@ async def read_sensor(
 # Heartbeat
 # ---------------------------------------------------------------------------
 
+
 async def heartbeat_loop(facility_id: str) -> None:
     """Post periodic heartbeat events to show the container is alive."""
     while True:
@@ -444,6 +448,7 @@ async def heartbeat_loop(facility_id: str) -> None:
 # ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
+
 
 async def startup_monitor() -> None:
     """Fetch config and start all monitoring tasks."""
@@ -508,6 +513,7 @@ async def startup_monitor() -> None:
 # FastAPI lifespan
 # ---------------------------------------------------------------------------
 
+
 @app.on_event("startup")
 async def on_startup() -> None:
     label = FACILITY_ID or "unknown"
@@ -544,6 +550,7 @@ async def on_shutdown() -> None:
 # ---------------------------------------------------------------------------
 # Health endpoint
 # ---------------------------------------------------------------------------
+
 
 @app.get("/")
 async def root() -> dict[str, Any]:

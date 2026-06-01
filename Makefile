@@ -11,5 +11,6 @@ stop:
 	docker compose down
 
 check:
+	bun run check
 	cd services/monitor && uv run ruff check --fix
 	cd services/monitor && uv run ruff format
