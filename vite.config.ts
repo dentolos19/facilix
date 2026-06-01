@@ -17,9 +17,7 @@ const config = defineConfig({
     cloudflare({
       viteEnvironment: { name: "ssr" },
     }),
-    tanstackStart({
-      routeFileIgnorePattern: /\.ts$/,
-    }),
+    tanstackStart(),
     viteReact(),
     tailwindcss(),
     devtools(),

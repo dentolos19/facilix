@@ -37,7 +37,7 @@
   "containers": [
     {
       "name": "facilix-monitor",
-      "class_name": "FacilixMonitor",
+      "class_name": "Monitor",
       "image": "services/monitor/Dockerfile",
       "max_instances": 10,
       "instance_type": "basic"

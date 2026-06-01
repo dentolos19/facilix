@@ -4,8 +4,11 @@ setup:
 	bun install
 	cd services/monitor && uv sync
 
-dev:
-	uv run main.py
+start:
+	docker compose up --build --detach
+
+stop:
+	docker compose down
 
 check:
 	cd services/monitor && uv run ruff check --fix
