@@ -1,14 +1,4 @@
-# ---------------------------------------------------------------------------
-# Docker Compose — CCTV & Sensor Simulators
-#
-# Starts three services:
-#   mediamtx  — RTSP/RTMP/HLS streaming server
-#   cctv      — Python app that loops local MP4 files into MediaMTX
-#   sensors   — Python app that simulates IoT device sensor telemetry
-# ---------------------------------------------------------------------------
-
 services:
-
   mediamtx:
     image: bluenviron/mediamtx:latest
     container_name: facilix-mediamtx
@@ -20,11 +10,11 @@ services:
       - "8889:8889" # WebRTC
       - "9997:9997" # API
     volumes:
-      - ./services/cctv/mediamtx.yml:/mediamtx.yml:ro
+      - ./services/simulation/cctv/mediamtx.yml:/mediamtx.yml:ro
 
   cctv:
     build:
-      context: ./services/cctv
+      context: ./services/simulation/cctv
       dockerfile: Dockerfile
     container_name: facilix-cctv
     restart: unless-stopped
@@ -49,7 +39,7 @@ services:
 
   sensors:
     build:
-      context: ./services/sensors
+      context: ./services/simulation/sensors
       dockerfile: Dockerfile
     container_name: facilix-sensors
     restart: unless-stopped

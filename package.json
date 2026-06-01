@@ -24,6 +24,7 @@
     "services:sensors:logs": "docker compose logs -f sensors"
   },
   "dependencies": {
+    "@cloudflare/containers": "^0.3.5",
     "@cloudflare/vite-plugin": "^1.38.0",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
