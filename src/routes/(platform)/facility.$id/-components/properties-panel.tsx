@@ -20,7 +20,7 @@ export function PropertiesPanel({
   onDeleteItem,
 }: PropertiesPanelProps) {
   const selected = placedItems.find((i) => i.id === selectedItemId) ?? null;
-  const isReadOnly = editMode === "monitor";
+  const isReadOnly = editMode === "monitoring";
 
   return (
     <ScrollArea className="h-full">
@@ -46,7 +46,7 @@ export function PropertiesPanel({
         {!selected && (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 text-center">
             <span className="text-[11px] text-muted-foreground/50">
-              {editMode === "monitor"
+              {editMode === "monitoring"
                 ? "Switch to Edit mode to select components"
                 : "Click a component on the canvas to view its properties"}
             </span>

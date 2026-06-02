@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
+import { createStorage } from "#/lib/storage";
 import { recordFacilityEvent, validateDevice } from "./utils";
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -20,15 +21,15 @@ const ANOMALY_CLASSES = new Set([
   "cell phone",
 ]);
 
-export type MonitorApiAction = "config" | "events" | "frames" | "segments";
+export type MonitoringApiAction = "config" | "events" | "frames" | "segments";
 
-export async function handleMonitorApiRequest(
+export async function handleMonitoringApiRequest(
   request: Request,
   env: Env,
   facilityId: string,
-  action: MonitorApiAction,
+  action: MonitoringApiAction,
 ): Promise<Response> {
-  const expected = env.MONITOR_INGEST_TOKEN;
+  const expected = env.INGEST_TOKEN;
   const auth = request.headers.get("authorization");
   if (!expected || auth !== `Bearer ${expected}`) {
     return new Response("Unauthorized", { status: 401 });
@@ -117,7 +118,7 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     body.type,
     body.severity as "info" | "warn" | "error",
     body.message,
-    { ...body.data, source: "monitor-container" },
+    { ...body.data, source: "monitoring-container" },
   );
 
   return eventId
@@ -163,7 +164,7 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
       "info",
       `Frame analyzed — ${detections.length} object(s) detected, no anomalies`,
       {
-        source: "monitor-container",
+        source: "monitoring-container",
         objectCount: detections.length,
       },
     );
@@ -179,7 +180,7 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
       det.confidence > 0.7 ? "warn" : "info",
       `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
       {
-        source: "monitor-container",
+        source: "monitoring-container",
         label: det.label,
         confidence: det.confidence,
         detectionCount: anomalies.length,
@@ -215,31 +216,25 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   if (Number.isNaN(startedAt.getTime())) return Response.json({ error: "Invalid X-Timestamp header" }, { status: 400 });
   const endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
 
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const y = startedAt.getUTCFullYear();
-  const m = pad(startedAt.getUTCMonth() + 1);
-  const d = pad(startedAt.getUTCDate());
-  const hh = pad(startedAt.getUTCHours());
-  const mm = pad(startedAt.getUTCMinutes());
-  const ss = pad(startedAt.getUTCSeconds());
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const hh = pad2(startedAt.getUTCHours());
+  const mm = pad2(startedAt.getUTCMinutes());
+  const ss = pad2(startedAt.getUTCSeconds());
   const ms = String(startedAt.getUTCMilliseconds()).padStart(3, "0");
-  const r2Key = `facilities/${facilityId}/devices/${deviceId}/cctv/${y}/${m}/${d}/${hh}${mm}${ss}-${ms}.mp4`;
   const contentType = request.headers.get("content-type") ?? "video/mp4";
   const buffer = await blob.arrayBuffer();
 
-  await env.BUCKET.put(r2Key, buffer, {
-    httpMetadata: { contentType },
-    customMetadata: { facilityId, deviceId, startedAt: startedAt.toISOString() },
-  });
+  const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
+
+  const fileName = `${hh}${mm}${ss}-${ms}.mp4`;
+  const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
   const recordingId = crypto.randomUUID();
-  await db.insert(schema.monitorRecording).values({
+  await db.insert(schema.videoRecording).values({
     id: recordingId,
+    assetId: asset.id,
     facilityId,
     deviceId,
-    r2Key,
-    contentType,
-    size: buffer.byteLength,
     durationSec,
     startedAt,
     endedAt,
@@ -254,8 +249,8 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     "info",
     `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
     {
-      source: "monitor-container",
-      r2Key,
+      source: "monitoring-container",
+      r2Key: asset.id,
       recordingId,
       durationSec,
       contentType,
@@ -263,5 +258,5 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     },
   );
 
-  return Response.json({ success: true, recordingId, r2Key, sizeBytes: buffer.byteLength });
+  return Response.json({ success: true, recordingId, r2Key: asset.id, sizeBytes: buffer.byteLength });
 }

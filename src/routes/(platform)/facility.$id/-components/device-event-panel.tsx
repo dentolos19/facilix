@@ -5,10 +5,10 @@ import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import type { LogEntry, PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
-import { LogLevelBadge } from "./monitor-logs-panel";
+import { LogLevelBadge } from "./monitoring-logs-panel";
 import { SensorReadingPanel } from "./sensor-reading-panel";
 
-/** Individual log entries for a single selected device (monitor right panel). */
+/** Individual log entries for a single selected device (monitoring right panel). */
 export function DeviceEventPanel({
   logs,
   selectedDeviceId,

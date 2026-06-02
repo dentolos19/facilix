@@ -2,7 +2,7 @@
 
 setup:
 	bun install
-	cd services/monitor && uv sync
+	cd services/monitoring && uv sync
 
 start:
 	docker compose up --build --detach
@@ -12,5 +12,5 @@ stop:
 
 check:
 	bun run check
-	cd services/monitor && uv run ruff check --fix
-	cd services/monitor && uv run ruff format
+	cd services/monitoring && uv run ruff check --fix
+	cd services/monitoring && uv run ruff format

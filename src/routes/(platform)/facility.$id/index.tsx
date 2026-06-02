@@ -29,13 +29,13 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
 import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
-import { getMonitorStatus, startMonitor, stopMonitor } from "#/lib/functions/monitor";
-import type { FacilityEvent, MonitorStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
+import { getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/monitoring";
+import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
 import { ContainerLogsDialog } from "./-components/container-logs-dialog";
 import { DeviceEventPanel } from "./-components/device-event-panel";
-import { MonitorLogsPanel } from "./-components/monitor-logs-panel";
+import { MonitoringLogsPanel } from "./-components/monitoring-logs-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
 import type { EditMode, LogEntry, PlacedItem, PlacedItemType } from "./-helpers/types";
 import {
@@ -103,8 +103,8 @@ function eventToLogEntry(event: FacilityEvent, deviceMap: Map<string, PlacedItem
   };
 }
 
-/** Human-readable label for a MonitorStatus value. */
-function monitorStatusLabel(status: MonitorStatus): string {
+/** Human-readable label for a MonitoringStatus value. */
+function monitoringStatusLabel(status: MonitoringStatus): string {
   switch (status) {
     case "running":
       return "Running";
@@ -122,7 +122,7 @@ function monitorStatusLabel(status: MonitorStatus): string {
 function Page() {
   const navigate = useNavigate();
   const { id: facilityId } = Route.useParams();
-  const [editMode, setEditMode] = useState<EditMode>("monitor");
+  const [editMode, setEditMode] = useState<EditMode>("monitoring");
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
   const [facilityName, setFacilityName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -137,9 +137,9 @@ function Page() {
   const [events, setEvents] = useState<FacilityEvent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // ── Monitor container status ───────────────────────────────────────────
-  const [monitorStatus, setMonitorStatus] = useState<MonitorStatus>("stopped");
-  const [isMonitorChanging, setIsMonitorChanging] = useState(false);
+  // ── Monitoring container status ────────────────────────────────────────
+  const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("stopped");
+  const [isMonitoringChanging, setIsMonitoringChanging] = useState(false);
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [containerLogsOpen, setContainerLogsOpen] = useState(false);
 
@@ -236,12 +236,12 @@ function Page() {
     };
   }, [facilityId]);
 
-  // ── Fetch initial monitor status on mount ──────────────────────────────
+  // ── Fetch initial monitoring status on mount ───────────────────────────
   useEffect(() => {
     (async () => {
       try {
-        const result = await getMonitorStatus({ data: { facilityId } });
-        setMonitorStatus(result.status);
+        const result = await getMonitoringStatus({ data: { facilityId } });
+        setMonitoringStatus(result.status);
       } catch {
         // Non-critical; default to stopped
       }
@@ -342,33 +342,33 @@ function Page() {
     setIsDirty(true);
   }, []);
 
-  // ── Monitor container controls ───────────────────────────────────────────
+  // ── Monitoring container controls ────────────────────────────────────────
 
-  const handleStartMonitor = useCallback(async () => {
-    setIsMonitorChanging(true);
+  const handleStartMonitoring = useCallback(async () => {
+    setIsMonitoringChanging(true);
     try {
-      const result = await startMonitor({ data: { facilityId } });
-      setMonitorStatus(result.status);
-      toast.success("Monitor started");
+      const result = await startMonitoring({ data: { facilityId } });
+      setMonitoringStatus(result.status);
+      toast.success("Monitoring started");
     } catch {
-      toast.error("Failed to start monitor");
-      setMonitorStatus("error");
+      toast.error("Failed to start monitoring");
+      setMonitoringStatus("error");
     } finally {
-      setIsMonitorChanging(false);
+      setIsMonitoringChanging(false);
     }
   }, [facilityId]);
 
-  const handleStopMonitor = useCallback(async () => {
-    setIsMonitorChanging(true);
+  const handleStopMonitoring = useCallback(async () => {
+    setIsMonitoringChanging(true);
     try {
-      const result = await stopMonitor({ data: { facilityId } });
-      setMonitorStatus(result.status);
-      toast.success("Monitor stopped");
+      const result = await stopMonitoring({ data: { facilityId } });
+      setMonitoringStatus(result.status);
+      toast.success("Monitoring stopped");
     } catch {
-      toast.error("Failed to stop monitor");
-      setMonitorStatus("error");
+      toast.error("Failed to stop monitoring");
+      setMonitoringStatus("error");
     } finally {
-      setIsMonitorChanging(false);
+      setIsMonitoringChanging(false);
     }
   }, [facilityId]);
 
@@ -456,32 +456,32 @@ function Page() {
 
   const handleEditToggle = useCallback(() => {
     if (editMode === "edit") {
-      // Switching from edit → monitor — save if dirty then switch
+      // Switching from edit → monitoring — save if dirty then switch
       if (isDirty) handleSave({ silent: true });
-      setEditMode("monitor");
+      setEditMode("monitoring");
       return;
     }
 
-    // Switching from monitor → edit
-    if (monitorStatus === "running" || monitorStatus === "starting") {
+    // Switching from monitoring → edit
+    if (monitoringStatus === "running" || monitoringStatus === "starting") {
       setEditConfirmOpen(true);
     } else {
       setEditMode("edit");
     }
-  }, [editMode, isDirty, handleSave, monitorStatus]);
+  }, [editMode, isDirty, handleSave, monitoringStatus]);
 
   const handleConfirmEdit = useCallback(async () => {
     setEditConfirmOpen(false);
-    setIsMonitorChanging(true);
+    setIsMonitoringChanging(true);
     try {
-      await stopMonitor({ data: { facilityId } });
-      setMonitorStatus("stopped");
+      await stopMonitoring({ data: { facilityId } });
+      setMonitoringStatus("stopped");
       setEditMode("edit");
     } catch {
-      toast.error("Failed to stop monitor before editing");
-      setMonitorStatus("error");
+      toast.error("Failed to stop monitoring before editing");
+      setMonitoringStatus("error");
     } finally {
-      setIsMonitorChanging(false);
+      setIsMonitoringChanging(false);
     }
   }, [facilityId]);
 
@@ -542,30 +542,30 @@ function Page() {
           </MenubarMenu>
         )}
 
-        {/* ── Spacer + monitor toggle + save + mode toggle + settings ── */}
+        {/* ── Spacer + monitoring toggle + save + mode toggle + settings ── */}
         <div className="ml-auto flex items-center gap-0.5">
-          {/* Monitor start / stop button (monitor mode only) */}
-          {editMode === "monitor" && (
+          {/* Monitoring start / stop button (monitoring mode only) */}
+          {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   aria-label={
-                    isMonitorChanging
+                    isMonitoringChanging
                       ? "Changing…"
-                      : monitorStatus === "running"
-                        ? "Stop monitor"
-                        : monitorStatus === "stopped"
-                          ? "Start monitor"
-                          : "Start monitor"
+                      : monitoringStatus === "running"
+                        ? "Stop monitoring"
+                        : monitoringStatus === "stopped"
+                          ? "Start monitoring"
+                          : "Start monitoring"
                   }
-                  disabled={isMonitorChanging || monitorStatus === "starting" || monitorStatus === "stopping"}
-                  onClick={monitorStatus === "running" ? handleStopMonitor : handleStartMonitor}
+                  disabled={isMonitoringChanging || monitoringStatus === "starting" || monitoringStatus === "stopping"}
+                  onClick={monitoringStatus === "running" ? handleStopMonitoring : handleStartMonitoring}
                   size="icon-sm"
                   variant="ghost"
                 >
-                  {isMonitorChanging || monitorStatus === "starting" || monitorStatus === "stopping" ? (
+                  {isMonitoringChanging || monitoringStatus === "starting" || monitoringStatus === "stopping" ? (
                     <Loader2 className="size-4 animate-spin" />
-                  ) : monitorStatus === "running" ? (
+                  ) : monitoringStatus === "running" ? (
                     <SquareIcon className="size-4" />
                   ) : (
                     <PlayIcon className="size-4" />
@@ -573,7 +573,11 @@ function Page() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isMonitorChanging ? "Working…" : monitorStatus === "running" ? "Stop monitor" : "Start monitor"}
+                {isMonitoringChanging
+                  ? "Working…"
+                  : monitoringStatus === "running"
+                    ? "Stop monitoring"
+                    : "Start monitoring"}
               </TooltipContent>
             </Tooltip>
           )}
@@ -599,19 +603,19 @@ function Page() {
             </Tooltip>
           )}
 
-          {/* Edit / Monitor mode toggle */}
+          {/* Edit / Monitoring mode toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label={editMode === "monitor" ? "Switch to Edit mode" : "Switch to Monitor mode"}
+                aria-label={editMode === "monitoring" ? "Switch to Edit mode" : "Switch to Monitoring mode"}
                 onClick={handleEditToggle}
                 size="icon-sm"
                 variant="ghost"
               >
-                {editMode === "monitor" ? <PencilIcon /> : <EyeIcon />}
+                {editMode === "monitoring" ? <PencilIcon /> : <EyeIcon />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{editMode === "monitor" ? "Edit mode" : "Monitor mode"}</TooltipContent>
+            <TooltipContent>{editMode === "monitoring" ? "Edit mode" : "Monitoring mode"}</TooltipContent>
           </Tooltip>
 
           {/* Container Logs button */}
@@ -699,22 +703,22 @@ function Page() {
         </div>
       </Menubar>
 
-      {/* ── Confirmation dialog: edit while monitor is running ── */}
+      {/* ── Confirmation dialog: edit while monitoring is running ── */}
       <Dialog onOpenChange={setEditConfirmOpen} open={editConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stop monitor before editing?</DialogTitle>
+            <DialogTitle>Stop monitoring before editing?</DialogTitle>
             <DialogDescription>
-              This facility is currently {monitorStatusLabel(monitorStatus)}. You must stop the monitor before editing
-              the facility layout and devices. Do you want to stop the monitor and switch to edit mode?
+              This facility is currently {monitoringStatusLabel(monitoringStatus)}. You must stop the monitoring before
+              editing the facility layout and devices. Do you want to stop the monitoring and switch to edit mode?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setEditConfirmOpen(false)} size="sm" variant="outline">
               Cancel
             </Button>
-            <Button disabled={isMonitorChanging} onClick={handleConfirmEdit} size="sm" variant="default">
-              {isMonitorChanging ? (
+            <Button disabled={isMonitoringChanging} onClick={handleConfirmEdit} size="sm" variant="default">
+              {isMonitoringChanging ? (
                 <>
                   <Loader2 className="mr-1.5 size-3.5 animate-spin" />
                   Stopping…
@@ -732,10 +736,10 @@ function Page() {
 
       {/* ── Resizable Panels ── */}
       <ResizablePanelGroup className="flex-1" orientation="horizontal">
-        {/* Left panel — logs (monitor) / component palette (edit) */}
+        {/* Left panel — logs (monitoring) / component palette (edit) */}
         <ResizablePanel defaultSize={22} minSize={8}>
-          {editMode === "monitor" ? (
-            <MonitorLogsPanel logs={logs} onSelectDevice={setSelectedItemId} selectedDeviceId={selectedItemId} />
+          {editMode === "monitoring" ? (
+            <MonitoringLogsPanel logs={logs} onSelectDevice={setSelectedItemId} selectedDeviceId={selectedItemId} />
           ) : (
             <ComponentPalette />
           )}
@@ -746,7 +750,7 @@ function Page() {
           withHandle
         />
 
-        {/* Center panel — Konva canvas (live in monitor, editable in edit) */}
+        {/* Center panel — Konva canvas (live in monitoring, editable in edit) */}
         <ResizablePanel defaultSize={56} minSize={30}>
           <div className="relative h-full w-full">
             {isLoading ? (
@@ -759,7 +763,7 @@ function Page() {
                 onSelectItem={setSelectedItemId}
                 onUpdateItem={updatePlacedItem}
                 placedItems={placedItems}
-                readOnly={editMode === "monitor"}
+                readOnly={editMode === "monitoring"}
                 selectedItemId={selectedItemId}
               />
             )}
@@ -771,9 +775,9 @@ function Page() {
           withHandle
         />
 
-        {/* Right panel — properties (edit) / device logs (monitor) */}
+        {/* Right panel — properties (edit) / device logs (monitoring) */}
         <ResizablePanel defaultSize={22} minSize={8}>
-          {editMode === "monitor" ? (
+          {editMode === "monitoring" ? (
             <DeviceEventPanel
               logs={logs}
               selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}

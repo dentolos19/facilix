@@ -2,7 +2,7 @@ import { Container } from "@cloudflare/containers";
 
 const PORT = 3001;
 
-export class Monitor extends Container<Env> {
+export class Monitoring extends Container<Env> {
   defaultPort = PORT;
   sleepAfter = "10m";
 
@@ -18,7 +18,7 @@ export class Monitor extends Container<Env> {
       await stub.recordEvent(
         this.facilityId,
         type,
-        JSON.stringify({ facilityId: this.facilityId, source: "monitor-do", ...extra }),
+        JSON.stringify({ facilityId: this.facilityId, source: "monitoring-do", ...extra }),
       );
     } catch {
       // Observer recording is best-effort; don't block container start/stop.
@@ -28,13 +28,13 @@ export class Monitor extends Container<Env> {
   // ── Lifecycle hooks ──────────────────────────────────────────────────
 
   async onStart(): Promise<void> {
-    await this.recordEvent("monitor:started", { level: "info", message: "Monitor container started" });
+    await this.recordEvent("monitoring:started", { level: "info", message: "Monitoring container started" });
   }
 
   async onStop(params: { exitCode?: number; reason?: string }): Promise<void> {
-    await this.recordEvent("monitor:stopped", {
+    await this.recordEvent("monitoring:stopped", {
       level: "info",
-      message: "Monitor container stopped",
+      message: "Monitoring container stopped",
       exitCode: params.exitCode,
       reason: params.reason,
     });

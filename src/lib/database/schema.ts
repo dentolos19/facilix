@@ -175,21 +175,22 @@ export const deviceEvent = sqliteTable("device_logs", {
 
 /**
  * Recorded CCTV segment metadata stored in D1 alongside R2.
- * The actual binary is in the R2 bucket under the `r2Key` path.
+ * The actual binary is in the R2 bucket — the `assetId` column
+ * references the `assets` table which holds storage metadata.
  */
-export const monitorRecording = sqliteTable("monitor_recordings", {
+export const videoRecording = sqliteTable("video_recordings", {
   id: text("id")
     .primaryKey()
     .$default(() => crypto.randomUUID()),
+  assetId: text("asset_id")
+    .notNull()
+    .references(() => asset.id, { onDelete: "cascade" }),
   facilityId: text("facility_id")
     .notNull()
     .references(() => facility.id, { onDelete: "cascade" }),
   deviceId: text("device_id")
     .notNull()
     .references(() => facilityDevice.id, { onDelete: "cascade" }),
-  r2Key: text("r2_key").notNull(),
-  contentType: text("content_type").notNull(),
-  size: integer("size").notNull(),
   durationSec: integer("duration_sec"),
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
   endedAt: integer("ended_at", { mode: "timestamp_ms" }),
@@ -206,4 +207,4 @@ export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type DeviceEvent = typeof deviceEvent.$inferSelect;
-export type MonitorRecording = typeof monitorRecording.$inferSelect;
+export type VideoRecording = typeof videoRecording.$inferSelect;

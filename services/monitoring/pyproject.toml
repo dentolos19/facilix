@@ -1,5 +1,5 @@
 [project]
-name = "facilix-monitor"
+name = "facilix-monitoring"
 version = "1.0.0"
 requires-python = ">=3.13"
 dependencies = ["fastapi", "uvicorn", "httpx", "pydantic"]

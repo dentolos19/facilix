@@ -1,32 +1,33 @@
+import { env } from "cloudflare:workers";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
-import { handleMonitorApiRequest, type MonitorApiAction } from "#/lib/monitoring/api";
+import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/lib/monitoring/api";
 
-export { Monitor } from "#/lib/bindings/monitor";
+export { Monitoring } from "#/lib/bindings/monitoring";
 export { Observer } from "#/lib/bindings/observer";
 
 export default createServerEntry({
-  fetch(request, env, ctx) {
+  fetch(request) {
     const url = new URL(request.url);
     const upgrade = request.headers.get("Upgrade")?.toLowerCase();
 
-    // Intercept monitor container API calls before TanStack can fall through
+    // Intercept monitoring container API calls before TanStack can fall through
     // to the frontend 404 page. These endpoints are called by the Python
     // container using APP_ORIGIN.
-    const monitorMatch = url.pathname.match(/^\/api\/facility\/([^/]+)\/monitor\/(config|events|frames|segments)$/);
-    if (monitorMatch) {
-      const [, facilityId, action] = monitorMatch;
-      return handleMonitorApiRequest(request, env, facilityId, action as MonitorApiAction);
+    const monitoringMatch = url.pathname.match(
+      /^\/api\/facility\/([^/]+)\/monitoring\/(config|events|frames|segments)$/,
+    );
+    if (monitoringMatch) {
+      const [, facilityId, action] = monitoringMatch;
+      return handleMonitoringApiRequest(request, env, facilityId, action as MonitoringApiAction);
     }
 
-    // Intercept WebSocket upgrades for the Observer DO
+    // Intercept Observer DO requests (WebSocket upgrades + plain GET)
     // path: /api/facility/:id/observer/ws
-    if (upgrade === "websocket") {
-      const match = url.pathname.match(/^\/api\/facility\/([^/]+)\/observer\/ws$/);
-      if (match) {
-        const facilityId = match[1];
-        const stub = env.OBSERVER.getByName(facilityId);
-        return stub.fetch(request);
-      }
+    const observerMatch = url.pathname.match(/^\/api\/facility\/([^/]+)\/observer\/ws$/);
+    if (observerMatch) {
+      const [, facilityId] = observerMatch;
+      const stub = env.OBSERVER.getByName(facilityId);
+      return stub.fetch(request);
     }
 
     return handler.fetch(request);

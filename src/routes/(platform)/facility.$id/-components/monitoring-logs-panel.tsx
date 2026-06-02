@@ -1,8 +1,8 @@
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import type { LogEntry } from "../-helpers/types";
 
-/** Time-ordered feed of all IoT device logs (monitor left panel). */
-export function MonitorLogsPanel({
+/** Time-ordered feed of all IoT device logs (monitoring left panel). */
+export function MonitoringLogsPanel({
   logs,
   selectedDeviceId,
   onSelectDevice,

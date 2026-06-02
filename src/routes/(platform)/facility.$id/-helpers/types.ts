@@ -5,7 +5,7 @@ export type PlacedItemType = "Zone" | "Marker" | "CCTV" | "Sensor" | "Signal";
 
 /** Available icon shapes per component type. */
 export type MarkerShape = "diamond" | "pin" | "star" | "flag" | "circle";
-export type CctvShape = "camera" | "eye" | "video" | "monitor";
+export type CctvShape = "camera" | "eye" | "video" | "monitoring";
 export type SensorShape = "wifi" | "thermometer" | "droplet" | "wind" | "activity" | "sun";
 export type SignalShape = "exclamation" | "antenna" | "signal-bars" | "satellite";
 
@@ -33,7 +33,7 @@ export const ICON_SHAPE_OPTIONS: Record<string, { value: IconShape; label: strin
     { value: "camera", label: "Camera" },
     { value: "eye", label: "Eye" },
     { value: "video", label: "Video" },
-    { value: "monitor", label: "Monitor" },
+    { value: "monitoring", label: "Monitoring" },
   ],
   Sensor: [
     { value: "wifi", label: "Wi-Fi" },
@@ -261,7 +261,7 @@ export function fromSnapshot(
 
 // ─── UI helper types (local to the facility route) ────────────────────────
 
-export type EditMode = "monitor" | "edit";
+export type EditMode = "monitoring" | "edit";
 
 export interface LogEntry {
   id: string;

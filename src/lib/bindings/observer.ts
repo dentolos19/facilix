@@ -35,7 +35,7 @@ function toEvent(row: {
  *
  * RPC (from server functions):
  *   const stub = env.OBSERVER.getByName(facilityId);
- *   await stub.recordEvent("device-abc", "monitor:started", "{}");
+ *   await stub.recordEvent("device-abc", "monitoring:started", "{}");
  *   const events = stub.queryEvents("device-abc");
  *
  * WebSocket (from the browser):

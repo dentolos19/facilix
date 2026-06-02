@@ -484,7 +484,7 @@ function PlacedShape({
               <Circle fill="#ef4444" radius={2.5} x={R * 0.25} y={-R * 0.2} />
             </>
           )}
-          {iconShape === "monitor" && (
+          {iconShape === "monitoring" && (
             <>
               {/* Monitor body */}
               <Rect

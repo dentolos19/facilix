@@ -15,6 +15,13 @@
       "when": 1780312246359,
       "tag": "0001_known_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780408103952,
+      "tag": "0002_useful_metal_master",
+      "breakpoints": true
     }
   ]
 }

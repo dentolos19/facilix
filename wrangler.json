@@ -36,9 +36,9 @@
   ],
   "containers": [
     {
-      "name": "facilix-monitor",
-      "class_name": "Monitor",
-      "image": "services/monitor/Dockerfile",
+      "name": "facilix-monitoring",
+      "class_name": "Monitoring",
+      "image": "services/monitoring/Dockerfile",
       "max_instances": 10,
       "instance_type": "basic"
     }
@@ -46,8 +46,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "MONITOR",
-        "class_name": "Monitor"
+        "name": "MONITORING",
+        "class_name": "Monitoring"
       },
       {
         "name": "OBSERVER",
@@ -58,7 +58,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["Monitor", "Observer"]
+      "new_sqlite_classes": ["Monitoring", "Observer"]
     }
   ]
 }

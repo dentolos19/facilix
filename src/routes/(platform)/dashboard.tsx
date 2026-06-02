@@ -29,15 +29,15 @@ import {
 import { Spinner } from "#/components/ui/spinner.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip.tsx";
 import { createFacility, getFacilities } from "#/lib/functions/facility";
-import { getMonitorStatuses } from "#/lib/functions/monitor";
-import type { MonitorStatus } from "#/lib/monitoring/types";
+import { getMonitoringStatuses } from "#/lib/functions/monitoring";
+import type { MonitoringStatus } from "#/lib/monitoring/types";
 
 export const Route = createFileRoute("/(platform)/dashboard")({
   component: Page,
 });
 
-/** Map monitor status to a human-readable label. */
-function statusLabel(status: MonitorStatus): string {
+/** Map monitoring status to a human-readable label. */
+function statusLabel(status: MonitoringStatus): string {
   switch (status) {
     case "running":
       return "Running";
@@ -53,7 +53,7 @@ function statusLabel(status: MonitorStatus): string {
 }
 
 /** Colour helper for the status dot. */
-function statusColor(status: MonitorStatus): string {
+function statusColor(status: MonitoringStatus): string {
   switch (status) {
     case "running":
       return "text-emerald-500";
@@ -67,7 +67,7 @@ function statusColor(status: MonitorStatus): string {
   }
 }
 
-function StatusIndicator({ status }: { status: MonitorStatus }) {
+function StatusIndicator({ status }: { status: MonitoringStatus }) {
   const Icon =
     status === "running"
       ? CircleCheckIcon
@@ -98,8 +98,8 @@ function Page() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [newFacilityName, setNewFacilityName] = useState("");
 
-  // ── Monitor statuses keyed by facility ID ────────────────────────────
-  const [statuses, setStatuses] = useState<Record<string, MonitorStatus>>({});
+  // ── Monitoring statuses keyed by facility ID ─────────────────────────
+  const [statuses, setStatuses] = useState<Record<string, MonitoringStatus>>({});
   const statusesRef = useRef(statuses);
   statusesRef.current = statuses;
 
@@ -108,12 +108,12 @@ function Page() {
       const data = await getFacilities();
       setFacilities(data as Facility[]);
 
-      // After loading facilities, fetch their monitor statuses
+      // After loading facilities, fetch their monitoring statuses
       const ids = (data as Facility[]).map((f) => f.id);
       if (ids.length > 0) {
         try {
-          const results = await getMonitorStatuses({ data: { facilityIds: ids } });
-          const statusMap: Record<string, MonitorStatus> = {};
+          const results = await getMonitoringStatuses({ data: { facilityIds: ids } });
+          const statusMap: Record<string, MonitoringStatus> = {};
           for (const entry of results) {
             statusMap[entry.id] = entry.status;
           }
@@ -183,7 +183,7 @@ function Page() {
             <SheetContent side="right">
               <SheetHeader>
                 <SheetTitle>Create Facility</SheetTitle>
-                <SheetDescription>Add a new facility to manage devices and monitors.</SheetDescription>
+                <SheetDescription>Add a new facility to manage devices and monitoring.</SheetDescription>
               </SheetHeader>
 
               <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
@@ -230,7 +230,7 @@ function Page() {
             </EmptyMedia>
             <EmptyTitle>No facilities yet</EmptyTitle>
             <EmptyDescription>
-              Get started by creating your first facility to manage devices and monitors.
+              Get started by creating your first facility to manage devices and monitoring.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -267,7 +267,7 @@ function Page() {
                             <StatusIndicator status={status} />
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent>Monitor: {statusLabel(status)}</TooltipContent>
+                        <TooltipContent>Monitoring: {statusLabel(status)}</TooltipContent>
                       </Tooltip>
                     </div>
                   </CardContent>

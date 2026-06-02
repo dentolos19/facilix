@@ -1,5 +1,5 @@
 """
-Facilix Monitor Container Service.
+Facilix Monitoring Container Service.
 
 Runs inside a Cloudflare Container (one per facility).
 - Fetches facility device config from the Worker API.
@@ -28,13 +28,13 @@ from fastapi import FastAPI
 # Constants / Config
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="facilix-monitor")
+app = FastAPI(title="facilix-monitoring")
 
 FACILITY_ID = os.environ.get("FACILITY_ID", "")
 APP_ORIGIN = os.environ.get("APP_ORIGIN", "http://localhost:3000")
-INGEST_TOKEN = os.environ.get("MONITOR_INGEST_TOKEN", "")
+INGEST_TOKEN = os.environ.get("INGEST_TOKEN", "")
 
-API_BASE = f"{APP_ORIGIN}/api/facility/{FACILITY_ID}/monitor"
+API_BASE = f"{APP_ORIGIN}/api/facility/{FACILITY_ID}/monitoring"
 AUTH_HEADER = {"Authorization": f"Bearer {INGEST_TOKEN}"}
 
 CONFIG_READY = bool(FACILITY_ID and INGEST_TOKEN)
@@ -43,8 +43,8 @@ if not CONFIG_READY:
     if not FACILITY_ID:
         missing.append("FACILITY_ID")
     if not INGEST_TOKEN:
-        missing.append("MONITOR_INGEST_TOKEN")
-    print(f"WARNING: missing env vars: {', '.join(missing)} — monitor will idle", flush=True)
+        missing.append("INGEST_TOKEN")
+    print(f"WARNING: missing env vars: {', '.join(missing)} — monitoring will idle", flush=True)
 
 if APP_ORIGIN.startswith("http://localhost") or APP_ORIGIN.startswith("http://127.0.0.1"):
     print(
@@ -58,7 +58,7 @@ if APP_ORIGIN.startswith("http://localhost") or APP_ORIGIN.startswith("http://12
 FRAME_INTERVAL_SEC = 30  # sample one frame every 30 s per CCTV
 SEGMENT_INTERVAL_SEC = 60  # create one video segment every 60 s per CCTV
 SEGMENT_DURATION_SEC = 30  # actual segment length in ffmpeg
-HEARTBEAT_INTERVAL_SEC = 120  # post monitor:heartbeat every 2 min
+HEARTBEAT_INTERVAL_SEC = 120  # post monitoring:heartbeat every 2 min
 HTTP_TIMEOUT_SEC = 30
 
 # Simulation endpoints (local dev via docker-compose)
@@ -438,7 +438,7 @@ async def heartbeat_loop(facility_id: str) -> None:
         await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
         await post_event(
             facility_id,
-            "monitor:heartbeat",
+            "monitoring:heartbeat",
             "info",
             "Container heartbeat",
             {"uptimeSec": int(time.time())},
@@ -450,7 +450,7 @@ async def heartbeat_loop(facility_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def startup_monitor() -> None:
+async def startup_monitoring() -> None:
     """Fetch config and start all monitoring tasks."""
     config = await fetch_config()
     if not config:
@@ -496,9 +496,9 @@ async def startup_monitor() -> None:
     # Log startup event
     await post_event(
         FACILITY_ID,
-        "monitor:started",
+        "monitoring:started",
         "info",
-        f"Monitor container started for facility {FACILITY_ID}",
+        f"Monitoring container started for facility {FACILITY_ID}",
         {"cctvCount": len(config.get("cctv", [])), "sensorCount": len(config.get("sensors", []))},
     )
 
@@ -517,9 +517,9 @@ async def startup_monitor() -> None:
 @app.on_event("startup")
 async def on_startup() -> None:
     label = FACILITY_ID or "unknown"
-    print(f"Monitor starting for facility {label}", flush=True)
+    print(f"Monitoring starting for facility {label}", flush=True)
     if CONFIG_READY:
-        asyncio.create_task(startup_monitor(), name="startup-monitor")
+        asyncio.create_task(startup_monitoring(), name="startup-monitoring")
     else:
         print("Container running in idle mode — monitoring disabled", flush=True)
 
@@ -527,7 +527,7 @@ async def on_startup() -> None:
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
     label = FACILITY_ID or "unknown"
-    print(f"Monitor shutting down for facility {label}", flush=True)
+    print(f"Monitoring shutting down for facility {label}", flush=True)
     # Cancel all running tasks
     for task in asyncio.all_tasks():
         if task is not asyncio.current_task() and not task.done():
@@ -536,9 +536,9 @@ async def on_shutdown() -> None:
     if CONFIG_READY:
         await post_event(
             FACILITY_ID,
-            "monitor:stopped",
+            "monitoring:stopped",
             "info",
-            "Monitor container stopped",
+            "Monitoring container stopped",
         )
     # Close HTTP client
     global _client
@@ -555,7 +555,7 @@ async def on_shutdown() -> None:
 @app.get("/")
 async def root() -> dict[str, Any]:
     return {
-        "service": "facilix-monitor",
+        "service": "facilix-monitoring",
         "facilityId": FACILITY_ID,
         "status": "running",
         "timestamp": now_iso(),

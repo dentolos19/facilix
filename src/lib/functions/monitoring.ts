@@ -1,14 +1,14 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
-import type { FacilityStatusEntry, MonitorStatus } from "#/lib/monitoring/types";
+import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
 
-/** Origin the monitor container uses to call back to the Worker API. */
+/** Origin the monitoring container uses to call back to the Worker API. */
 const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Map Container state from `getState()` to our simplified MonitorStatus.
+ * Map Container state from `getState()` to our simplified MonitoringStatus.
  *
  * Container states from @cloudflare/containers:
  *   - "starting"      (pre-health, booting)
@@ -17,7 +17,7 @@ const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
  *   - "stopped"       (exited cleanly)
  *   - "stopped_with_code"  (exited with an error code)
  */
-function mapContainerState(state: { status: string }): MonitorStatus {
+function mapContainerState(state: { status: string }): MonitoringStatus {
   switch (state.status) {
     case "healthy":
       return "running";
@@ -34,77 +34,77 @@ function mapContainerState(state: { status: string }): MonitorStatus {
 
 // ─── Exported types ───────────────────────────────────────────────────────
 
-export interface MonitorActionResult {
+export interface MonitoringActionResult {
   facilityId: string;
-  status: MonitorStatus;
+  status: MonitoringStatus;
 }
 
 // ─── Server Functions ─────────────────────────────────────────────────────
 
 /**
- * Get the current status of a facility's Monitor container.
+ * Get the current status of a facility's Monitoring container.
  */
-export const getMonitorStatus = createServerFn({ method: "GET" })
+export const getMonitoringStatus = createServerFn({ method: "GET" })
   .inputValidator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
   .handler(async ({ data }) => {
     try {
-      const stub = env.MONITOR.getByName(data.facilityId);
+      const stub = env.MONITORING.getByName(data.facilityId);
       const state = await stub.getState();
-      return { facilityId: data.facilityId, status: mapContainerState(state) } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: mapContainerState(state) } satisfies MonitoringActionResult;
     } catch {
-      return { facilityId: data.facilityId, status: "error" } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
     }
   });
 
 /**
- * Start a facility's Monitor container.
+ * Start a facility's Monitoring container.
  *
  * Passes per-instance environment variables so the Python container knows
  * which facility to monitor and where to POST frames, events, and segments.
  */
-export const startMonitor = createServerFn({ method: "POST" })
+export const startMonitoring = createServerFn({ method: "POST" })
   .inputValidator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
   .handler(async ({ data }) => {
     try {
-      const stub = env.MONITOR.getByName(data.facilityId);
+      const stub = env.MONITORING.getByName(data.facilityId);
       await stub.startAndWaitForPorts({
         startOptions: {
           envVars: {
             FACILITY_ID: data.facilityId,
             APP_ORIGIN: APP_ORIGIN,
-            MONITOR_INGEST_TOKEN: env.MONITOR_INGEST_TOKEN ?? "",
+            INGEST_TOKEN: env.INGEST_TOKEN ?? "",
           },
         },
       });
-      return { facilityId: data.facilityId, status: "running" } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
     } catch {
-      return { facilityId: data.facilityId, status: "error" } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
     }
   });
 
 /**
- * Stop a facility's Monitor container.
+ * Stop a facility's Monitoring container.
  */
-export const stopMonitor = createServerFn({ method: "POST" })
+export const stopMonitoring = createServerFn({ method: "POST" })
   .inputValidator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
   .handler(async ({ data }) => {
     try {
-      const stub = env.MONITOR.getByName(data.facilityId);
+      const stub = env.MONITORING.getByName(data.facilityId);
       await stub.stop();
       // Give the container a moment to transition to stopped state
       const ret = await stub.getState();
-      return { facilityId: data.facilityId, status: mapContainerState(ret) } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: mapContainerState(ret) } satisfies MonitoringActionResult;
     } catch {
-      return { facilityId: data.facilityId, status: "error" } satisfies MonitorActionResult;
+      return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
     }
   });
 
@@ -112,7 +112,7 @@ export const stopMonitor = createServerFn({ method: "POST" })
  * Batch status check for the dashboard.
  * Returns status for each requested facility ID.
  */
-export const getMonitorStatuses = createServerFn({ method: "POST" })
+export const getMonitoringStatuses = createServerFn({ method: "POST" })
   .inputValidator((data: { facilityIds: string[] }) => {
     if (!Array.isArray(data.facilityIds)) throw new Error("facilityIds array is required");
     return data;
@@ -122,7 +122,7 @@ export const getMonitorStatuses = createServerFn({ method: "POST" })
 
     for (const id of data.facilityIds) {
       try {
-        const stub = env.MONITOR.getByName(id);
+        const stub = env.MONITORING.getByName(id);
         const state = await stub.getState();
         results.push({ id, status: mapContainerState(state) });
       } catch {

@@ -37,7 +37,7 @@ jobs:
         run: |
           bun run db:migrate --remote
           echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put APP_ORIGIN
-          echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
+          echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
-          echo "${{ secrets.MONITOR_INGEST_TOKEN }}" | bun wrangler secret put MONITOR_INGEST_TOKEN
+          echo "${{ secrets.INGEST_TOKEN }}" | bun wrangler secret put INGEST_TOKEN
           bun run deploy

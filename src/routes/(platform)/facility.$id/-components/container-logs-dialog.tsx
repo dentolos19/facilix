@@ -6,7 +6,7 @@ import { Input } from "#/components/ui/input.tsx";
 import { ScrollArea } from "#/components/ui/scroll-area.tsx";
 import type { FacilityEvent } from "#/lib/monitoring/types";
 import type { LogEntry } from "../-helpers/types";
-import { LogLevelBadge } from "./monitor-logs-panel";
+import { LogLevelBadge } from "./monitoring-logs-panel";
 
 export interface ContainerLogsDialogProps {
   open: boolean;
@@ -15,10 +15,10 @@ export interface ContainerLogsDialogProps {
   events: FacilityEvent[];
 }
 
-const MONITOR_SOURCE_PREFIXES = ["monitor:", "cctv:", "sensor:"];
+const MONITORING_SOURCE_PREFIXES = ["monitoring:", "cctv:", "sensor:"];
 
 /**
- * Dialog that shows monitor-container and system-level logs.
+ * Dialog that shows monitoring-container and system-level logs.
  * Filtered from the Observer event stream to show only container-related events.
  */
 export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLogsDialogProps) {
@@ -27,15 +27,15 @@ export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLog
 
   const containerLogs = useMemo(() => {
     return events.filter((ev) => {
-      // Keep events whose type starts with a known monitor prefix
-      const matchesPrefix = MONITOR_SOURCE_PREFIXES.some((p) => ev.type.startsWith(p));
+      // Keep events whose type starts with a known monitoring prefix
+      const matchesPrefix = MONITORING_SOURCE_PREFIXES.some((p) => ev.type.startsWith(p));
       if (matchesPrefix) return true;
 
-      // Or events whose parsed data has source === "monitor-container" or "monitor-do"
+      // Or events whose parsed data has source === "monitoring-container" or "monitoring-do"
       try {
         const parsed = JSON.parse(ev.data);
         const source = parsed.source;
-        if (source === "monitor-container" || source === "monitor-do") return true;
+        if (source === "monitoring-container" || source === "monitoring-do") return true;
       } catch {
         // not JSON
       }
@@ -101,7 +101,7 @@ export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLog
               <XIcon className="size-3.5" />
             </button>
           </div>
-          <DialogDescription>Monitor container events ({containerLogs.length} total)</DialogDescription>
+          <DialogDescription>Monitoring container events ({containerLogs.length} total)</DialogDescription>
         </DialogHeader>
 
         {/* Filters */}

@@ -1,5 +1,5 @@
-/** Current state of a Monitor container. */
-export type MonitorStatus = "starting" | "running" | "stopping" | "stopped" | "error";
+/** Current state of a Monitoring container. */
+export type MonitoringStatus = "starting" | "running" | "stopping" | "stopped" | "error";
 
 /**
  * A single event that flows through the Observer DO.
@@ -8,17 +8,17 @@ export type MonitorStatus = "starting" | "running" | "stopping" | "stopped" | "e
 export interface FacilityEvent {
   id: string;
   deviceId: string;
-  type: string; // e.g. "monitor:started", "monitor:stopped", "device:motion", "device:sensor"
+  type: string; // e.g. "monitoring:started", "monitoring:stopped", "device:motion", "device:sensor"
   data: string; // arbitrary JSON payload
   createdAt: string; // ISO-8601
 }
 
 /**
- * A single facility's monitor status entry (used for batch queries).
+ * A single facility's monitoring status entry (used for batch queries).
  */
 export interface FacilityStatusEntry {
   id: string;
-  status: MonitorStatus;
+  status: MonitoringStatus;
 }
 
 /**
@@ -27,4 +27,4 @@ export interface FacilityStatusEntry {
 export type ObserverSocketMessage =
   | { type: "snapshot"; events: FacilityEvent[] }
   | { type: "event"; event: FacilityEvent }
-  | { type: "status"; status: MonitorStatus };
+  | { type: "status"; status: MonitoringStatus };
