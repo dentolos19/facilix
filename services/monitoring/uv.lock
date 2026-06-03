@@ -63,7 +63,7 @@ wheels = [
 ]
 
 [[package]]
-name = "facilix-monitor"
+name = "facilix-monitoring"
 version = "1.0.0"
 source = { virtual = "." }
 dependencies = [

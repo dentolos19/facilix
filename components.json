@@ -1,8 +1,8 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "radix-vega",
-  "rsc": false,
   "tsx": true,
+  "rsc": false,
   "rtl": false,
   "iconLibrary": "lucide",
   "menuColor": "default",

@@ -8,7 +8,7 @@ import { defineConfig } from "vite";
 const config = defineConfig({
   server: {
     port: 3000,
-    allowedHosts: [".dennise.me"],
+    allowedHosts: true,
   },
   resolve: {
     tsconfigPaths: true,

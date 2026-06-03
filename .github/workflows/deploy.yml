@@ -33,11 +33,15 @@ jobs:
       - name: Build Project
         run: bun run build
 
-      - name: Deploy to Cloudflare
+      - name: Migrate Database
+        run: bun run db:migrate --remote
+
+      - name: Upload Secrets
         run: |
-          bun run db:migrate --remote
           echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put APP_ORIGIN
           echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
           echo "${{ secrets.INGEST_TOKEN }}" | bun wrangler secret put INGEST_TOKEN
-          bun run deploy
+
+      - name: Deploy to Cloudflare
+        run: bun run deploy
