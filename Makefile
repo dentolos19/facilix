@@ -1,8 +1,8 @@
 .PHONY: dev check
 
 setup:
-	bun install
-	cd services/monitoring && uv sync
+	cd src/app && bun install
+	cd src/server && uv sync
 
 start:
 	docker compose up --build --detach
@@ -11,6 +11,6 @@ stop:
 	docker compose down
 
 check:
-	bun run check
-	cd services/monitoring && uv run ruff check --fix
-	cd services/monitoring && uv run ruff format
+	cd src/app && bun run check
+	cd src/server && uv run ruff check --fix
+	cd src/server && uv run ruff format

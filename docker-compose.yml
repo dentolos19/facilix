@@ -10,11 +10,11 @@ services:
       - "8889:8889" # WebRTC
       - "9997:9997" # API
     volumes:
-      - ./services/simulation/cctv/mediamtx.yml:/mediamtx.yml:ro
+      - ./src/simulator/cctv/mediamtx.yml:/mediamtx.yml:ro
 
   cctv:
     build:
-      context: ./services/simulation/cctv
+      context: ./src/simulator/cctv
       dockerfile: Dockerfile
     container_name: facilix-cctv
     restart: unless-stopped
@@ -23,7 +23,7 @@ services:
     ports:
       - "8000:8000" # HTTP API
     volumes:
-      - ./public/simulation:/videos:ro
+      - ./src/app/public/simulator:/videos:ro
     environment:
       SIMULATOR_VIDEOS_DIR: /videos
       MEDIAMTX_HOST: mediamtx
@@ -39,7 +39,7 @@ services:
 
   sensors:
     build:
-      context: ./services/simulation/sensors
+      context: ./src/simulator/sensors
       dockerfile: Dockerfile
     container_name: facilix-sensors
     restart: unless-stopped

@@ -28,20 +28,25 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install Dependencies
+        working-directory: src/app
         run: bun install --frozen-lockfile
 
       - name: Build Project
+        working-directory: src/app
         run: bun run build
 
       - name: Migrate Database
+        working-directory: src/app
         run: bun run db:migrate --remote
 
       - name: Upload Secrets
+        working-directory: src/app
         run: |
           echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put APP_ORIGIN
-          echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put BETTER_AUTH_URL
+          echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
           echo "${{ secrets.INGEST_TOKEN }}" | bun wrangler secret put INGEST_TOKEN
 
       - name: Deploy to Cloudflare
+        working-directory: src/app
         run: bun run deploy

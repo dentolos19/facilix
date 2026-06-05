@@ -1,0 +1,64 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "facilix",
+  "account_id": "d910f54eba4cf3d1634aa41c3d9a93bc",
+  "compatibility_date": "2026-05-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/server.ts",
+  "logpush": true,
+  "observability": {
+    "logs": {
+      "enabled": true
+    },
+    "traces": {
+      "enabled": true
+    }
+  },
+  "route": {
+    "pattern": "facilix.dennise.me",
+    "custom_domain": true
+  },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DATABASE",
+      "database_id": "8d175dfa-86d8-46a5-8ab9-405e959dc896"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "facilix"
+    }
+  ],
+  "containers": [
+    {
+      "name": "facilix-server",
+      "class_name": "Server",
+      "image": "../server/Dockerfile",
+      "max_instances": 10,
+      "instance_type": "basic"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SERVER",
+        "class_name": "Server"
+      },
+      {
+        "name": "OBSERVER",
+        "class_name": "Observer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["Server", "Observer"]
+    }
+  ]
+}

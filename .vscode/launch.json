@@ -5,6 +5,7 @@
       "name": "App",
       "request": "launch",
       "type": "node-terminal",
+      "cwd": "${workspaceFolder}/src/app",
       "command": "bun run dev",
       "serverReadyAction": {
         "pattern": "Local:.+(https?://.+)",
