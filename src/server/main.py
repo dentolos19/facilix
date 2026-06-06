@@ -321,11 +321,13 @@ async def monitor_sensor(
     device_id: str,
     device_name: str,
     sensor_type: str,
+    data_source: str,
     pull_url: str,
     simulation_device_id: str,
     poll_interval_ms: int,
     threshold: float,
     unit: str,
+    payload_format: str = "facilix",
 ) -> None:
     """
     Background task for a single sensor device.
@@ -338,25 +340,37 @@ async def monitor_sensor(
         "sensor:monitoring:started",
         "info",
         f"Started monitoring sensor '{device_name}'",
-        {"sensorType": sensor_type, "threshold": threshold, "unit": unit},
+        {"sensorType": sensor_type, "dataSource": data_source, "threshold": threshold, "unit": unit},
     )
 
     while True:
         try:
-            value, status = await read_sensor(
-                simulation_device_id,
-                pull_url,
+            value, status, extra = await read_sensor(
+                data_source=data_source,
+                simulation_device_id=simulation_device_id,
+                pull_url=pull_url,
             )
 
             if value is not None:
-                # Check threshold
+                # Build enriched payload for the Worker
+                event_data = {
+                    "value": value,
+                    "unit": unit,
+                    "status": status,
+                    "sensorType": sensor_type,
+                    "threshold": threshold,
+                    "source": data_source,
+                    "timestamp": time.time(),
+                    **extra,
+                }
+
                 if threshold > 0 and value > threshold:
                     await post_event(
                         device_id,
                         "sensor:alert",
                         "warn",
                         f"{sensor_type} value {value:.1f}{unit} exceeds threshold {threshold}{unit}",
-                        {"value": value, "threshold": threshold, "unit": unit, "status": status},
+                        event_data,
                     )
                 else:
                     await post_event(
@@ -364,7 +378,7 @@ async def monitor_sensor(
                         "sensor:reading",
                         "info",
                         f"{sensor_type} = {value:.1f}{unit}",
-                        {"value": value, "threshold": threshold, "unit": unit, "status": status},
+                        event_data,
                     )
             else:
                 await post_event(
@@ -372,7 +386,7 @@ async def monitor_sensor(
                     "sensor:error",
                     "error",
                     f"Sensor '{device_name}' unreachable",
-                    {"pullUrl": pull_url, "status": status},
+                    {"pullUrl": pull_url, "status": status, "source": data_source},
                 )
 
         except asyncio.CancelledError:
@@ -389,15 +403,17 @@ async def monitor_sensor(
 
 
 async def read_sensor(
+    data_source: str,
     simulation_device_id: str,
     pull_url: str,
-) -> tuple[float | None, str]:
+) -> tuple[float | None, str, dict]:
     """
-    Read sensor value from simulation API or external pull URL.
-    Returns (value, status_string).
+    Read sensor value from the configured data source.
+    Returns (value, status_string, extra_data_dict).
     """
-    # Simulation source (local dev)
-    if simulation_device_id:
+    extra: dict = {}
+
+    if data_source == "simulation" and simulation_device_id:
         try:
             client = get_client()
             url = f"{SIMULATION_SENSOR_API}/devices/{simulation_device_id}/latest"
@@ -406,25 +422,32 @@ async def read_sensor(
                 data = resp.json()
                 value = float(data.get("value", 0))
                 status = data.get("status", "ok")
-                return value, status
-            return None, f"http_{resp.status_code}"
+                extra["batteryPct"] = data.get("batteryPct")
+                extra["signalRssiDbm"] = data.get("signalRssiDbm")
+                return value, status, extra
+            return None, f"http_{resp.status_code}", extra
         except Exception as exc:
-            return None, str(exc)
+            return None, str(exc), extra
 
-    # HTTP Pull source (external API)
-    if pull_url:
+    if data_source == "http-pull" and pull_url:
         try:
             client = get_client()
             resp = await client.get(pull_url, timeout=httpx.Timeout(10.0))
             if resp.status_code == 200:
                 data = resp.json()
                 value = float(data.get("value", data.get("reading", 0)))
-                return value, "ok"
-            return None, f"http_{resp.status_code}"
+                extra["batteryPct"] = data.get("batteryPct")
+                extra["signalRssiDbm"] = data.get("signalRssiDbm")
+                return value, "ok", extra
+            return None, f"http_{resp.status_code}", extra
         except Exception as exc:
-            return None, str(exc)
+            return None, str(exc), extra
 
-    return None, "no_source"
+    # HTTP Push / Ingest — no polling, value comes from external push
+    if data_source == "http-push":
+        return None, "push_only", extra
+
+    return None, "no_source", extra
 
 
 # ---------------------------------------------------------------------------
@@ -478,11 +501,13 @@ async def startup_monitoring() -> None:
                 device_id=sensor["id"],
                 device_name=sensor.get("name", ""),
                 sensor_type=sensor.get("sensorType", ""),
+                data_source=sensor.get("dataSource", "simulation"),
                 pull_url=sensor.get("pullUrl", ""),
                 simulation_device_id=sensor.get("simulationDeviceId", ""),
                 poll_interval_ms=sensor.get("pollIntervalMs", 30000),
                 threshold=sensor.get("threshold", 0),
                 unit=sensor.get("unit", ""),
+                payload_format=sensor.get("payloadFormat", "facilix"),
             ),
             name=f"sensor-{sensor['id']}",
         )

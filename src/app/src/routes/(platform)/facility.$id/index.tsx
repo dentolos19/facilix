@@ -143,6 +143,8 @@ function Page() {
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [containerLogsOpen, setContainerLogsOpen] = useState(false);
 
+  const handleClearContainerLogs = useCallback(() => setEvents([]), []);
+
   // ── Ref always pointing at latest placedItems (avoid stale closures) ────
   const placedItemsRef = useRef(placedItems);
   placedItemsRef.current = placedItems;
@@ -679,7 +681,7 @@ function Page() {
                     size="sm"
                     variant="destructive"
                   >
-                    {deleting ? "Deleting…" : confirmDelete ? "Confirm delete?" : "Delete facility"}
+                    {deleting ? "Deleting…" : confirmDelete ? "Confirm?" : "Delete"}
                   </Button>
                   <div className="flex gap-2">
                     <Button
@@ -732,7 +734,7 @@ function Page() {
       </Dialog>
 
       {/* ── Container Logs Dialog ── */}
-      <ContainerLogsDialog events={events} onOpenChange={setContainerLogsOpen} open={containerLogsOpen} />
+      <ContainerLogsDialog events={events} onClearLogs={handleClearContainerLogs} onOpenChange={setContainerLogsOpen} open={containerLogsOpen} />
 
       {/* ── Resizable Panels ── */}
       <ResizablePanelGroup className="flex-1" orientation="horizontal">
@@ -779,6 +781,7 @@ function Page() {
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
             <DeviceEventPanel
+              facilityId={facilityId}
               logs={logs}
               selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}
               selectedDeviceId={selectedItemId}

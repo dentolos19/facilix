@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { createDatabase } from "#/src/lib/database";
 import * as schema from "#/src/lib/database/schema";
 import { createStorage } from "#/src/lib/storage";
-import { recordFacilityEvent, validateDevice } from "./utils";
+import { recordFacilityEvent, recordSensorReading, validateDevice } from "./utils";
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 const MIN_CONFIDENCE = 0.4;
@@ -77,9 +77,11 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
       .map((d) => ({
         id: d.id,
         name: d.name,
+        dataSource: String(d.data.sensorDataSource ?? "simulation"),
         sensorType: String(d.data.sensorType ?? ""),
         pullUrl: String(d.data.pullUrl ?? ""),
         simulationDeviceId: String(d.data.simulationDeviceId ?? ""),
+        payloadFormat: String(d.data.payloadFormat ?? "facilix"),
         pollIntervalMs: Number(d.data.pollInterval ?? 30) * 1000,
         threshold: Number(d.data.threshold ?? 0),
         unit: String(d.data.unit ?? ""),
@@ -110,6 +112,25 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     return Response.json({ error: "Device not found for this facility" }, { status: 404 });
   }
 
+  const enrichedData = { ...body.data, source: "monitoring-container" };
+
+  // System-level events (monitoring:started, monitoring:heartbeat) use facilityId as
+  // deviceId but must not be inserted into device_logs because the FK references
+  // facility_devices(id) and no such device row exists. Record only in Observer DO.
+  if (body.deviceId === facilityId) {
+    try {
+      await env.OBSERVER.getByName(facilityId).recordEvent(
+        body.deviceId,
+        body.type,
+        JSON.stringify({ level: body.severity, message: body.message, ...enrichedData }),
+      );
+      return Response.json({ success: true, eventId: crypto.randomUUID() });
+    } catch (err) {
+      console.error("Observer recordEvent failed:", err);
+      return Response.json({ error: "Failed to record event" }, { status: 500 });
+    }
+  }
+
   const eventId = await recordFacilityEvent(
     db,
     env.OBSERVER.getByName(facilityId),
@@ -118,8 +139,15 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     body.type,
     body.severity as "info" | "warn" | "error",
     body.message,
-    { ...body.data, source: "monitoring-container" },
+    enrichedData,
   );
+
+  // Record structured sensor reading for sensor events
+  if (eventId && (body.type === "sensor:reading" || body.type === "sensor:alert") && body.data) {
+    await recordSensorReading(db, facilityId, body.deviceId, body.data).catch((err) =>
+      console.error("recordSensorReading failed:", err),
+    );
+  }
 
   return eventId
     ? Response.json({ success: true, eventId })

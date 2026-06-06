@@ -413,15 +413,6 @@ export function PropertiesPanel({
                       </>
                     ) : String(selected.props.sensorDataSource ?? "") === "http-pull" ? (
                       <>
-                        <Field label="Device ID">
-                          <Input
-                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                            onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
-                            placeholder="e.g. sensor-temp-02"
-                            readOnly={isReadOnly}
-                            value={String(selected.props.deviceId ?? "")}
-                          />
-                        </Field>
                         <Field label="Pull URL">
                           <Input
                             className={isReadOnly ? "pointer-events-none opacity-60" : ""}
@@ -506,21 +497,12 @@ export function PropertiesPanel({
                       </>
                     ) : (
                       <>
-                        <Field label="Device ID">
-                          <Input
-                            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                            onChange={(e) => onUpdateItem(selected.id, { props: { deviceId: e.target.value } })}
-                            placeholder="e.g. sensor-temp-02"
-                            readOnly={isReadOnly}
-                            value={String(selected.props.deviceId ?? "")}
-                          />
-                        </Field>
                         <Field label="Ingest Endpoint">
                           <Input
                             className={isReadOnly ? "pointer-events-none opacity-60" : ""}
                             placeholder="POST /api/sensors/ingest/{device_id}"
                             readOnly
-                            value={`/api/sensors/ingest/${String(selected.props.deviceId ?? "{id}")}`}
+                            value={`/api/sensors/ingest/${selected.id}`}
                           />
                         </Field>
                         <Field label="Payload Format">

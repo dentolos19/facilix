@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 import fastapi
 from fastapi.responses import JSONResponse
 
-from . import config
+import config
 
 logger = logging.getLogger("simulator.cctv")
 

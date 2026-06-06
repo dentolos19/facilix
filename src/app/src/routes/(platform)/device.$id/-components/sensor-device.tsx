@@ -1,23 +1,31 @@
 import { ActivityIcon, BatteryIcon, WifiIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DeviceDetail } from "#/src/lib/functions/facility";
-import type { NormalizedReading, SimulationSensorDevice } from "#/src/lib/simulation/sensors";
-import { fetchSimulationLatestReading, fetchSimulationSensor } from "#/src/lib/simulation/sensors";
+import { getLatestSensorReading } from "#/src/lib/functions/sensors";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./device-detail-layout";
 
 export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
-  const simulationDeviceId = String(device.data.simulationDeviceId ?? "");
   const sensorDataSource = String(device.data.sensorDataSource ?? "simulation");
   const threshold = Number(device.data.threshold ?? 50);
   const unit = String(device.data.unit ?? "");
+  const deviceId = device.id;
+  const facilityId = device.facilityId;
 
-  const [sensorInfo, setSensorInfo] = useState<SimulationSensorDevice | null>(null);
-  const [reading, setReading] = useState<NormalizedReading | null>(null);
+  const [reading, setReading] = useState<{
+    value: number;
+    unit: string;
+    status: string;
+    batteryPct: number | null;
+    signalRssiDbm: number | null;
+    secondaryValue: number | null;
+    secondaryUnit: string | null;
+    timestamp: Date | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch sensor info and latest reading on mount
+  // Fetch latest reading on mount and poll every 10s
   useEffect(() => {
-    if (sensorDataSource !== "simulation" || !simulationDeviceId) {
+    if (!facilityId) {
       setLoading(false);
       return;
     }
@@ -26,13 +34,9 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
 
     async function load() {
       try {
-        const [info, latest] = await Promise.all([
-          fetchSimulationSensor(simulationDeviceId),
-          fetchSimulationLatestReading(simulationDeviceId),
-        ]);
+        const result = await getLatestSensorReading({ data: { facilityId, deviceId } });
         if (!cancelled) {
-          setSensorInfo(info);
-          setReading(latest);
+          setReading(result);
         }
       } catch {
         // Sensor offline — keep defaults
@@ -43,11 +47,10 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
 
     load();
 
-    // Poll every 10s
     const interval = setInterval(async () => {
       try {
-        const latest = await fetchSimulationLatestReading(simulationDeviceId);
-        if (!cancelled) setReading(latest);
+        const result = await getLatestSensorReading({ data: { facilityId, deviceId } });
+        if (!cancelled) setReading(result);
       } catch {
         // ignore
       }
@@ -57,12 +60,12 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [simulationDeviceId, sensorDataSource]);
+  }, [facilityId, deviceId]);
 
   const value = reading?.value ?? 0;
   const isAboveThreshold = value > threshold;
-  const batteryPct = reading?.batteryPct ?? sensorInfo?.batteryPct ?? 0;
-  const signalRssi = reading?.signalRssiDbm ?? sensorInfo?.signalRssiDbm ?? 0;
+  const batteryPct = reading?.batteryPct ?? 0;
+  const signalRssi = reading?.signalRssiDbm ?? 0;
 
   return (
     <DeviceDetailLayout
@@ -71,25 +74,16 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
         <DeviceDetailSidebar
           device={device}
           properties={[
-            { label: "Sensor Type", value: sensorInfo?.sensorType ?? String(device.data.sensorType ?? "unknown") },
+            { label: "Sensor Type", value: String(device.data.sensorType ?? "unknown") },
             { label: "Data Source", value: sensorDataSource },
-            { label: "Reading Status", value: reading?.status ?? sensorInfo?.status ?? "unknown" },
+            { label: "Reading Status", value: reading?.status ?? "unknown" },
             { label: "Threshold", value: `${threshold}${unit}` },
-            ...(sensorInfo?.measurementRange
-              ? [
-                  {
-                    label: "Range",
-                    value: `${sensorInfo.measurementRange.min}–${sensorInfo.measurementRange.max} ${sensorInfo.measurementRange.unit}`,
-                  },
-                ]
-              : []),
-            ...(sensorInfo?.intervalSeconds ? [{ label: "Interval", value: `${sensorInfo.intervalSeconds}s` }] : []),
           ]}
         />
       }
       subtitle={
         <>
-          {device.facilityName} &middot; {sensorInfo?.sensorType ?? "Sensor"}
+          {device.facilityName} &middot; {String(device.data.sensorType ?? "Sensor")}
         </>
       }
     >
@@ -136,7 +130,7 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
                 <BatteryIcon className="size-3" />
                 <span className="text-[10px] font-medium uppercase">Battery</span>
               </div>
-              <p className="mt-1 text-sm font-medium tabular-nums text-foreground/80">{batteryPct}%</p>
+              <p className="mt-1 text-sm font-medium tabular-nums text-foreground/80">{batteryPct.toFixed(0)}%</p>
             </div>
             <div className="rounded-none border border-border bg-muted/20 p-3">
               <div className="flex items-center gap-1.5 text-muted-foreground/60">
@@ -150,9 +144,7 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
                 <ActivityIcon className="size-3" />
                 <span className="text-[10px] font-medium uppercase">Status</span>
               </div>
-              <p className="mt-1 text-sm font-medium text-foreground/80">
-                {reading?.status ?? sensorInfo?.status ?? "unknown"}
-              </p>
+              <p className="mt-1 text-sm font-medium text-foreground/80">{reading?.status ?? "unknown"}</p>
             </div>
           </div>
         </div>

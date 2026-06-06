@@ -112,10 +112,8 @@ export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | numbe
   Sensor: {
     sensorDataSource: "simulation",
     simulationDeviceId: "sensor-temp-001",
-    connectionMethod: "http-pull",
     payloadFormat: "facilix",
     pullUrl: "",
-    deviceId: "",
     unit: "°C",
     threshold: 50,
     iconColor: "#8b5cf6",

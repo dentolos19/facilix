@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { CanvasLayoutData } from "#/src/routes/(platform)/facility.$id/-helpers/types";
 
 export const asset = sqliteTable("assets", {
@@ -199,6 +199,35 @@ export const videoRecording = sqliteTable("video_recordings", {
     .$default(() => new Date()),
 });
 
+/**
+ * Sensor readings persisted for history and latest-value queries.
+ * Each reading from the monitoring container gets a row here.
+ */
+export const sensorReading = sqliteTable("sensor_readings", {
+  id: text("id")
+    .primaryKey()
+    .$default(() => crypto.randomUUID()),
+  facilityId: text("facility_id")
+    .notNull()
+    .references(() => facility.id, { onDelete: "cascade" }),
+  deviceId: text("device_id")
+    .notNull()
+    .references(() => facilityDevice.id, { onDelete: "cascade" }),
+  sensorType: text("sensor_type").notNull(),
+  value: real("value").notNull(),
+  unit: text("unit").notNull(),
+  status: text("status").notNull().default("ok"),
+  secondaryValue: real("secondary_value"),
+  secondaryUnit: text("secondary_unit"),
+  batteryPct: real("battery_pct"),
+  signalRssiDbm: integer("signal_rssi_dbm"),
+  source: text("source").notNull().default("simulation"),
+  timestamp: integer("timestamp", { mode: "timestamp_ms" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$default(() => new Date()),
+});
+
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
@@ -208,3 +237,4 @@ export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type DeviceEvent = typeof deviceEvent.$inferSelect;
 export type VideoRecording = typeof videoRecording.$inferSelect;
+export type SensorReading = typeof sensorReading.$inferSelect;

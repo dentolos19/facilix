@@ -1,5 +1,5 @@
-import { SearchIcon, TerminalIcon, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { SearchIcon, TerminalIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "#/src/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "#/src/components/ui/dialog";
 import { Input } from "#/src/components/ui/input";
@@ -13,6 +13,8 @@ export interface ContainerLogsDialogProps {
   onOpenChange: (open: boolean) => void;
   /** All raw events from the Observer WS connection. */
   events: FacilityEvent[];
+  /** Callback to clear all container logs. */
+  onClearLogs?: () => void;
 }
 
 const MONITORING_SOURCE_PREFIXES = ["monitoring:", "cctv:", "sensor:"];
@@ -21,9 +23,15 @@ const MONITORING_SOURCE_PREFIXES = ["monitoring:", "cctv:", "sensor:"];
  * Dialog that shows monitoring-container and system-level logs.
  * Filtered from the Observer event stream to show only container-related events.
  */
-export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLogsDialogProps) {
+export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }: ContainerLogsDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<LogEntry["level"] | "all">("all");
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+
+  // Reset confirmation state when dialog opens
+  useEffect(() => {
+    if (open) setConfirmDeleteAll(false);
+  }, [open]);
 
   const containerLogs = useMemo(() => {
     return events.filter((ev) => {
@@ -86,6 +94,15 @@ export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLog
     return counts;
   }, [containerLogs]);
 
+  function handleDeleteAll() {
+    if (!confirmDeleteAll) {
+      setConfirmDeleteAll(true);
+    } else {
+      setConfirmDeleteAll(false);
+      onClearLogs?.();
+    }
+  }
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-w-5xl sm:max-w-5xl h-[80vh] flex flex-col">
@@ -93,13 +110,11 @@ export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLog
           <div className="flex items-center gap-2">
             <TerminalIcon className="size-4 text-muted-foreground" />
             <DialogTitle>Container Logs</DialogTitle>
-            <button
-              aria-label="Close"
-              className="ml-auto size-6 flex items-center justify-center rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors"
-              onClick={() => onOpenChange(false)}
-            >
-              <XIcon className="size-3.5" />
-            </button>
+            <div className="ml-auto" />
+            <Button className="h-7 px-2 text-[11px] gap-1 mr-6" onClick={handleDeleteAll} size="sm" variant="destructive">
+              <Trash2Icon className="size-3" />
+              {confirmDeleteAll ? "Confirm?" : "Delete All"}
+            </Button>
           </div>
           <DialogDescription>Monitoring container events ({containerLogs.length} total)</DialogDescription>
         </DialogHeader>
@@ -131,30 +146,45 @@ export function ContainerLogsDialog({ open, onOpenChange, events }: ContainerLog
         </div>
 
         {/* Log entries */}
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="flex flex-col gap-0.5 py-2">
-            {filteredLogs.length === 0 && (
-              <div className="flex items-center justify-center py-8">
-                <span className="text-xs text-muted-foreground/50">No matching logs</span>
-              </div>
-            )}
-            {filteredLogs.map((ev) => {
-              const level = getEventLevel(ev);
-              return (
-                <div
-                  className="flex items-start gap-2 rounded-none px-2 py-1.5 text-[11px] hover:bg-muted/40 transition-colors"
-                  key={ev.id}
-                >
-                  <span className="shrink-0 text-muted-foreground/50 tabular-nums w-16 text-right font-mono">
-                    {new Date(ev.createdAt).toLocaleTimeString()}
-                  </span>
-                  <LogLevelBadge level={level} />
-                  <span className="shrink-0 font-medium text-muted-foreground/80 min-w-[100px]">{ev.type}</span>
-                  <span className="text-muted-foreground/70 break-words">{getEventMessage(ev)}</span>
-                </div>
-              );
-            })}
-          </div>
+        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
+          <table className="w-full">
+            <thead>
+              <tr className="text-[11px] text-muted-foreground/50 border-b border-border/50">
+                <th className="text-left font-medium py-1.5 px-2 w-20">Time</th>
+                <th className="text-left font-medium py-1.5 px-2 w-16">Level</th>
+                <th className="text-left font-medium py-1.5 px-2 w-[120px]">Type</th>
+                <th className="text-left font-medium py-1.5 px-2">Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length === 0 && (
+                <tr>
+                  <td className="text-center py-8 text-xs text-muted-foreground/50" colSpan={4}>
+                    No matching logs
+                  </td>
+                </tr>
+              )}
+              {filteredLogs.map((ev) => {
+                const level = getEventLevel(ev);
+                return (
+                  <tr className="text-[11px] hover:bg-muted/40 transition-colors" key={ev.id}>
+                    <td className="py-1.5 px-2 text-muted-foreground/50 tabular-nums font-mono align-top whitespace-nowrap">
+                      {new Date(ev.createdAt).toLocaleTimeString()}
+                    </td>
+                    <td className="py-1.5 px-2 align-top">
+                      <LogLevelBadge level={level} />
+                    </td>
+                    <td className="py-1.5 px-2 font-medium text-muted-foreground/80 align-top whitespace-nowrap">
+                      {ev.type}
+                    </td>
+                    <td className="py-1.5 px-2 text-muted-foreground/70 break-words align-top">
+                      {getEventMessage(ev)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </ScrollArea>
       </DialogContent>
     </Dialog>

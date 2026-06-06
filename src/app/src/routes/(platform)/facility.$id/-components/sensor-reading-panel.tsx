@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { NormalizedReading } from "#/src/lib/simulation/sensors";
-import { fetchSimulationLatestReading } from "#/src/lib/simulation/sensors";
+import { getLatestSensorReading } from "#/src/lib/functions/sensors";
 import type { PlacedItem } from "../-helpers/types";
 
 export interface SensorReadingPanelProps {
   selectedDevice: PlacedItem;
+  facilityId?: string;
 }
 
 type ReadingState = "idle" | "loading" | "ok" | "error";
@@ -12,18 +12,30 @@ type ReadingState = "idle" | "loading" | "ok" | "error";
 /**
  * Live sensor reading display for a selected Sensor device.
  *
- * Polls the simulation API (or external pull URL) at the configured
- * poll interval and shows the latest value, status, battery, and signal.
+ * Reads the latest sensor reading from the app's database (populated by the
+ * monitoring container's sensor polling) and polls at the configured interval.
+ * Also shows real-time updates from Observer DO WebSocket events.
  */
-export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) {
+export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReadingPanelProps) {
   const { props } = selectedDevice;
   const dataSource = String(props.sensorDataSource ?? "simulation");
-  const simulationDeviceId = String(props.simulationDeviceId ?? "");
   const pollInterval = Number(props.pollInterval ?? 30) * 1000;
   const threshold = Number(props.threshold ?? 0);
   const unit = String(props.unit ?? "");
 
-  const [reading, setReading] = useState<NormalizedReading | null>(null);
+  // Use the actual facility device ID for D1 queries
+  const deviceId = selectedDevice.id;
+
+  const [reading, setReading] = useState<{
+    value: number;
+    unit: string;
+    status: string;
+    batteryPct: number | null;
+    signalRssiDbm: number | null;
+    secondaryValue: number | null;
+    secondaryUnit: string | null;
+    timestamp: Date | null;
+  } | null>(null);
   const [state, setState] = useState<ReadingState>("idle");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
@@ -44,8 +56,8 @@ export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) 
     setReading(null);
     setState("idle");
 
-    if (dataSource === "simulation") {
-      if (!simulationDeviceId) {
+    if (dataSource === "simulation" || dataSource === "http-pull") {
+      if (!facilityId) {
         setState("idle");
         return;
       }
@@ -53,22 +65,24 @@ export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) 
       const fetchReading = async () => {
         if (!mountedRef.current) return;
         setState("loading");
-        const result = await fetchSimulationLatestReading(simulationDeviceId);
-        if (!mountedRef.current) return;
-        if (result) {
-          setReading(result);
-          setState("ok");
-        } else {
+        try {
+          const result = await getLatestSensorReading({ data: { facilityId, deviceId } });
+          if (!mountedRef.current) return;
+          if (result) {
+            setReading(result);
+            setState("ok");
+          } else {
+            setState("idle");
+          }
+        } catch {
+          if (!mountedRef.current) return;
           setState("error");
         }
       };
 
       fetchReading();
       timerRef.current = setInterval(fetchReading, pollInterval);
-    } else if (dataSource === "http-pull") {
-      // HTTP Pull — not yet implemented beyond the API scaffolding
-      setState("idle");
-    } else {
+    } else if (dataSource === "http-push") {
       // HTTP Push — no live fetch, just show placeholder
       setState("idle");
     }
@@ -79,10 +93,9 @@ export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) 
         timerRef.current = null;
       }
     };
-  }, [dataSource, simulationDeviceId, pollInterval, props.deviceId]);
+  }, [dataSource, facilityId, deviceId, pollInterval]);
 
   const isAlert = reading !== null && threshold > 0 && reading.value > threshold;
-  const isDegraded = reading?.status === "degraded" || reading?.status === "offline" || reading?.status === "error";
 
   return (
     <div className="flex flex-col gap-2">
@@ -90,28 +103,22 @@ export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) 
         Live Reading
       </h4>
 
-      {dataSource === "simulation" && !simulationDeviceId && (
+      {dataSource === "simulation" && !facilityId && (
         <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">Select a simulation device in edit mode</span>
+          <span className="text-[11px] text-muted-foreground/50">Select a sensor device in edit mode</span>
         </div>
       )}
 
-      {dataSource === "simulation" && simulationDeviceId && state === "loading" && (
+      {(dataSource === "simulation" || dataSource === "http-pull") && facilityId && state === "loading" && (
         <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
           <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
           <span className="ml-2 text-[11px] text-muted-foreground/60">Connecting…</span>
         </div>
       )}
 
-      {dataSource === "simulation" && simulationDeviceId && state === "error" && (
+      {(dataSource === "simulation" || dataSource === "http-pull") && facilityId && state === "error" && (
         <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">Simulator unreachable</span>
-        </div>
-      )}
-
-      {dataSource === "http-pull" && (
-        <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">HTTP Pull not yet implemented</span>
+          <span className="text-[11px] text-muted-foreground/50">Monitoring data unavailable</span>
         </div>
       )}
 
@@ -151,9 +158,8 @@ export function SensorReadingPanel({ selectedDevice }: SensorReadingPanelProps) 
 
           {/* Telemetry metadata */}
           <div className="mt-2 flex gap-3 text-[10px] text-muted-foreground/50">
-            <span>Battery: {reading.batteryPct.toFixed(0)}%</span>
-            <span>Signal: {reading.signalRssiDbm} dBm</span>
-            <span>Seq: {reading.sequence}</span>
+            <span>Battery: {reading.batteryPct?.toFixed(0) ?? "—"}%</span>
+            <span>Signal: {reading.signalRssiDbm ?? "—"} dBm</span>
           </div>
 
           {/* Timestamp */}

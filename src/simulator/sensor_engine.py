@@ -8,8 +8,8 @@ import random
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from . import config
-from .sensor_models import (
+import config
+from sensor_models import (
     SENSOR_DEFINITIONS,
     SensorDevice,
     SensorReading,

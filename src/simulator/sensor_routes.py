@@ -8,8 +8,8 @@ from typing import Optional
 import fastapi
 from fastapi.responses import JSONResponse
 
-from . import config as sim_config
-from . import sensor_engine
+import config as sim_config
+import sensor_engine
 
 logger = logging.getLogger("simulator.sensor-api")
 

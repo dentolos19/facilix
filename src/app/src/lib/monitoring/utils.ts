@@ -58,3 +58,38 @@ export async function recordFacilityEvent(
 
   return d1Success || observerSuccess ? id : null;
 }
+
+/**
+ * Record a structured sensor reading in the sensor_readings table.
+ * Extracts reading fields from the event data payload.
+ */
+export async function recordSensorReading(
+  db: ReturnType<typeof createDatabase>,
+  facilityId: string,
+  deviceId: string,
+  eventData: Record<string, unknown>,
+): Promise<boolean> {
+  const value = eventData.value;
+  if (typeof value !== "number") return false;
+
+  try {
+    await db.insert(schema.sensorReading).values({
+      facilityId,
+      deviceId,
+      sensorType: String(eventData.sensorType ?? ""),
+      value,
+      unit: String(eventData.unit ?? ""),
+      status: String(eventData.status ?? "ok"),
+      secondaryValue: typeof eventData.secondaryValue === "number" ? eventData.secondaryValue : null,
+      secondaryUnit: eventData.secondaryUnit ? String(eventData.secondaryUnit) : null,
+      batteryPct: typeof eventData.batteryPct === "number" ? eventData.batteryPct : null,
+      signalRssiDbm: typeof eventData.signalRssiDbm === "number" ? eventData.signalRssiDbm : null,
+      source: String(eventData.source ?? "simulation"),
+      timestamp: typeof eventData.timestamp === "number" ? new Date(eventData.timestamp) : new Date(),
+    });
+    return true;
+  } catch (err) {
+    console.error("sensor_readings insert failed", err);
+    return false;
+  }
+}

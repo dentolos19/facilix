@@ -13,10 +13,12 @@ export function DeviceEventPanel({
   logs,
   selectedDeviceId,
   selectedDevice,
+  facilityId,
 }: {
   logs: LogEntry[];
   selectedDeviceId: string | null;
   selectedDevice?: PlacedItem | null;
+  facilityId?: string;
 }) {
   const deviceEvents = useMemo(
     () => (selectedDeviceId ? logs.filter((l) => l.deviceId === selectedDeviceId) : []),
@@ -99,7 +101,9 @@ export function DeviceEventPanel({
             )}
 
             {/* Sensor readings */}
-            {isSensor && selectedDevice && <SensorReadingPanel selectedDevice={selectedDevice} />}
+            {isSensor && selectedDevice && (
+              <SensorReadingPanel facilityId={facilityId} selectedDevice={selectedDevice} />
+            )}
 
             {/* Log entries */}
             {deviceEvents.length > 0 && (
