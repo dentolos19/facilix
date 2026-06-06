@@ -36,6 +36,20 @@
       "when": 1780800000000,
       "tag": "0005_cctv_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780741247211,
+      "tag": "0005_unknown_typhoid_mary",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1780741982445,
+      "tag": "0006_flawless_sunfire",
+      "breakpoints": true
     }
   ]
 }

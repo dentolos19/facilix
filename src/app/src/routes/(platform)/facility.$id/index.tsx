@@ -2,7 +2,17 @@
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { EyeIcon, Loader2, PencilIcon, PlayIcon, Save, SettingsIcon, SquareIcon, TerminalIcon } from "lucide-react";
+import {
+  BarChart3,
+  EyeIcon,
+  Loader2,
+  PencilIcon,
+  PlayIcon,
+  Save,
+  SettingsIcon,
+  SquareIcon,
+  TerminalIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/src/components/ui/button";
@@ -29,6 +39,7 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/src/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
 import { deleteFacility, loadFacility, saveFacility } from "#/src/lib/functions/facility";
+import { type FacilityEventRow, getFacilityEvents } from "#/src/lib/functions/facility-events";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
 import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/src/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
@@ -70,37 +81,35 @@ function Field({
   );
 }
 
-/** Map a raw FacilityEvent (from the Observer DO) to a LogEntry for the UI. */
-function eventToLogEntry(event: FacilityEvent, deviceMap: Map<string, PlacedItem>): LogEntry {
-  let level: LogEntry["level"] = "info";
-  let message = event.type;
-
-  try {
-    const parsed = JSON.parse(event.data);
-    if (typeof parsed.level === "string" && ["info", "warn", "error"].includes(parsed.level)) {
-      level = parsed.level as LogEntry["level"];
-    }
-    if (typeof parsed.message === "string") {
-      message = parsed.message;
-    }
-  } catch {
-    // data is not JSON — use the raw string
-    if (event.data && event.data !== "{}") {
-      message = event.data;
-    }
-  }
-
-  const device = deviceMap.get(event.deviceId);
-
+/** Map a D1 FacilityEventRow to a LogEntry for the UI. */
+function d1EventToLogEntry(event: FacilityEventRow, deviceMap: Map<string, PlacedItem>): LogEntry {
+  const device = event.deviceId ? deviceMap.get(event.deviceId) : null;
   return {
     id: event.id,
-    deviceId: event.deviceId,
-    deviceName: device?.name ?? event.deviceId,
-    deviceType: device?.type ?? "Sensor",
+    deviceId: event.deviceId ?? "",
+    deviceName: device?.name ?? (event.deviceId ? event.deviceId : "Facility"),
+    deviceType: (device?.type ?? "Sensor") as PlacedItemType,
     timestamp: new Date(event.createdAt),
-    level,
-    message,
+    level: event.severity,
+    message: event.message,
   };
+}
+
+/**
+ * Guess whether a raw DO event is a high-level facility event (persisted to D1)
+ * based on its type and parsed severity. If so, refetch D1 facility_events
+ * when it arrives via the WebSocket.
+ */
+function isFacilityEvent(ev: FacilityEvent): boolean {
+  if (ev.type === "monitoring:started" || ev.type === "monitoring:stopped") return true;
+  if (ev.type === "monitoring:heartbeat" || ev.type === "cctv:frame:ok" || ev.type === "sensor:reading") return false;
+  try {
+    const parsed = JSON.parse(ev.data);
+    if (parsed.level === "warn" || parsed.level === "error") return true;
+  } catch {
+    // fall through
+  }
+  return true;
 }
 
 /** Human-readable label for a MonitoringStatus value. */
@@ -133,9 +142,12 @@ function Page() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // ── Observer WebSocket events ──────────────────────────────────────────
-  const [events, setEvents] = useState<FacilityEvent[]>([]);
+  // ── Observer WebSocket events (Container Logs only) ────────────────────
+  const [observationEvents, setObservationEvents] = useState<FacilityEvent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // ── D1-backed facility events (Global Events + Device Event History) ─────
+  const [facilityEvents, setFacilityEvents] = useState<FacilityEventRow[]>([]);
 
   // ── Monitoring container status ────────────────────────────────────────
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("stopped");
@@ -147,7 +159,7 @@ function Page() {
     try {
       const result = await clearContainerLogs({ data: { facilityId } });
       if (result.success) {
-        setEvents([]);
+        setObservationEvents([]);
         toast.success("Container logs cleared");
       } else {
         toast.error("Failed to clear container logs");
@@ -216,10 +228,16 @@ function Page() {
           const msg: ObserverSocketMessage = JSON.parse(event.data);
           switch (msg.type) {
             case "snapshot":
-              setEvents(msg.events);
+              setObservationEvents(msg.events);
               break;
             case "event":
-              setEvents((prev) => [msg.event, ...prev]);
+              setObservationEvents((prev) => [msg.event, ...prev]);
+              // If a high-level event arrived, refetch D1 facility events
+              if (isFacilityEvent(msg.event)) {
+                getFacilityEvents({ data: { facilityId } })
+                  .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+                  .catch(() => {});
+              }
               break;
           }
         } catch {
@@ -248,6 +266,13 @@ function Page() {
       ws?.close();
       wsRef.current = null;
     };
+  }, [facilityId]);
+
+  // ── Fetch initial facility events from D1 on mount ─────────────────────
+  useEffect(() => {
+    getFacilityEvents({ data: { facilityId } })
+      .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+      .catch(() => {});
   }, [facilityId]);
 
   // ── Fetch initial monitoring status on mount ───────────────────────────
@@ -290,11 +315,11 @@ function Page() {
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
-  // Derive LogEntry[] from raw Observer events, enriched with device names
-  const logs = useMemo(() => {
+  // Derive LogEntry[] from D1 facility_events (Global Events + Device Event History)
+  const facilityEventLogs = useMemo(() => {
     const deviceMap = new Map(placedItems.map((i) => [i.id, i]));
-    return events.map((e) => eventToLogEntry(e, deviceMap));
-  }, [events, placedItems]);
+    return facilityEvents.map((e) => d1EventToLogEntry(e, deviceMap));
+  }, [facilityEvents, placedItems]);
 
   const updatePlacedItem = useCallback(
     (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => {
@@ -607,14 +632,25 @@ function Page() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                {isMonitoringChanging
-                  ? "Working…"
-                  : monitoringStatus === "running"
-                    ? "Stop monitoring"
-                    : "Start monitoring"}
+                {isMonitoringChanging ? "Working…" : monitoringStatus === "running" ? "Stop" : "Start"}
               </TooltipContent>
             </Tooltip>
           )}
+
+          {/* Dashboard button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label="View analytics"
+                onClick={() => navigate({ to: "/analytics/$id", params: { id: facilityId } })}
+                size="icon-sm"
+                variant="ghost"
+              >
+                <BarChart3 className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Analytics</TooltipContent>
+          </Tooltip>
 
           {editMode === "edit" && (
             <Tooltip>
@@ -649,22 +685,17 @@ function Page() {
                 {editMode === "monitoring" ? <PencilIcon /> : <EyeIcon />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{editMode === "monitoring" ? "Edit mode" : "Monitoring mode"}</TooltipContent>
+            <TooltipContent>{editMode === "monitoring" ? "Edit" : "Monitor"}</TooltipContent>
           </Tooltip>
 
           {/* Container Logs button */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                aria-label="View container logs"
-                onClick={() => setContainerLogsOpen(true)}
-                size="icon-sm"
-                variant="ghost"
-              >
+              <Button aria-label="View logs" onClick={() => setContainerLogsOpen(true)} size="icon-sm" variant="ghost">
                 <TerminalIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Container Logs</TooltipContent>
+            <TooltipContent>Logs</TooltipContent>
           </Tooltip>
 
           <Dialog
@@ -765,9 +796,9 @@ function Page() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Container Logs Dialog ── */}
+      {/* ── Container Logs Dialog (DO observations only) ── */}
       <ContainerLogsDialog
-        events={events}
+        events={observationEvents}
         onClearLogs={handleClearContainerLogs}
         onOpenChange={setContainerLogsOpen}
         open={containerLogsOpen}
@@ -778,7 +809,11 @@ function Page() {
         {/* Left panel — logs (monitoring) / component palette (edit) */}
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
-            <MonitoringLogsPanel logs={logs} onSelectDevice={setSelectedItemId} selectedDeviceId={selectedItemId} />
+            <MonitoringLogsPanel
+              logs={facilityEventLogs}
+              onSelectDevice={setSelectedItemId}
+              selectedDeviceId={selectedItemId}
+            />
           ) : (
             <ComponentPalette />
           )}
@@ -819,7 +854,7 @@ function Page() {
           {editMode === "monitoring" ? (
             <DeviceEventPanel
               facilityId={facilityId}
-              logs={logs}
+              logs={facilityEventLogs}
               selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}
               selectedDeviceId={selectedItemId}
             />

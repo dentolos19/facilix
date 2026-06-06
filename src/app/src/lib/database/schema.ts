@@ -153,13 +153,14 @@ export const facilityDevice = sqliteTable("facility_devices", {
     .$onUpdate(() => new Date()),
 });
 
-export const deviceEvent = sqliteTable("device_logs", {
+export const facilityEvent = sqliteTable("facility_events", {
   id: text("id")
     .primaryKey()
     .$default(() => crypto.randomUUID()),
-  deviceId: text("device_id")
+  facilityId: text("facility_id")
     .notNull()
-    .references(() => facilityDevice.id, { onDelete: "cascade" }),
+    .references(() => facility.id, { onDelete: "cascade" }),
+  deviceId: text("device_id").references(() => facilityDevice.id, { onDelete: "cascade" }),
   severity: text("severity").notNull(),
   type: text("type").notNull(),
   message: text("message").notNull(),
@@ -250,7 +251,7 @@ export type Verification = typeof verification.$inferSelect;
 export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
-export type DeviceEvent = typeof deviceEvent.$inferSelect;
+export type FacilityEvent = typeof facilityEvent.$inferSelect;
 export type VideoRecording = typeof videoRecording.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;

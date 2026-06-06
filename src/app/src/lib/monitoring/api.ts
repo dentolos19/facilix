@@ -2,7 +2,25 @@ import { eq } from "drizzle-orm";
 import { createDatabase } from "#/src/lib/database";
 import * as schema from "#/src/lib/database/schema";
 import { createStorage } from "#/src/lib/storage";
-import { recordFacilityEvent, recordSensorReading, validateDevice } from "./utils";
+import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
+
+// Event types that are high-volume / low-importance and belong in DO observations only.
+const OBSERVATION_ONLY_TYPES = new Set(["monitoring:heartbeat", "cctv:frame:ok", "sensor:reading"]);
+
+/**
+ * Returns true if an event is important enough to persist in D1 facility_events.
+ * All events always go to the DO observations table for Container Logs.
+ */
+function shouldPersistToD1(type: string, severity: string): boolean {
+  // Warnings and errors are always important
+  if (severity === "warn" || severity === "error") return true;
+  // Facility lifecycle events are important
+  if (type === "monitoring:started" || type === "monitoring:stopped") return true;
+  // Skip high-volume observation-only types
+  if (OBSERVATION_ONLY_TYPES.has(type)) return false;
+  // Everything else (anomalies, alerts, segment stored, etc.) is important
+  return true;
+}
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 const MIN_CONFIDENCE = 0.4;
@@ -172,46 +190,26 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     return Response.json({ error: "Device not found for this facility" }, { status: 404 });
   }
 
+  const severity = body.severity as "info" | "warn" | "error";
   const enrichedData = { ...body.data, source: "monitoring-container" };
+  const observer = env.OBSERVER.getByName(facilityId);
 
-  // System-level events (monitoring:started, monitoring:heartbeat) use facilityId as
-  // deviceId but must not be inserted into device_logs because the FK references
-  // facility_devices(id) and no such device row exists. Record only in Observer DO.
-  if (body.deviceId === facilityId) {
-    try {
-      await env.OBSERVER.getByName(facilityId).recordEvent(
-        body.deviceId,
-        body.type,
-        JSON.stringify({ level: body.severity, message: body.message, ...enrichedData }),
-      );
-      return Response.json({ success: true, eventId: crypto.randomUUID() });
-    } catch (err) {
-      console.error("Observer recordEvent failed:", err);
-      return Response.json({ error: "Failed to record event" }, { status: 500 });
-    }
+  // 1. Always write to DO observations for Container Logs
+  await recordObservation(observer, body.deviceId, body.type, severity, body.message, enrichedData);
+
+  // 2. Persist high-level events to D1 facility_events
+  if (shouldPersistToD1(body.type, severity)) {
+    await recordFacilityEvent(db, facilityId, body.deviceId, body.type, severity, body.message, enrichedData);
   }
 
-  const eventId = await recordFacilityEvent(
-    db,
-    env.OBSERVER.getByName(facilityId),
-    facilityId,
-    body.deviceId,
-    body.type,
-    body.severity as "info" | "warn" | "error",
-    body.message,
-    enrichedData,
-  );
-
-  // Record structured sensor reading for sensor events
-  if (eventId && (body.type === "sensor:reading" || body.type === "sensor:alert") && body.data) {
+  // 3. Record structured sensor reading for sensor events
+  if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data) {
     await recordSensorReading(db, facilityId, body.deviceId, body.data).catch((err) =>
       console.error("recordSensorReading failed:", err),
     );
   }
 
-  return eventId
-    ? Response.json({ success: true, eventId })
-    : Response.json({ error: "Failed to record event" }, { status: 500 });
+  return Response.json({ success: true, eventId: crypto.randomUUID() });
 }
 
 async function handleFrame(request: Request, env: Env, facilityId: string): Promise<Response> {
@@ -249,11 +247,12 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   }
 
   const anomalies = detections.filter((d) => ANOMALY_CLASSES.has(d.label));
+  const observer = env.OBSERVER.getByName(facilityId);
+
   if (anomalies.length === 0) {
-    await recordFacilityEvent(
-      db,
-      env.OBSERVER.getByName(facilityId),
-      facilityId,
+    // Routine frame — DO only (observation), not persisted to D1
+    await recordObservation(
+      observer,
       deviceId,
       "cctv:frame:ok",
       "info",
@@ -266,13 +265,28 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   }
 
   for (const det of anomalies) {
+    const severity = det.confidence > 0.7 ? "warn" : "info";
+    // Always record in DO observation
+    await recordObservation(
+      observer,
+      deviceId,
+      "cctv:anomaly",
+      severity,
+      `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
+      {
+        source: "monitoring-container",
+        label: det.label,
+        confidence: det.confidence,
+        detectionCount: anomalies.length,
+      },
+    );
+    // Persist to D1 facility_events (anomalies are important)
     await recordFacilityEvent(
       db,
-      env.OBSERVER.getByName(facilityId),
       facilityId,
       deviceId,
       "cctv:anomaly",
-      det.confidence > 0.7 ? "warn" : "info",
+      severity,
       `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
       {
         source: "monitoring-container",
@@ -346,9 +360,24 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     endedAt,
   });
 
+  const observer = env.OBSERVER.getByName(facilityId);
+  await recordObservation(
+    observer,
+    deviceId,
+    "cctv:segment:stored",
+    "info",
+    `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
+    {
+      source: "monitoring-container",
+      r2Key: asset.id,
+      recordingId,
+      durationSec,
+      contentType,
+      sizeBytes: buffer.byteLength,
+    },
+  );
   await recordFacilityEvent(
     db,
-    env.OBSERVER.getByName(facilityId),
     facilityId,
     deviceId,
     "cctv:segment:stored",

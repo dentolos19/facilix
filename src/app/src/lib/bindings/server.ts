@@ -11,8 +11,11 @@ export class Server extends Container<Env> {
     return this.ctx.id.name();
   }
 
-  /** Record a lifecycle event with richer payload. */
+  /** Record a lifecycle event to the DO observations table and to D1 facility_events. */
   private async recordEvent(type: string, extra: Record<string, unknown> = {}): Promise<void> {
+    const { level = "info", message } = extra as { level?: string; message?: string };
+
+    // 1. Always write to DO observations for Container Logs
     try {
       const stub = this.env.OBSERVER.getByName(this.facilityId);
       await stub.recordEvent(
@@ -22,6 +25,26 @@ export class Server extends Container<Env> {
       );
     } catch {
       // Observer recording is best-effort; don't block container start/stop.
+    }
+
+    // 2. Persist lifecycle events to D1 facility_events
+    try {
+      const { createDatabase, schema } = await import("#/src/lib/database");
+      const db = createDatabase(this.env.DATABASE);
+      const now = new Date();
+      await db.insert(schema.facilityEvent).values({
+        id: crypto.randomUUID(),
+        facilityId: this.facilityId,
+        deviceId: null,
+        severity: (level === "warn" || level === "error" ? level : "info") as "info" | "warn" | "error",
+        type,
+        message: (message as string) ?? type,
+        data: extra,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch {
+      // D1 recording is best-effort; don't block container start/stop.
     }
   }
 

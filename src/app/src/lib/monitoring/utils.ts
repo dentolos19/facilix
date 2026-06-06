@@ -15,13 +15,36 @@ export async function validateDevice(
 }
 
 /**
- * Record an event in both the D1 device_logs table and the Observer DO.
+ * Record an event ONLY in the Observer DO's observations table.
+ * This is for high-volume / low-importance events that should appear only
+ * in Container Logs (heartbeats, frame-ok, sensor readings, etc.).
+ */
+export async function recordObservation(
+  observer: DurableObjectStub<import("./observer").Observer>,
+  deviceId: string,
+  type: string,
+  severity: "info" | "warn" | "error",
+  message: string,
+  data: Record<string, unknown> = {},
+): Promise<boolean> {
+  try {
+    await observer.recordEvent(deviceId, type, JSON.stringify({ level: severity, message, ...data }));
+    return true;
+  } catch (err) {
+    console.error("Observer recordEvent failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Record an event ONLY in the D1 facility_events table.
+ * This is for important, persistent events (monitoring start/stop,
+ * anomalies, alerts, errors, warnings, segment storage, etc.).
  *
  * @returns The event ID on success, or `null` if recording failed.
  */
 export async function recordFacilityEvent(
   db: ReturnType<typeof createDatabase>,
-  observer: DurableObjectStub<import("./observer").Observer>,
   facilityId: string,
   deviceId: string,
   type: string,
@@ -30,33 +53,25 @@ export async function recordFacilityEvent(
   data: Record<string, unknown> = {},
 ): Promise<string | null> {
   const id = crypto.randomUUID();
-  let d1Success = false;
-  let observerSuccess = false;
+  const now = new Date();
 
-  // 1. Insert into D1 device_logs
   try {
-    await db.insert(schema.deviceEvent).values({
+    await db.insert(schema.facilityEvent).values({
       id,
-      deviceId,
+      facilityId,
+      deviceId: deviceId || null,
       severity,
       type,
       message,
       data,
+      createdAt: now,
+      updatedAt: now,
     });
-    d1Success = true;
+    return id;
   } catch (err) {
-    console.error("D1 insert failed", err);
+    console.error("D1 facilityEvent insert failed:", err);
+    return null;
   }
-
-  // 2. Record in Observer DO for real-time forwarding
-  try {
-    await observer.recordEvent(deviceId, type, JSON.stringify({ level: severity, message, ...data }));
-    observerSuccess = true;
-  } catch (err) {
-    console.error("Observer recordEvent failed", err);
-  }
-
-  return d1Success || observerSuccess ? id : null;
 }
 
 /**
