@@ -101,7 +101,7 @@ export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | numbe
   CCTV: {
     videoSource: "simulation",
     simulationType: "ai-motion",
-    simulationStream: "",
+    simulationStream: "b0",
     streamUrl: "",
     streamPath: "",
     deviceId: "",

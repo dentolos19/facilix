@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import random
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -61,10 +62,18 @@ SEGMENT_DURATION_SEC = 30  # actual segment length in ffmpeg
 HEARTBEAT_INTERVAL_SEC = 120  # post monitoring:heartbeat every 2 min
 HTTP_TIMEOUT_SEC = 30
 
-# Simulation endpoints (local dev via docker-compose)
-SIMULATION_CCTV_API = "http://localhost:3002"
-SIMULATION_HLS_BASE = "http://localhost:3005"
-SIMULATION_SENSOR_API = "http://localhost:3002"
+# Simulation endpoints (local dev via docker-compose).
+# When this service runs on the host, localhost works. When it runs inside a
+# container, localhost points at the monitoring container itself, so allow an
+# override and try common Docker host gateway fallbacks.
+SIMULATION_CCTV_API = os.environ.get("SIMULATION_CCTV_API", "http://localhost:3002")
+SIMULATION_HLS_BASE = os.environ.get("SIMULATION_HLS_BASE", "http://localhost:3005")
+SIMULATION_SENSOR_API = os.environ.get("SIMULATION_SENSOR_API", "http://localhost:3002")
+SIMULATION_SENSOR_API_FALLBACKS = os.environ.get(
+    "SIMULATION_SENSOR_API_FALLBACKS",
+    "http://localhost:3002,http://host.docker.internal:3002,http://facilix-simulator:8000,"
+    "http://172.17.0.1:3002,http://172.19.0.1:3002",
+)
 
 # ---------------------------------------------------------------------------
 # Shared HTTP client
@@ -143,6 +152,8 @@ async def monitor_cctv(
     device_id: str,
     device_name: str,
     stream_url: str,
+    video_source: str = "simulation",
+    simulation_stream: str = "",
 ) -> None:
     """
     Background task for a single CCTV device.
@@ -155,7 +166,14 @@ async def monitor_cctv(
             device_id,
             "cctv:error",
             "warn",
-            f"CCTV '{device_name}' has no stream URL configured",
+            f"CCTV '{device_name}' has no stream URL configured — "
+            "check that the device has a simulation stream selected or a valid RTSP/RTMP URL set",
+            {
+                "videoSource": video_source,
+                "simulationStream": simulation_stream,
+                "hint": "For simulation devices, select a stream (b0/g0) in the facility editor. "
+                "For RTSP/RTMP, provide a valid URL in device properties.",
+            },
         )
         return
 
@@ -168,19 +186,22 @@ async def monitor_cctv(
     )
 
     frame_count = 0
+    seq = 0  # monotonically increasing sequence counter per camera
     while True:
         try:
             # ── Sample a single frame ──────────────────────────────────
             frame_data = await capture_frame(stream_url)
             if frame_data:
                 frame_count += 1
-                await upload_frame(device_id, frame_data)
+                seq += 1
+                await upload_frame(device_id, frame_data, seq)
 
             # ── Create a video segment ─────────────────────────────────
             if frame_count % (SEGMENT_INTERVAL_SEC // FRAME_INTERVAL_SEC) == 0:
                 segment_data, duration = await capture_segment(stream_url)
                 if segment_data:
-                    await upload_segment(device_id, segment_data, duration)
+                    seq += 1
+                    await upload_segment(device_id, segment_data, duration, seq)
 
         except asyncio.CancelledError:
             raise
@@ -272,9 +293,10 @@ async def capture_segment(stream_url: str) -> tuple[bytes | None, float]:
             pass
 
 
-async def upload_frame(device_id: str, frame_data: bytes) -> None:
+async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0) -> None:
     """POST a sampled frame to the Worker frames endpoint."""
     try:
+        idem_key = f"{device_id}-frame-{seq}" if seq else f"{device_id}-frame-{int(time.time())}"
         client = get_client()
         resp = await client.post(
             f"{API_BASE}/frames",
@@ -282,6 +304,7 @@ async def upload_frame(device_id: str, frame_data: bytes) -> None:
                 **AUTH_HEADER,
                 "X-Device-Id": device_id,
                 "Content-Type": "image/jpeg",
+                "Idempotency-Key": idem_key,
             },
             content=frame_data,
         )
@@ -291,9 +314,10 @@ async def upload_frame(device_id: str, frame_data: bytes) -> None:
         print(f"upload_frame error: {exc}", flush=True)
 
 
-async def upload_segment(device_id: str, segment_data: bytes, duration: float) -> None:
+async def upload_segment(device_id: str, segment_data: bytes, duration: float, seq: int = 0) -> None:
     """POST a video segment to the Worker segments endpoint."""
     try:
+        idem_key = f"{device_id}-segment-{seq}" if seq else f"{device_id}-segment-{int(time.time())}"
         client = get_client()
         resp = await client.post(
             f"{API_BASE}/segments",
@@ -303,6 +327,7 @@ async def upload_segment(device_id: str, segment_data: bytes, duration: float) -
                 "Content-Type": "video/mp4",
                 "X-Duration-Sec": str(int(duration)),
                 "X-Timestamp": now_iso(),
+                "Idempotency-Key": idem_key,
             },
             content=segment_data,
         )
@@ -360,7 +385,7 @@ async def monitor_sensor(
                     "sensorType": sensor_type,
                     "threshold": threshold,
                     "source": data_source,
-                    "timestamp": time.time(),
+                    "timestamp": int(time.time() * 1000),
                     **extra,
                 }
 
@@ -412,22 +437,36 @@ async def read_sensor(
     Returns (value, status_string, extra_data_dict).
     """
     extra: dict = {}
+    data_source = (data_source or "simulation").strip().lower()
 
     if data_source == "simulation" and simulation_device_id:
-        try:
-            client = get_client()
-            url = f"{SIMULATION_SENSOR_API}/devices/{simulation_device_id}/latest"
-            resp = await client.get(url, timeout=httpx.Timeout(5.0))
-            if resp.status_code == 200:
-                data = resp.json()
-                value = float(data.get("value", 0))
-                status = data.get("status", "ok")
-                extra["batteryPct"] = data.get("batteryPct")
-                extra["signalRssiDbm"] = data.get("signalRssiDbm")
-                return value, status, extra
-            return None, f"http_{resp.status_code}", extra
-        except Exception as exc:
-            return None, str(exc), extra
+        client = get_client()
+        bases = [SIMULATION_SENSOR_API, *SIMULATION_SENSOR_API_FALLBACKS.split(",")]
+        seen: set[str] = set()
+        last_error = "simulation_unreachable"
+
+        for base in bases:
+            base = base.strip().rstrip("/")
+            if not base or base in seen:
+                continue
+            seen.add(base)
+
+            url = f"{base}/devices/{simulation_device_id}/latest"
+            try:
+                resp = await client.get(url, timeout=httpx.Timeout(5.0))
+                if resp.status_code == 200:
+                    data = resp.json()
+                    value = float(data.get("value", 0))
+                    status = data.get("status", "ok")
+                    extra["batteryPct"] = data.get("batteryPct")
+                    extra["signalRssiDbm"] = data.get("signalRssiDbm")
+                    extra["sourceUrl"] = url
+                    return value, status, extra
+                last_error = f"{base}:http_{resp.status_code}"
+            except Exception as exc:
+                last_error = f"{base}:{exc}"
+
+        return None, last_error, extra
 
     if data_source == "http-pull" and pull_url:
         try:
@@ -474,10 +513,29 @@ async def heartbeat_loop(facility_id: str) -> None:
 
 
 async def startup_monitoring() -> None:
-    """Fetch config and start all monitoring tasks."""
-    config = await fetch_config()
-    if not config:
-        print("ERROR: Could not fetch config — container will idle", flush=True)
+    """Fetch config and start all monitoring tasks.
+
+    Retries `fetch_config()` with exponential backoff so a brief network
+    blip or cold-start delay doesn't leave the container permanently idle.
+    """
+    max_retries = 5
+    base_delay = 2.0
+    config = None
+    for attempt in range(1, max_retries + 1):
+        config = await fetch_config()
+        if config:
+            break
+        delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
+        print(
+            f"fetch_config attempt {attempt}/{max_retries} failed — retrying in {delay:.1f}s",
+            flush=True,
+        )
+        await asyncio.sleep(delay)
+    else:
+        print(
+            f"ERROR: Could not fetch config after {max_retries} attempts — container will idle",
+            flush=True,
+        )
         return
 
     tasks: list[asyncio.Task[Any]] = []
@@ -489,6 +547,8 @@ async def startup_monitoring() -> None:
                 device_id=cam["id"],
                 device_name=cam.get("name", ""),
                 stream_url=cam.get("streamUrl", ""),
+                video_source=cam.get("videoSource", "simulation"),
+                simulation_stream=cam.get("simulationStream", ""),
             ),
             name=f"cctv-{cam['id']}",
         )

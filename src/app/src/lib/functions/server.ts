@@ -4,6 +4,8 @@ import type { FacilityStatusEntry, MonitoringStatus } from "#/src/lib/monitoring
 
 /** Origin the monitoring container uses to call back to the Worker API. */
 const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
+const SIMULATION_SENSOR_API =
+  (env as { SIMULATION_SENSOR_API?: string }).SIMULATION_SENSOR_API ?? "http://host.docker.internal:3002";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -79,6 +81,7 @@ export const startMonitoring = createServerFn({ method: "POST" })
             FACILITY_ID: data.facilityId,
             APP_ORIGIN: APP_ORIGIN,
             INGEST_TOKEN: env.INGEST_TOKEN ?? "",
+            SIMULATION_SENSOR_API,
           },
         },
       });
@@ -105,6 +108,26 @@ export const stopMonitoring = createServerFn({ method: "POST" })
       return { facilityId: data.facilityId, status: mapContainerState(ret) } satisfies MonitoringActionResult;
     } catch {
       return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
+    }
+  });
+
+/**
+ * Clear all container logs (Observer DO observations) for a facility.
+ * Broadcasts an empty snapshot so all connected clients update immediately.
+ */
+export const clearContainerLogs = createServerFn({ method: "POST" })
+  .inputValidator((data: { facilityId: string }) => {
+    if (!data.facilityId) throw new Error("facilityId is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    try {
+      const stub = env.OBSERVER.getByName(data.facilityId);
+      await stub.clearEvents();
+      return { success: true } as const;
+    } catch (err) {
+      console.error("clearContainerLogs failed:", err);
+      return { success: false } as const;
     }
   });
 

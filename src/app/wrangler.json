@@ -18,6 +18,9 @@
     "pattern": "facilix.dennise.me",
     "custom_domain": true
   },
+  "vars": {
+    "CCTV_SIMULATION_RTSP_BASE": "rtsp://localhost:3003"
+  },
   "ai": {
     "binding": "AI",
     "remote": true

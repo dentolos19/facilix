@@ -300,6 +300,20 @@ export class Observer extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Clear ALL events from the Observer DO and broadcast an empty snapshot
+   * to every connected WebSocket client so the UI updates immediately.
+   */
+  async clearEvents(): Promise<{ success: boolean }> {
+    this.ctx.storage.sql.exec("DELETE FROM observations");
+    this.lastCleanup = 0;
+
+    // Broadcast empty snapshot so all connected clients see cleared state
+    this.broadcast({ type: "snapshot", events: [] });
+
+    return { success: true };
+  }
+
   // ── Alarms ───────────────────────────────────────────────────────────
 
   /**

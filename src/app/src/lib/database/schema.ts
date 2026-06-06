@@ -228,6 +228,21 @@ export const sensorReading = sqliteTable("sensor_readings", {
     .$default(() => new Date()),
 });
 
+/**
+ * Idempotency tracking for monitoring API (frame/segment uploads).
+ * Prevents duplicate processing on network retry.
+ */
+export const idempotencyKey = sqliteTable("idempotency_keys", {
+  id: text("id").primaryKey(), // the idempotency key value itself
+  facilityId: text("facility_id").notNull(),
+  deviceId: text("device_id").notNull(),
+  action: text("action").notNull(), // "frame" | "segment"
+  result: text("result", { mode: "json" }).$type<string>().notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$default(() => new Date()),
+});
+
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
@@ -238,3 +253,4 @@ export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type DeviceEvent = typeof deviceEvent.$inferSelect;
 export type VideoRecording = typeof videoRecording.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
+export type IdempotencyKey = typeof idempotencyKey.$inferSelect;

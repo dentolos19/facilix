@@ -7,6 +7,26 @@ import { recordFacilityEvent, recordSensorReading, validateDevice } from "./util
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 const MIN_CONFIDENCE = 0.4;
 
+/**
+ * Resolve a CCTV device's stream URL based on its video source.
+ *
+ * - "simulation": build RTSP URL from env.CCTV_SIMULATION_RTSP_BASE + stream name.
+ * - "rtsp"/"rtmp"/"http": use the raw streamUrl as-is.
+ * - Returns empty string if the required fields are missing.
+ */
+function resolveCctvStreamUrl(data: Record<string, string | number>, simulationRtspBase: string): string {
+  const videoSource = String(data.videoSource ?? "simulation");
+
+  if (videoSource === "simulation") {
+    const streamName = String(data.simulationStream ?? "");
+    if (!streamName) return "";
+    const base = simulationRtspBase.replace(/\/$/, "");
+    return `${base}/${encodeURIComponent(streamName)}`;
+  }
+
+  return String(data.streamUrl ?? "");
+}
+
 const ANOMALY_CLASSES = new Set([
   "person",
   "bicycle",
@@ -22,6 +42,42 @@ const ANOMALY_CLASSES = new Set([
 ]);
 
 export type MonitoringApiAction = "config" | "events" | "frames" | "segments";
+
+/**
+ * Check + store idempotency key in D1 via raw SQL for D1 compatibility.
+ * Returns the previous result if this key was already processed, or null if fresh.
+ */
+async function checkIdempotency(
+  env: Env,
+  facilityId: string,
+  deviceId: string,
+  action: string,
+  key: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    // Attempt insert — if key already exists, the row won't be inserted
+    // and our subsequent SELECT will find the previous result.
+    const insertResult = await env.DATABASE.prepare(
+      `INSERT OR IGNORE INTO idempotency_keys (id, facility_id, device_id, action, result, created_at)
+       VALUES (?, ?, ?, ?, '{"success":true}', datetime('now'))`,
+    )
+      .bind(key, facilityId, deviceId, action)
+      .run();
+
+    // If a row was inserted, this is a fresh request
+    if (insertResult.meta.changes > 0) return null;
+
+    // Key already existed — return previous result
+    const existing = await env.DATABASE.prepare(`SELECT result FROM idempotency_keys WHERE id = ?`)
+      .bind(key)
+      .first<{ result: string }>();
+
+    return existing ? (JSON.parse(existing.result) as Record<string, unknown>) : null;
+  } catch {
+    // If table doesn't exist yet, silently pass through (no dedup)
+    return null;
+  }
+}
 
 export async function handleMonitoringApiRequest(
   request: Request,
@@ -61,6 +117,8 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
 
   const devices = await db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, facilityId));
 
+  const simulationRtspBase = String(env.CCTV_SIMULATION_RTSP_BASE ?? "rtsp://localhost:3003");
+
   return Response.json({
     facilityId,
     facilityName: fac.name,
@@ -69,7 +127,9 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
       .map((d) => ({
         id: d.id,
         name: d.name,
-        streamUrl: String(d.data.streamUrl ?? d.data.simulationStream ?? ""),
+        streamUrl: resolveCctvStreamUrl(d.data, simulationRtspBase),
+        videoSource: String(d.data.videoSource ?? "simulation"),
+        simulationStream: String(d.data.simulationStream ?? ""),
         status: d.status,
       })),
     sensors: devices
@@ -160,17 +220,24 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   const deviceId = request.headers.get("X-Device-Id");
   if (!deviceId) return Response.json({ error: "Missing X-Device-Id header" }, { status: 400 });
 
+  // Idempotency key — skip duplicate frame submissions
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const exists = await checkIdempotency(env, facilityId, deviceId, "frame", idempotencyKey);
+    if (exists) return Response.json({ success: true, deduplicated: true, previousResult: exists });
+  }
+
   const db = createDatabase(env.DATABASE);
   const device = await validateDevice(db, facilityId, deviceId);
   if (!device) return Response.json({ error: "Device not found for this facility" }, { status: 404 });
 
-  const blob = await request.blob();
-  if (blob.size === 0) return Response.json({ error: "Empty frame" }, { status: 400 });
+  const buffer = await request.arrayBuffer();
+  if (buffer.byteLength === 0) return Response.json({ error: "Empty frame" }, { status: 400 });
 
   let detections: { label: string; confidence: number; box?: unknown }[] = [];
   try {
     const aiResult = await env.AI.run("@cf/facebook/detr-resnet-50", {
-      image: new Uint8Array(await blob.arrayBuffer()),
+      image: new Uint8Array(buffer),
     });
     if (Array.isArray(aiResult)) {
       detections = (aiResult as Array<{ label: string; score: number; box?: unknown }>)
@@ -225,13 +292,21 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   const deviceId = request.headers.get("X-Device-Id");
   if (!deviceId) return Response.json({ error: "Missing X-Device-Id header" }, { status: 400 });
 
+  // Idempotency key — skip duplicate segment submissions
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const exists = await checkIdempotency(env, facilityId, deviceId, "segment", idempotencyKey);
+    if (exists) return Response.json({ success: true, deduplicated: true, previousResult: exists });
+  }
+
   const db = createDatabase(env.DATABASE);
   const device = await validateDevice(db, facilityId, deviceId);
   if (!device) return Response.json({ error: "Device not found for this facility" }, { status: 404 });
 
-  const blob = await request.blob();
-  if (blob.size === 0) return Response.json({ error: "Empty segment" }, { status: 400 });
-  if (blob.size > MAX_SEGMENT_SIZE) return Response.json({ error: "Segment too large (max 50 MB)" }, { status: 413 });
+  const buffer = await request.arrayBuffer();
+  if (buffer.byteLength === 0) return Response.json({ error: "Empty segment" }, { status: 400 });
+  if (buffer.byteLength > MAX_SEGMENT_SIZE)
+    return Response.json({ error: "Segment too large (max 50 MB)" }, { status: 413 });
 
   const durationHeader = request.headers.get("X-Duration-Sec");
   const parsedDurationSec = durationHeader ? Number(durationHeader) : undefined;
@@ -244,17 +319,20 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   if (Number.isNaN(startedAt.getTime())) return Response.json({ error: "Invalid X-Timestamp header" }, { status: 400 });
   const endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
 
+  // Use date-prefixed key to avoid collision across days: YYYYMMDD/HHMMSS-ms.mp4
   const pad2 = (n: number) => String(n).padStart(2, "0");
+  const yyyy = String(startedAt.getUTCFullYear());
+  const monthNum = pad2(startedAt.getUTCMonth() + 1);
+  const dd = pad2(startedAt.getUTCDate());
   const hh = pad2(startedAt.getUTCHours());
-  const mm = pad2(startedAt.getUTCMinutes());
+  const min = pad2(startedAt.getUTCMinutes());
   const ss = pad2(startedAt.getUTCSeconds());
   const ms = String(startedAt.getUTCMilliseconds()).padStart(3, "0");
   const contentType = request.headers.get("content-type") ?? "video/mp4";
-  const buffer = await blob.arrayBuffer();
 
   const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
 
-  const fileName = `${hh}${mm}${ss}-${ms}.mp4`;
+  const fileName = `${yyyy}${monthNum}${dd}/${hh}${min}${ss}-${ms}.mp4`;
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
   const recordingId = crypto.randomUUID();

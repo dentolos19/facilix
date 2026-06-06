@@ -105,15 +105,20 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-5xl sm:max-w-5xl h-[80vh] flex flex-col">
+      <DialogContent className="flex h-[80vh] max-w-5xl flex-col sm:max-w-5xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <TerminalIcon className="size-4 text-muted-foreground" />
             <DialogTitle>Container Logs</DialogTitle>
             <div className="ml-auto" />
-            <Button className="h-7 px-2 text-[11px] gap-1 mr-6" onClick={handleDeleteAll} size="sm" variant="destructive">
+            <Button
+              className="mr-6 h-7 gap-1 px-2 text-[11px]"
+              onClick={handleDeleteAll}
+              size="sm"
+              variant="destructive"
+            >
               <Trash2Icon className="size-3" />
-              {confirmDeleteAll ? "Confirm?" : "Delete All"}
+              {confirmDeleteAll ? "Confirm?" : "Clear"}
             </Button>
           </div>
           <DialogDescription>Monitoring container events ({containerLogs.length} total)</DialogDescription>
@@ -122,7 +127,7 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
         {/* Filters */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
+            <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
             <Input
               className="h-8 pl-8 text-xs"
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -146,20 +151,20 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
         </div>
 
         {/* Log entries */}
-        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
+        <ScrollArea className="-mx-6 min-h-0 flex-1 px-6">
           <table className="w-full">
             <thead>
-              <tr className="text-[11px] text-muted-foreground/50 border-b border-border/50">
-                <th className="text-left font-medium py-1.5 px-2 w-20">Time</th>
-                <th className="text-left font-medium py-1.5 px-2 w-16">Level</th>
-                <th className="text-left font-medium py-1.5 px-2 w-[120px]">Type</th>
-                <th className="text-left font-medium py-1.5 px-2">Message</th>
+              <tr className="border-border/50 border-b text-[11px] text-muted-foreground/50">
+                <th className="w-20 px-2 py-1.5 text-left font-medium">Time</th>
+                <th className="w-16 px-2 py-1.5 text-left font-medium">Level</th>
+                <th className="w-[120px] px-2 py-1.5 text-left font-medium">Type</th>
+                <th className="px-2 py-1.5 text-left font-medium">Message</th>
               </tr>
             </thead>
             <tbody>
               {filteredLogs.length === 0 && (
                 <tr>
-                  <td className="text-center py-8 text-xs text-muted-foreground/50" colSpan={4}>
+                  <td className="py-8 text-center text-muted-foreground/50 text-xs" colSpan={4}>
                     No matching logs
                   </td>
                 </tr>
@@ -167,17 +172,17 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
               {filteredLogs.map((ev) => {
                 const level = getEventLevel(ev);
                 return (
-                  <tr className="text-[11px] hover:bg-muted/40 transition-colors" key={ev.id}>
-                    <td className="py-1.5 px-2 text-muted-foreground/50 tabular-nums font-mono align-top whitespace-nowrap">
+                  <tr className="text-[11px] transition-colors hover:bg-muted/40" key={ev.id}>
+                    <td className="whitespace-nowrap px-2 py-1.5 align-top font-mono text-muted-foreground/50 tabular-nums">
                       {new Date(ev.createdAt).toLocaleTimeString()}
                     </td>
-                    <td className="py-1.5 px-2 align-top">
+                    <td className="px-2 py-1.5 align-top">
                       <LogLevelBadge level={level} />
                     </td>
-                    <td className="py-1.5 px-2 font-medium text-muted-foreground/80 align-top whitespace-nowrap">
+                    <td className="whitespace-nowrap px-2 py-1.5 align-top font-medium text-muted-foreground/80">
                       {ev.type}
                     </td>
-                    <td className="py-1.5 px-2 text-muted-foreground/70 break-words align-top">
+                    <td className="break-words px-2 py-1.5 align-top text-muted-foreground/70">
                       {getEventMessage(ev)}
                     </td>
                   </tr>

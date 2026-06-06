@@ -29,7 +29,7 @@ import {
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/src/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
 import { deleteFacility, loadFacility, saveFacility } from "#/src/lib/functions/facility";
-import { getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
+import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
 import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/src/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
@@ -143,7 +143,19 @@ function Page() {
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [containerLogsOpen, setContainerLogsOpen] = useState(false);
 
-  const handleClearContainerLogs = useCallback(() => setEvents([]), []);
+  const handleClearContainerLogs = useCallback(async () => {
+    try {
+      const result = await clearContainerLogs({ data: { facilityId } });
+      if (result.success) {
+        setEvents([]);
+        toast.success("Container logs cleared");
+      } else {
+        toast.error("Failed to clear container logs");
+      }
+    } catch {
+      toast.error("Failed to clear container logs");
+    }
+  }, [facilityId]);
 
   // ── Ref always pointing at latest placedItems (avoid stale closures) ────
   const placedItemsRef = useRef(placedItems);
@@ -347,6 +359,26 @@ function Page() {
   // ── Monitoring container controls ────────────────────────────────────────
 
   const handleStartMonitoring = useCallback(async () => {
+    // Validate CCTV devices have required stream config
+    const items = placedItemsRef.current;
+    const cctvDevices = items.filter((i) => i.type === "CCTV");
+    for (const dev of cctvDevices) {
+      const source = String(dev.props.videoSource ?? "simulation");
+      if (source === "simulation") {
+        const stream = String(dev.props.simulationStream ?? "");
+        if (!stream) {
+          toast.error(`CCTV "${dev.name}": select a simulation stream before starting monitoring`);
+          return;
+        }
+      } else {
+        const url = String(dev.props.streamUrl ?? "");
+        if (!url) {
+          toast.error(`CCTV "${dev.name}": enter a stream URL before starting monitoring`);
+          return;
+        }
+      }
+    }
+
     setIsMonitoringChanging(true);
     try {
       const result = await startMonitoring({ data: { facilityId } });
@@ -734,7 +766,12 @@ function Page() {
       </Dialog>
 
       {/* ── Container Logs Dialog ── */}
-      <ContainerLogsDialog events={events} onClearLogs={handleClearContainerLogs} onOpenChange={setContainerLogsOpen} open={containerLogsOpen} />
+      <ContainerLogsDialog
+        events={events}
+        onClearLogs={handleClearContainerLogs}
+        onOpenChange={setContainerLogsOpen}
+        open={containerLogsOpen}
+      />
 
       {/* ── Resizable Panels ── */}
       <ResizablePanelGroup className="flex-1" orientation="horizontal">
