@@ -38,8 +38,8 @@ import {
 } from "#/src/components/ui/menubar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/src/components/ui/resizable";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
+import { type FacilityEventRow, getFacilityEvents } from "#/src/lib/functions/events";
 import { deleteFacility, loadFacility, saveFacility } from "#/src/lib/functions/facility";
-import { type FacilityEventRow, getFacilityEvents } from "#/src/lib/functions/facility-events";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
 import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/src/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
