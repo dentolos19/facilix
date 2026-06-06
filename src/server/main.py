@@ -62,9 +62,9 @@ HEARTBEAT_INTERVAL_SEC = 120  # post monitoring:heartbeat every 2 min
 HTTP_TIMEOUT_SEC = 30
 
 # Simulation endpoints (local dev via docker-compose)
-SIMULATION_CCTV_API = "http://localhost:8000"
-SIMULATION_HLS_BASE = "http://localhost:8888"
-SIMULATION_SENSOR_API = "http://localhost:8010"
+SIMULATION_CCTV_API = "http://localhost:3002"
+SIMULATION_HLS_BASE = "http://localhost:3005"
+SIMULATION_SENSOR_API = "http://localhost:3002"
 
 # ---------------------------------------------------------------------------
 # Shared HTTP client

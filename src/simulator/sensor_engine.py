@@ -8,16 +8,16 @@ import random
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from models import (
+from . import config
+from .sensor_models import (
     SENSOR_DEFINITIONS,
     SensorDevice,
     SensorReading,
     SensorStatus,
     SensorType,
 )
-import config
 
-logger = logging.getLogger("sensors")
+logger = logging.getLogger("simulator.sensors")
 
 # ---------------------------------------------------------------------------
 # State
@@ -102,22 +102,28 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
     # --- value drift -------------------------------------------------------
     new_target = _rng.uniform(dev.value_min, dev.value_max)
     max_step = (dev.value_max - dev.value_min) * 0.05
-    dev._current_value = _drift(
-        dev._current_value, new_target, max_step, dev.value_min, dev.value_max
-    )
+    dev._current_value = _drift(dev._current_value, new_target, max_step, dev.value_min, dev.value_max)
 
     secondary: Optional[float] = None
     if dev.secondary_min != dev.secondary_max:
         sec_target = _rng.uniform(dev.secondary_min, dev.secondary_max)
         sec_step = (dev.secondary_max - dev.secondary_min) * 0.1
         dev._current_secondary = _drift(
-            dev._current_secondary, sec_target, sec_step, dev.secondary_min, dev.secondary_max
+            dev._current_secondary,
+            sec_target,
+            sec_step,
+            dev.secondary_min,
+            dev.secondary_max,
         )
         secondary = round(dev._current_secondary, 1)
 
     # --- motion / door / leak are boolean-ish ------------------------------
     value = dev._current_value
-    if dev.sensor_type in (SensorType.MOTION, SensorType.DOOR_CONTACT, SensorType.LEAK):
+    if dev.sensor_type in (
+        SensorType.MOTION,
+        SensorType.DOOR_CONTACT,
+        SensorType.LEAK,
+    ):
         # Toggle occasionally
         if _rng.random() < 0.15:
             value = 1.0 if value < 0.5 else 0.0
@@ -160,8 +166,8 @@ def generate_readings() -> Dict[str, SensorReading]:
         _latest[dev_id] = reading
         hist = _readings[dev_id]
         hist.append(reading)
-        if len(hist) > config.HISTORY_LIMIT:
-            _readings[dev_id] = hist[-config.HISTORY_LIMIT:]
+        if len(hist) > config.SENSOR_HISTORY_LIMIT:
+            _readings[dev_id] = hist[-config.SENSOR_HISTORY_LIMIT :]
     return generated
 
 
@@ -174,8 +180,8 @@ def read_single(device_id: str) -> Optional[SensorReading]:
     _latest[device_id] = reading
     hist = _readings[device_id]
     hist.append(reading)
-    if len(hist) > config.HISTORY_LIMIT:
-        _readings[device_id] = hist[-config.HISTORY_LIMIT:]
+    if len(hist) > config.SENSOR_HISTORY_LIMIT:
+        _readings[device_id] = hist[-config.SENSOR_HISTORY_LIMIT :]
     return reading
 
 
@@ -189,7 +195,9 @@ def get_device(device_id: str) -> Optional[SensorDevice]:
     return _devices.get(device_id)
 
 
-def get_latest(device_id: Optional[str] = None) -> Dict[str, SensorReading]:
+def get_latest(
+    device_id: Optional[str] = None,
+) -> Dict[str, SensorReading]:
     """Return latest reading(s). If device_id is None, return all."""
     if device_id:
         r = _latest.get(device_id)
@@ -197,9 +205,7 @@ def get_latest(device_id: Optional[str] = None) -> Dict[str, SensorReading]:
     return dict(_latest)
 
 
-def get_history(
-    device_id: str, limit: int = 100
-) -> List[SensorReading]:
+def get_history(device_id: str, limit: int = 100) -> List[SensorReading]:
     """Return recent history for a single device."""
     hist = _readings.get(device_id, [])
     return hist[-limit:]

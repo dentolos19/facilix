@@ -1,0 +1,11 @@
+[project]
+name = "facilix-simulator"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0"]
+
+[dependency-groups]
+dev = ["ruff"]
+
+[tool.ruff]
+line-length = 120

@@ -16,6 +16,11 @@ export interface SimulationStream {
   rtmpUrl: string;
   hlsUrl: string;
   videoPath: string;
+  /** Optional metadata from the video manifest. */
+  label?: string;
+  description?: string;
+  tags?: string[];
+  file?: string;
 }
 
 export interface SimulationStreamsResponse {
@@ -27,11 +32,11 @@ export interface SimulationStreamsResponse {
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
-  return import.meta.env?.VITE_CCTV_SIMULATOR_API_URL ?? "http://localhost:8000";
+  return import.meta.env?.VITE_CCTV_SIMULATOR_API_URL ?? "http://localhost:3002";
 }
 
 function getHlsBase(): string {
-  return import.meta.env?.VITE_CCTV_HLS_BASE_URL ?? "http://localhost:8888";
+  return import.meta.env?.VITE_CCTV_HLS_BASE_URL ?? "http://localhost:3005";
 }
 
 // ---------------------------------------------------------------------------
@@ -54,14 +59,25 @@ export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
 }
 
 /**
- * Fetch health status of the CCTV simulator.
+ * Fetch health status of the simulator (CCTV + sensors).
  */
-export async function fetchSimulationHealth(): Promise<{ ok: boolean; alive: number; total: number }> {
+export async function fetchSimulationHealth(): Promise<{
+  ok: boolean;
+  alive: number;
+  total: number;
+}> {
   try {
     const res = await fetch(`${getApiBase()}/health`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return { ok: false, alive: 0, total: 0 };
-    const data = (await res.json()) as { status: string; streams: { alive: number; total: number } };
-    return { ok: data.status === "ok", alive: data.streams.alive, total: data.streams.total };
+    const data = (await res.json()) as {
+      status: string;
+      cctv: { alive: number; total: number };
+    };
+    return {
+      ok: data.status === "ok",
+      alive: data.cctv.alive,
+      total: data.cctv.total,
+    };
   } catch {
     return { ok: false, alive: 0, total: 0 };
   }
@@ -80,24 +96,32 @@ export function simulationHlsUrl(streamName: string): string {
 
 /**
  * Static fallback stream names when the simulator is unreachable.
- * These match the MP4 files in public/simulation/.
+ * Metadata matches the samples/videos.json manifest.
  */
 export const FALLBACK_SIMULATION_STREAMS: SimulationStream[] = [
   {
     name: "b0",
     alive: false,
-    rtspUrl: "rtsp://localhost:8554/b0",
-    rtmpUrl: "rtmp://localhost:1935/b0",
+    rtspUrl: "rtsp://localhost:3003/b0",
+    rtmpUrl: "rtmp://localhost:3004/b0",
     hlsUrl: simulationHlsUrl("b0"),
-    videoPath: "public/simulation/b0.mp4",
+    videoPath: "samples/b0.mp4",
+    label: "Sample CCTV b0",
+    description: "Demo CCTV sample video for testing (b0)",
+    tags: ["demo", "cctv", "indoor"],
+    file: "b0.mp4",
   },
   {
     name: "g0",
     alive: false,
-    rtspUrl: "rtsp://localhost:8554/g0",
-    rtmpUrl: "rtmp://localhost:1935/g0",
+    rtspUrl: "rtsp://localhost:3003/g0",
+    rtmpUrl: "rtmp://localhost:3004/g0",
     hlsUrl: simulationHlsUrl("g0"),
-    videoPath: "public/simulation/g0.mp4",
+    videoPath: "samples/g0.mp4",
+    label: "Sample CCTV g0",
+    description: "Demo CCTV sample video for testing (g0)",
+    tags: ["demo", "cctv", "indoor"],
+    file: "g0.mp4",
   },
 ];
 
@@ -114,5 +138,9 @@ function toStream(raw: Record<string, unknown>): SimulationStream {
     rtmpUrl: String(raw.rtmp_url ?? ""),
     hlsUrl: simulationHlsUrl(name),
     videoPath: String(raw.video_path ?? ""),
+    label: raw.label ? String(raw.label) : undefined,
+    description: raw.description ? String(raw.description) : undefined,
+    tags: Array.isArray(raw.tags) ? raw.tags.map(String) : undefined,
+    file: raw.file ? String(raw.file) : undefined,
   };
 }

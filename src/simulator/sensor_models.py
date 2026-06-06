@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -119,11 +119,7 @@ class SensorReading:
             "ts": int(self.timestamp.timestamp() * 1000),
             "values": {
                 self.sensor_type.value: round(self.value, 2),
-                **(
-                    {"occupancy": round(self.secondary_value, 2)}
-                    if self.secondary_value is not None
-                    else {}
-                ),
+                **({"occupancy": round(self.secondary_value, 2)} if self.secondary_value is not None else {}),
             },
         }
 
@@ -168,7 +164,7 @@ class SensorReading:
         if fmt == "thingsboard":
             return self.to_thingsboard_payload()
         if fmt == "senml":
-            return {"senml": self.to_senml_payload()}  # type: ignore[return-value]
+            return {"senml": self.to_senml_payload()}
         return self.to_facilix_payload()
 
 

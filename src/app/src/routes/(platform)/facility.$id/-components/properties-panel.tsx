@@ -1,11 +1,13 @@
 import { Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/src/components/ui/accordion";
 import { Button } from "#/src/components/ui/button";
 import { Input } from "#/src/components/ui/input";
 import { Label } from "#/src/components/ui/label";
 import { ScrollArea } from "#/src/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/src/components/ui/select";
-import { FALLBACK_SIMULATION_STREAMS } from "#/src/lib/simulation/cctv";
+import type { SimulationStream } from "#/src/lib/simulation/cctv";
+import { FALLBACK_SIMULATION_STREAMS, fetchSimulationStreams } from "#/src/lib/simulation/cctv";
 import { FALLBACK_SIMULATION_SENSORS } from "#/src/lib/simulation/sensors";
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
@@ -21,6 +23,41 @@ export function PropertiesPanel({
 }: PropertiesPanelProps) {
   const selected = placedItems.find((i) => i.id === selectedItemId) ?? null;
   const isReadOnly = editMode === "monitoring";
+
+  // Fetch available simulation streams from the combined simulator
+  const [fetchedStreams, setFetchedStreams] = useState<SimulationStream[]>([]);
+  useEffect(() => {
+    let ignore = false;
+    fetchSimulationStreams().then((streams) => {
+      if (!ignore) setFetchedStreams(streams);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // Merge fetched streams with fallback for when simulator is unreachable
+  const allStreams = useMemo(() => {
+    const seen = new Set(fetchedStreams.map((s) => s.name));
+    const merged = [...fetchedStreams];
+    for (const fallback of FALLBACK_SIMULATION_STREAMS) {
+      if (!seen.has(fallback.name)) {
+        merged.push(fallback);
+      }
+    }
+    return merged;
+  }, [fetchedStreams]);
+
+  // Auto-select first available stream if current selection is empty
+  useEffect(() => {
+    if (!selected || selected.type !== "CCTV" || isReadOnly) return;
+    const currentStream = String(selected.props.simulationStream ?? "");
+    if (!currentStream && allStreams.length > 0) {
+      onUpdateItem(selected.id, {
+        props: { simulationStream: allStreams[0].name },
+      });
+    }
+  }, [selected?.id, allStreams.length]);
 
   return (
     <ScrollArea className="h-full">
@@ -244,9 +281,9 @@ export function PropertiesPanel({
                               <SelectValue placeholder="Select a video file" />
                             </SelectTrigger>
                             <SelectContent>
-                              {FALLBACK_SIMULATION_STREAMS.map((s) => (
+                              {allStreams.map((s) => (
                                 <SelectItem key={s.name} value={s.name}>
-                                  {s.name}.mp4
+                                  {s.label ?? s.name}
                                 </SelectItem>
                               ))}
                             </SelectContent>

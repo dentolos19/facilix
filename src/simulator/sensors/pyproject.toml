@@ -1,9 +1,0 @@
-[project]
-name = "sensor-simulator"
-version = "0.1.0"
-description = "IoT Sensor Simulator — generates realistic temperature, humidity, pressure, light, motion, air quality, and facility sensor telemetry."
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.34.0",
-]

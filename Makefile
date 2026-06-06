@@ -1,16 +1,22 @@
-.PHONY: dev check
+.PHONY: dev start simulate desimulate check
 
 setup:
 	cd src/app && bun install
 	cd src/server && uv sync
+	cd src/simulator && uv sync
 
 start:
-	docker compose up --build --detach
+	cd src/app && bun run dev
 
-stop:
+simulate:
+	docker compose up -d
+
+desimulate:
 	docker compose down
 
 check:
 	cd src/app && bun run check
 	cd src/server && uv run ruff check --fix
 	cd src/server && uv run ruff format
+	cd src/simulator && uv run ruff check --fix
+	cd src/simulator && uv run ruff format
