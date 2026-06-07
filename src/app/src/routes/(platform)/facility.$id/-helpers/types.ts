@@ -100,7 +100,6 @@ export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | numbe
   Marker: { label: "", iconColor: "#f59e0b", markerType: "info", iconShape: "diamond" },
   CCTV: {
     videoSource: "simulation",
-    simulationType: "ai-motion",
     simulationStream: "b0",
     streamUrl: "",
     streamPath: "",
@@ -231,7 +230,7 @@ export function fromSnapshot(
       height: lay?.height ?? DEFAULT_SIZES.Zone.height,
       zoneId: null,
       name: z.name,
-      status: "online",
+      status: "—",
       notes: z.notes,
       props: z.data,
     };

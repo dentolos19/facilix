@@ -18,9 +18,13 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
   const streamName = String(device.data.simulationStream ?? "");
   const [objectDetectionEnabled, setObjectDetectionEnabled] = useState(false);
 
+  // Derive status: if an HLS URL is available the stream is configured → online
+  const cctvStatus = hlsUrl ? "online" : "offline";
+
   return (
     <DeviceDetailLayout
       device={device}
+      status={cctvStatus}
       sidebar={
         <DeviceDetailSidebar
           device={device}

@@ -29,6 +29,7 @@ from typing import Optional
 
 import fastapi
 import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 import config
@@ -118,6 +119,16 @@ app = fastapi.FastAPI(
     ),
     version="0.2.0",
     lifespan=lifespan,
+)
+
+# Allow cross-origin requests from the frontend dev server and production
+# origins so the browser can fetch stream/sensor data directly.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # -- Mount routes -----------------------------------------------------------

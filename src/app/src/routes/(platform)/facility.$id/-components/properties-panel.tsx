@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/src/components/ui/accordion";
 import { Button } from "#/src/components/ui/button";
 import { Input } from "#/src/components/ui/input";
@@ -7,7 +7,7 @@ import { Label } from "#/src/components/ui/label";
 import { ScrollArea } from "#/src/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/src/components/ui/select";
 import type { SimulationStream } from "#/src/lib/simulation/cctv";
-import { FALLBACK_SIMULATION_STREAMS, fetchSimulationStreams } from "#/src/lib/simulation/cctv";
+import { fetchSimulationStreams } from "#/src/lib/simulation/cctv";
 import { FALLBACK_SIMULATION_SENSORS } from "#/src/lib/simulation/sensors";
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
@@ -36,17 +36,8 @@ export function PropertiesPanel({
     };
   }, []);
 
-  // Merge fetched streams with fallback for when simulator is unreachable
-  const allStreams = useMemo(() => {
-    const seen = new Set(fetchedStreams.map((s) => s.name));
-    const merged = [...fetchedStreams];
-    for (const fallback of FALLBACK_SIMULATION_STREAMS) {
-      if (!seen.has(fallback.name)) {
-        merged.push(fallback);
-      }
-    }
-    return merged;
-  }, [fetchedStreams]);
+  // Only use streams fetched live from the simulator (no static fallbacks)
+  const allStreams = fetchedStreams;
 
   // Auto-select first available stream if current selection is empty
   useEffect(() => {
@@ -289,27 +280,7 @@ export function PropertiesPanel({
                             </SelectContent>
                           </Select>
                         </Field>
-                        <Field label="Simulation Type">
-                          <Select
-                            disabled={isReadOnly}
-                            onValueChange={(value) => onUpdateItem(selected.id, { props: { simulationType: value } })}
-                            value={String(selected.props.simulationType ?? "ai-motion")}
-                          >
-                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
-                              <SelectValue placeholder="Select simulation type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ai-motion">AI Motion Detection</SelectItem>
-                              <SelectItem value="object-detection">Object Detection</SelectItem>
-                              <SelectItem value="line-crossing">Line Crossing</SelectItem>
-                              <SelectItem value="zone-intrusion">Zone Intrusion</SelectItem>
-                              <SelectItem value="loitering">Loitering</SelectItem>
-                              <SelectItem value="people-counting">People Counting</SelectItem>
-                              <SelectItem value="tampering">Tampering Detection</SelectItem>
-                              <SelectItem value="lpr">License Plate Recognition</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </Field>
+
                       </>
                     ) : (
                       <Field label="Stream URL">
@@ -358,9 +329,15 @@ export function PropertiesPanel({
                         <Field label="Simulation Device">
                           <Select
                             disabled={isReadOnly}
-                            onValueChange={(value) =>
-                              onUpdateItem(selected.id, { props: { simulationDeviceId: value } })
-                            }
+                            onValueChange={(value) => {
+                              const device = FALLBACK_SIMULATION_SENSORS.find((s) => s.deviceId === value);
+                              onUpdateItem(selected.id, {
+                                props: {
+                                  simulationDeviceId: value,
+                                  sensorType: device?.sensorType ?? "",
+                                },
+                              });
+                            }}
                             value={String(selected.props.simulationDeviceId ?? "")}
                           >
                             <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
@@ -372,29 +349,6 @@ export function PropertiesPanel({
                                   {s.label}
                                 </SelectItem>
                               ))}
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field label="Sensor Type">
-                          <Select
-                            disabled={isReadOnly}
-                            onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorType: value } })}
-                            value={String(selected.props.sensorType ?? "")}
-                          >
-                            <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
-                              <SelectValue placeholder="Select sensor type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="temperature">Temperature</SelectItem>
-                              <SelectItem value="humidity">Humidity</SelectItem>
-                              <SelectItem value="pressure">Pressure</SelectItem>
-                              <SelectItem value="air_quality">Air Quality</SelectItem>
-                              <SelectItem value="vibration">Vibration</SelectItem>
-                              <SelectItem value="motion">Motion</SelectItem>
-                              <SelectItem value="leak">Leak</SelectItem>
-                              <SelectItem value="light">Light</SelectItem>
-                              <SelectItem value="door_contact">Door Contact</SelectItem>
-                              <SelectItem value="battery">Battery</SelectItem>
                             </SelectContent>
                           </Select>
                         </Field>

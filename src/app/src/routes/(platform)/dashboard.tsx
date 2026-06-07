@@ -6,7 +6,6 @@ import {
   CircleCheckIcon,
   CircleXIcon,
   Loader2Icon,
-  MinusIcon,
   PlusIcon,
   SettingsIcon,
 } from "lucide-react";
@@ -68,14 +67,16 @@ function statusColor(status: MonitoringStatus): string {
 }
 
 function StatusIndicator({ status }: { status: MonitoringStatus }) {
+  if (status === "stopped") {
+    return <span className="size-3.5 shrink-0 rounded-full bg-red-500" />;
+  }
+
   const Icon =
     status === "running"
       ? CircleCheckIcon
       : status === "error"
         ? CircleXIcon
-        : status === "stopped"
-          ? MinusIcon
-          : Loader2Icon;
+        : Loader2Icon;
 
   return (
     <Icon

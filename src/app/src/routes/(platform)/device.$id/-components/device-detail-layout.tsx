@@ -15,9 +15,11 @@ interface DeviceDetailLayoutProps {
   subtitle?: ReactNode;
   children: ReactNode;
   sidebar?: ReactNode;
+  /** Override the status shown in the badge (e.g. from a live sensor reading). */
+  status?: string;
 }
 
-export function DeviceDetailLayout({ device, subtitle, children, sidebar }: DeviceDetailLayoutProps) {
+export function DeviceDetailLayout({ device, subtitle, children, sidebar, status }: DeviceDetailLayoutProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 p-6">
       <div className="flex shrink-0 items-center gap-3">
@@ -37,7 +39,7 @@ export function DeviceDetailLayout({ device, subtitle, children, sidebar }: Devi
           </p>
         </div>
         <div className="ml-auto">
-          <DeviceStatusBadge status={device.status} />
+          <DeviceStatusBadge status={status ?? device.status} />
         </div>
       </div>
 
@@ -112,16 +114,19 @@ function InfoRow({ label, value, monospace }: DeviceInfoProperty) {
   );
 }
 
+const STATUS_STYLES: Record<string, { bg: string; dot: string }> = {
+  online: { bg: "bg-green-500/10 text-green-600", dot: "bg-green-500" },
+  degraded: { bg: "bg-amber-500/10 text-amber-600", dot: "bg-amber-500" },
+  error: { bg: "bg-red-500/10 text-red-600", dot: "bg-red-500" },
+  offline: { bg: "bg-red-500/10 text-red-600", dot: "bg-red-500" },
+};
+
 function DeviceStatusBadge({ status }: { status: string }) {
-  const online = status === "online";
+  const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
-        online ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"
-      }`}
-    >
-      <span className={`size-1.5 rounded-full ${online ? "bg-green-500" : "bg-red-500"}`} />
+    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}>
+      <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
     </span>
   );

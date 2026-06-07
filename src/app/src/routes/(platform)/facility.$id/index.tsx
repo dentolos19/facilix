@@ -304,7 +304,7 @@ function Page() {
         height: size.height,
         zoneId: null,
         name: type,
-        status: "online",
+        status: "unknown",
         notes: "",
         props: { ...DEFAULT_PROPS[type] },
       },
@@ -637,20 +637,22 @@ function Page() {
             </Tooltip>
           )}
 
-          {/* Dashboard button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                aria-label="View analytics"
-                onClick={() => navigate({ to: "/analytics/$id", params: { id: facilityId } })}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <BarChart3 className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Analytics</TooltipContent>
-          </Tooltip>
+          {/* Analytics button (monitoring mode only) */}
+          {editMode === "monitoring" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label="View analytics"
+                  onClick={() => navigate({ to: "/analytics/$id", params: { id: facilityId } })}
+                  size="icon-sm"
+                  variant="ghost"
+                >
+                  <BarChart3 className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Analytics</TooltipContent>
+            </Tooltip>
+          )}
 
           {editMode === "edit" && (
             <Tooltip>
@@ -688,15 +690,17 @@ function Page() {
             <TooltipContent>{editMode === "monitoring" ? "Edit" : "Monitor"}</TooltipContent>
           </Tooltip>
 
-          {/* Container Logs button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button aria-label="View logs" onClick={() => setContainerLogsOpen(true)} size="icon-sm" variant="ghost">
-                <TerminalIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Logs</TooltipContent>
-          </Tooltip>
+          {/* Container Logs button (monitoring mode only) */}
+          {editMode === "monitoring" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button aria-label="View logs" onClick={() => setContainerLogsOpen(true)} size="icon-sm" variant="ghost">
+                  <TerminalIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Logs</TooltipContent>
+            </Tooltip>
+          )}
 
           <Dialog
             onOpenChange={(open) => {

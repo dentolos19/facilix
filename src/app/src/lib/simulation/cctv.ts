@@ -94,36 +94,7 @@ export function simulationHlsUrl(streamName: string): string {
   return `${getHlsBase()}/${encodeURIComponent(streamName)}/index.m3u8`;
 }
 
-/**
- * Static fallback stream names when the simulator is unreachable.
- * Metadata matches the samples/videos.json manifest.
- */
-export const FALLBACK_SIMULATION_STREAMS: SimulationStream[] = [
-  {
-    name: "b0",
-    alive: false,
-    rtspUrl: "rtsp://localhost:3003/b0",
-    rtmpUrl: "rtmp://localhost:3004/b0",
-    hlsUrl: simulationHlsUrl("b0"),
-    videoPath: "samples/b0.mp4",
-    label: "Sample CCTV b0",
-    description: "Demo CCTV sample video for testing (b0)",
-    tags: ["demo", "cctv", "indoor"],
-    file: "b0.mp4",
-  },
-  {
-    name: "g0",
-    alive: false,
-    rtspUrl: "rtsp://localhost:3003/g0",
-    rtmpUrl: "rtmp://localhost:3004/g0",
-    hlsUrl: simulationHlsUrl("g0"),
-    videoPath: "samples/g0.mp4",
-    label: "Sample CCTV g0",
-    description: "Demo CCTV sample video for testing (g0)",
-    tags: ["demo", "cctv", "indoor"],
-    file: "g0.mp4",
-  },
-];
+// No static fallbacks — streams are only loaded from the live simulator API.
 
 // ---------------------------------------------------------------------------
 // Internal

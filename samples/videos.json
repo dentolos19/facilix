@@ -3,16 +3,16 @@
     {
       "id": "b0",
       "file": "b0.mp4",
-      "label": "Sample CCTV b0",
-      "description": "Demo CCTV sample video for testing (b0)",
-      "tags": ["demo", "cctv", "indoor"]
+      "label": "Bad Example #1",
+      "description": "Sample CCTV Video for Testing.",
+      "tags": ["outdoor"]
     },
     {
       "id": "g0",
       "file": "g0.mp4",
-      "label": "Sample CCTV g0",
-      "description": "Demo CCTV sample video for testing (g0)",
-      "tags": ["demo", "cctv", "indoor"]
+      "label": "Good Example #1",
+      "description": "Sampe CCTV Video for Testing.",
+      "tags": ["indoor"]
     }
   ]
 }
