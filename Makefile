@@ -9,7 +9,7 @@ start:
 	cd src/app && bun run dev
 
 simulate:
-	docker compose up -d
+	docker compose up --detach --build
 
 desimulate:
 	docker compose down

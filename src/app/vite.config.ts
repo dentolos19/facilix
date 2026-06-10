@@ -20,7 +20,7 @@ const config = defineConfig({
       },
       tunnel: {
         autoStart: true,
-        name: "Development",
+        name: "Local",
       },
     }),
     tanstackStart(),
