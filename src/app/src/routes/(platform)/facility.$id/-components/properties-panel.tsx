@@ -280,7 +280,6 @@ export function PropertiesPanel({
                             </SelectContent>
                           </Select>
                         </Field>
-
                       </>
                     ) : (
                       <Field label="Stream URL">

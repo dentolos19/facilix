@@ -192,6 +192,7 @@ export const videoRecording = sqliteTable("video_recordings", {
   deviceId: text("device_id")
     .notNull()
     .references(() => facilityDevice.id, { onDelete: "cascade" }),
+  data: text("data", { mode: "json" }).default("{}").$type<Record<string, unknown>>().notNull(),
   durationSec: integer("duration_sec"),
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
   endedAt: integer("ended_at", { mode: "timestamp_ms" }),

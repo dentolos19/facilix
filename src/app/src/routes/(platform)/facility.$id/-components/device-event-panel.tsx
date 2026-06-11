@@ -2,8 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { ExternalLinkIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollArea } from "#/src/components/ui/scroll-area";
-import { getLatestSensorReading } from "#/src/lib/functions/sensors";
 import type { SensorReadingRow } from "#/src/lib/functions/sensors";
+import { getLatestSensorReading } from "#/src/lib/functions/sensors";
 import { simulationHlsUrl } from "#/src/lib/simulation/cctv";
 import type { LogEntry, PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
@@ -20,7 +20,9 @@ const STATUS_STYLES: Record<string, { bg: string; dot: string }> = {
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
   return (
-    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
+    >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
     </span>
@@ -94,8 +96,8 @@ export function DeviceEventPanel({
 
   // Derive the real device status
   const deviceStatus = isSensor
-    ? deriveSensorDeviceStatus(sensorReading) ?? selectedDevice?.status ?? "unknown"
-    : selectedDevice?.status ?? "unknown";
+    ? (deriveSensorDeviceStatus(sensorReading) ?? selectedDevice?.status ?? "unknown")
+    : (selectedDevice?.status ?? "unknown");
 
   // Derive HLS URL from selected CCTV device props
   const cctvHlsUrl = useMemo(() => {

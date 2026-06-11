@@ -125,7 +125,9 @@ function DeviceStatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
+    >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
     </span>

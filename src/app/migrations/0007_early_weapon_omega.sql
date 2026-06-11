@@ -1,0 +1,1 @@
+ALTER TABLE `video_recordings` ADD `data` text DEFAULT '{}' NOT NULL;

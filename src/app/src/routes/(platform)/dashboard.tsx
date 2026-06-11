@@ -1,14 +1,7 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  Building2Icon,
-  CircleCheckIcon,
-  CircleXIcon,
-  Loader2Icon,
-  PlusIcon,
-  SettingsIcon,
-} from "lucide-react";
+import { Building2Icon, CircleCheckIcon, CircleXIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "#/src/components/ui/button";
@@ -71,12 +64,7 @@ function StatusIndicator({ status }: { status: MonitoringStatus }) {
     return <span className="size-3.5 shrink-0 rounded-full bg-red-500" />;
   }
 
-  const Icon =
-    status === "running"
-      ? CircleCheckIcon
-      : status === "error"
-        ? CircleXIcon
-        : Loader2Icon;
+  const Icon = status === "running" ? CircleCheckIcon : status === "error" ? CircleXIcon : Loader2Icon;
 
   return (
     <Icon

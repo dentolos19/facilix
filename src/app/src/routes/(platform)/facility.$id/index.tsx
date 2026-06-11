@@ -694,7 +694,12 @@ function Page() {
           {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="View logs" onClick={() => setContainerLogsOpen(true)} size="icon-sm" variant="ghost">
+                <Button
+                  aria-label="View logs"
+                  onClick={() => setContainerLogsOpen(true)}
+                  size="icon-sm"
+                  variant="ghost"
+                >
                   <TerminalIcon className="size-4" />
                 </Button>
               </TooltipTrigger>

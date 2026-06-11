@@ -37,6 +37,13 @@
       "bucket_name": "facilix"
     }
   ],
+  "workflows": [
+    {
+      "name": "facilix-processor",
+      "binding": "PROCESSOR",
+      "class_name": "Processor"
+    }
+  ],
   "containers": [
     {
       "name": "facilix-server",

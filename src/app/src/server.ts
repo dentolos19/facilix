@@ -3,6 +3,7 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/src/lib/monitoring/api";
 
 export { Observer } from "#/src/lib/bindings/observer";
+export { Processor } from "#/src/lib/bindings/processor";
 export { Server } from "#/src/lib/bindings/server";
 
 export default createServerEntry({

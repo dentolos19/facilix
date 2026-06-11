@@ -67,20 +67,20 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
   const batteryPct = reading?.batteryPct ?? 0;
   const signalRssi = reading?.signalRssiDbm ?? 0;
 
-  const sensorStatus = reading?.status === "ok"
-    ? "online"
-    : reading?.status === "degraded"
-      ? "degraded"
-      : reading?.status === "offline"
-        ? "offline"
-        : reading?.status === "error"
-          ? "error"
-          : undefined;
+  const sensorStatus =
+    reading?.status === "ok"
+      ? "online"
+      : reading?.status === "degraded"
+        ? "degraded"
+        : reading?.status === "offline"
+          ? "offline"
+          : reading?.status === "error"
+            ? "error"
+            : undefined;
 
   return (
     <DeviceDetailLayout
       device={device}
-      status={sensorStatus}
       sidebar={
         <DeviceDetailSidebar
           device={device}
@@ -92,6 +92,7 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
           ]}
         />
       }
+      status={sensorStatus}
       subtitle={
         <>
           {device.facilityName} &middot; {String(device.data.sensorType ?? "Sensor")}

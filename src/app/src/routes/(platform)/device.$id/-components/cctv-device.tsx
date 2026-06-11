@@ -24,7 +24,6 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
   return (
     <DeviceDetailLayout
       device={device}
-      status={cctvStatus}
       sidebar={
         <DeviceDetailSidebar
           device={device}
@@ -40,6 +39,7 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
           />
         </DeviceDetailSidebar>
       }
+      status={cctvStatus}
       subtitle={<>{device.facilityName} &middot; CCTV</>}
     >
       <div className="flex h-full min-h-0 flex-col gap-2">

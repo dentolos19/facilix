@@ -23,7 +23,6 @@ function shouldPersistToD1(type: string, severity: string): boolean {
 }
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
-const MIN_CONFIDENCE = 0.4;
 
 /**
  * Resolve a CCTV device's stream URL based on its video source.
@@ -45,21 +44,31 @@ function resolveCctvStreamUrl(data: Record<string, string | number>, simulationR
   return String(data.streamUrl ?? "");
 }
 
-const ANOMALY_CLASSES = new Set([
-  "person",
-  "bicycle",
-  "car",
-  "motorcycle",
-  "bus",
-  "truck",
-  "backpack",
-  "handbag",
-  "suitcase",
-  "knife",
-  "cell phone",
-]);
-
 export type MonitoringApiAction = "config" | "events" | "frames" | "segments";
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function dateKeyParts(d: Date): {
+  yyyy: string;
+  mm: string;
+  dd: string;
+  hh: string;
+  min: string;
+  ss: string;
+  ms: string;
+} {
+  return {
+    yyyy: String(d.getUTCFullYear()),
+    mm: pad2(d.getUTCMonth() + 1),
+    dd: pad2(d.getUTCDate()),
+    hh: pad2(d.getUTCHours()),
+    min: pad2(d.getUTCMinutes()),
+    ss: pad2(d.getUTCSeconds()),
+    ms: String(d.getUTCMilliseconds()).padStart(3, "0"),
+  };
+}
 
 /**
  * Check + store idempotency key in D1 via raw SQL for D1 compatibility.
@@ -232,72 +241,30 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   const buffer = await request.arrayBuffer();
   if (buffer.byteLength === 0) return Response.json({ error: "Empty frame" }, { status: 400 });
 
-  let detections: { label: string; confidence: number; box?: unknown }[] = [];
-  try {
-    const aiResult = await env.AI.run("@cf/facebook/detr-resnet-50", {
-      image: new Uint8Array(buffer),
-    });
-    if (Array.isArray(aiResult)) {
-      detections = (aiResult as Array<{ label: string; score: number; box?: unknown }>)
-        .filter((d) => d.score >= MIN_CONFIDENCE)
-        .map((d) => ({ label: d.label, confidence: d.score, box: d.box }));
-    }
-  } catch (err) {
-    console.error("Workers AI inference failed:", err);
-  }
+  // Persist the frame to R2 so the workflow can read it durably.
+  const capturedAt = new Date();
+  const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(capturedAt);
+  const sequenceHeader = request.headers.get("X-Sequence");
+  const sequence = sequenceHeader ? Number(sequenceHeader) : 0;
+  const fileName = `frames/${yyyy}${mm}${dd}/${deviceId}/${hh}${min}${ss}-${ms}.jpg`;
+  const contentType = request.headers.get("content-type") ?? "image/jpeg";
 
-  const anomalies = detections.filter((d) => ANOMALY_CLASSES.has(d.label));
-  const observer = env.OBSERVER.getByName(facilityId);
+  const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
+  const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
-  if (anomalies.length === 0) {
-    // Routine frame — DO only (observation), not persisted to D1
-    await recordObservation(
-      observer,
-      deviceId,
-      "cctv:frame:ok",
-      "info",
-      `Frame analyzed — ${detections.length} object(s) detected, no anomalies`,
-      {
-        source: "monitoring-container",
-        objectCount: detections.length,
-      },
-    );
-  }
-
-  for (const det of anomalies) {
-    const severity = det.confidence > 0.7 ? "warn" : "info";
-    // Always record in DO observation
-    await recordObservation(
-      observer,
-      deviceId,
-      "cctv:anomaly",
-      severity,
-      `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
-      {
-        source: "monitoring-container",
-        label: det.label,
-        confidence: det.confidence,
-        detectionCount: anomalies.length,
-      },
-    );
-    // Persist to D1 facility_events (anomalies are important)
-    await recordFacilityEvent(
-      db,
+  // Dispatch to the durable processor — AI inference + DB writes happen there.
+  await env.PROCESSOR.create({
+    params: {
+      kind: "frame",
       facilityId,
       deviceId,
-      "cctv:anomaly",
-      severity,
-      `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
-      {
-        source: "monitoring-container",
-        label: det.label,
-        confidence: det.confidence,
-        detectionCount: anomalies.length,
-      },
-    );
-  }
+      assetId: asset.id,
+      capturedAt: capturedAt.toISOString(),
+      sequence: Number.isFinite(sequence) ? sequence : 0,
+    },
+  });
 
-  return Response.json({ success: true, anomalyCount: anomalies.length, totalDetections: detections.length });
+  return Response.json({ success: true, queued: true, assetId: asset.id, sizeBytes: buffer.byteLength });
 }
 
 async function handleSegment(request: Request, env: Env, facilityId: string): Promise<Response> {
@@ -334,19 +301,12 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   const endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
 
   // Use date-prefixed key to avoid collision across days: YYYYMMDD/HHMMSS-ms.mp4
-  const pad2 = (n: number) => String(n).padStart(2, "0");
-  const yyyy = String(startedAt.getUTCFullYear());
-  const monthNum = pad2(startedAt.getUTCMonth() + 1);
-  const dd = pad2(startedAt.getUTCDate());
-  const hh = pad2(startedAt.getUTCHours());
-  const min = pad2(startedAt.getUTCMinutes());
-  const ss = pad2(startedAt.getUTCSeconds());
-  const ms = String(startedAt.getUTCMilliseconds()).padStart(3, "0");
+  const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(startedAt);
   const contentType = request.headers.get("content-type") ?? "video/mp4";
 
   const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
 
-  const fileName = `${yyyy}${monthNum}${dd}/${hh}${min}${ss}-${ms}.mp4`;
+  const fileName = `${yyyy}${mm}${dd}/${hh}${min}${ss}-${ms}.mp4`;
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
   const recordingId = crypto.randomUUID();
@@ -369,7 +329,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
     {
       source: "monitoring-container",
-      r2Key: asset.id,
+      assetId: asset.id,
       recordingId,
       durationSec,
       contentType,
@@ -385,7 +345,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
     {
       source: "monitoring-container",
-      r2Key: asset.id,
+      assetId: asset.id,
       recordingId,
       durationSec,
       contentType,
@@ -393,5 +353,27 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     },
   );
 
-  return Response.json({ success: true, recordingId, r2Key: asset.id, sizeBytes: buffer.byteLength });
+  // Dispatch the durable processor — aggregates frame detections in the
+  // [startedAt, endedAt] window, optionally calls a vision model, and
+  // writes the resulting summary onto video_recordings.data.
+  await env.PROCESSOR.create({
+    params: {
+      kind: "segment",
+      facilityId,
+      deviceId,
+      recordingId,
+      assetId: asset.id,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      durationSec: durationSec ?? 0,
+    },
+  });
+
+  return Response.json({
+    success: true,
+    queued: true,
+    recordingId,
+    assetId: asset.id,
+    sizeBytes: buffer.byteLength,
+  });
 }

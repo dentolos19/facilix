@@ -266,6 +266,36 @@ export class Observer extends DurableObject<Env> {
     }));
   }
 
+  /**
+   * Query events for a specific device within a time window, optionally
+   * restricted to a set of event types. Results are oldest-first so callers
+   * can iterate the segment timeline in playback order.
+   */
+  queryByDeviceWindow(deviceId: string, fromIso: string, toIso: string, types: string[] = []): FacilityEvent[] {
+    const params: unknown[] = [deviceId, fromIso, toIso];
+    let typeClause = "";
+    if (types.length > 0) {
+      typeClause = ` AND type IN (${types.map(() => "?").join(",")})`;
+      params.push(...types);
+    }
+
+    const results = this.ctx.storage.sql.exec<{
+      id: string;
+      device_id: string;
+      type: string;
+      data: string;
+      created_at: string;
+    }>(
+      `SELECT id, device_id, type, data, created_at
+       FROM observations
+       WHERE device_id = ? AND created_at BETWEEN ? AND ?${typeClause}
+       ORDER BY created_at ASC`,
+      ...params,
+    );
+
+    return results.toArray().map(toEvent);
+  }
+
   /** Return a summary of observation counts grouped by type. */
   getSummary(): Record<string, number> {
     const results = this.ctx.storage.sql.exec<{
