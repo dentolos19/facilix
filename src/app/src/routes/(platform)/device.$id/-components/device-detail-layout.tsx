@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "#/src/components/ui/button";
 import type { DeviceDetail } from "#/src/lib/functions/facility";
+import { DeviceTabs } from "./device-tabs";
 
 export interface DeviceInfoProperty {
   label: string;
@@ -10,13 +11,58 @@ export interface DeviceInfoProperty {
   monospace?: boolean;
 }
 
-interface DeviceDetailLayoutProps {
+export interface DeviceDetailShellProps {
   device: DeviceDetail;
   subtitle?: ReactNode;
+  tabs: { id: string; label: string }[];
+  activeTab: string;
+  onTabChange: (id: string) => void;
   children: ReactNode;
-  sidebar?: ReactNode;
   /** Override the status shown in the badge (e.g. from a live sensor reading). */
   status?: string;
+}
+
+/**
+ * Full-page device shell: header, status badge, tab bar, and a tab-content
+ * area that fills the remaining viewport height.
+ */
+export function DeviceDetailShell({
+  device,
+  subtitle,
+  tabs,
+  activeTab,
+  onTabChange,
+  children,
+  status,
+}: DeviceDetailShellProps) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+        <Link params={{ id: device.facilityId }} to="/facility/$id">
+          <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+        </Link>
+        <div className="min-w-0">
+          <h1 className="truncate font-heading text-sm font-medium text-foreground">{device.name}</h1>
+          <p className="truncate text-[11px] text-muted-foreground/60">
+            {subtitle ?? (
+              <>
+                {device.facilityName} &middot; {device.type}
+              </>
+            )}
+          </p>
+        </div>
+        <div className="ml-auto">
+          <DeviceStatusBadge status={status ?? device.status} />
+        </div>
+      </div>
+
+      <DeviceTabs activeTab={activeTab} onChange={onTabChange} tabs={tabs} />
+
+      <div className="min-h-0 flex-1 overflow-hidden p-4">{children}</div>
+    </div>
+  );
 }
 
 export function DeviceDetailLayout({ device, subtitle, children, sidebar, status }: DeviceDetailLayoutProps) {
@@ -51,6 +97,14 @@ export function DeviceDetailLayout({ device, subtitle, children, sidebar, status
   );
 }
 
+interface DeviceDetailLayoutProps {
+  device: DeviceDetail;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  sidebar?: ReactNode;
+  status?: string;
+}
+
 export function DeviceDetailSidebar({
   device,
   properties,
@@ -68,7 +122,7 @@ export function DeviceDetailSidebar({
   );
 }
 
-function DeviceInformationCard({
+export function DeviceInformationCard({
   device,
   properties = [],
 }: {
@@ -121,7 +175,7 @@ const STATUS_STYLES: Record<string, { bg: string; dot: string }> = {
   offline: { bg: "bg-red-500/10 text-red-600", dot: "bg-red-500" },
 };
 
-function DeviceStatusBadge({ status }: { status: string }) {
+export function DeviceStatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
 
   return (

@@ -3,7 +3,15 @@ import { Switch } from "#/src/components/ui/switch";
 import type { DeviceDetail } from "#/src/lib/functions/facility";
 import { simulationHlsUrl } from "#/src/lib/simulation/cctv";
 import { CctvPlayer } from "#/src/routes/(platform)/facility.$id/-components/cctv-player";
-import { DeviceDetailLayout, DeviceDetailSidebar } from "./device-detail-layout";
+import { CctvPlaybackTab } from "./cctv-playback";
+import { DeviceDetailShell, DeviceInformationCard } from "./device-detail-layout";
+import { DeviceLogsTab } from "./device-logs";
+
+const TABS = [
+  { id: "live", label: "Live" },
+  { id: "logs", label: "Logs" },
+  { id: "playback", label: "Playback" },
+];
 
 export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
   const hlsUrl = useMemo(() => {
@@ -17,32 +25,51 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
 
   const streamName = String(device.data.simulationStream ?? "");
   const [objectDetectionEnabled, setObjectDetectionEnabled] = useState(false);
+  const [activeTab, setActiveTab] = useState("live");
 
   // Derive status: if an HLS URL is available the stream is configured → online
   const cctvStatus = hlsUrl ? "online" : "offline";
 
   return (
-    <DeviceDetailLayout
+    <DeviceDetailShell
+      activeTab={activeTab}
       device={device}
-      sidebar={
-        <DeviceDetailSidebar
-          device={device}
-          properties={[
-            { label: "Video Source", value: String(device.data.videoSource ?? "simulation") },
-            ...(streamName ? [{ label: "Stream", value: streamName, monospace: true }] : []),
-          ]}
-        >
-          <CctvOptionsCard
-            disabled={!hlsUrl}
-            objectDetectionEnabled={objectDetectionEnabled}
-            onObjectDetectionChange={setObjectDetectionEnabled}
-          />
-        </DeviceDetailSidebar>
-      }
+      onTabChange={setActiveTab}
       status={cctvStatus}
       subtitle={<>{device.facilityName} &middot; CCTV</>}
+      tabs={TABS}
     >
-      <div className="flex h-full min-h-0 flex-col gap-2">
+      {activeTab === "live" && (
+        <CctvLiveTab
+          device={device}
+          hlsUrl={hlsUrl}
+          objectDetectionEnabled={objectDetectionEnabled}
+          onObjectDetectionChange={setObjectDetectionEnabled}
+          streamName={streamName}
+        />
+      )}
+      {activeTab === "logs" && <DeviceLogsTab device={device} />}
+      {activeTab === "playback" && <CctvPlaybackTab device={device} />}
+    </DeviceDetailShell>
+  );
+}
+
+function CctvLiveTab({
+  device,
+  hlsUrl,
+  streamName,
+  objectDetectionEnabled,
+  onObjectDetectionChange,
+}: {
+  device: DeviceDetail;
+  hlsUrl: string | null;
+  streamName: string;
+  objectDetectionEnabled: boolean;
+  onObjectDetectionChange: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
+      <main className="flex min-h-0 flex-1 flex-col gap-2">
         <h2 className="shrink-0 font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           Live Feed
         </h2>
@@ -56,8 +83,23 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
             streamName={streamName}
           />
         </div>
-      </div>
-    </DeviceDetailLayout>
+      </main>
+
+      <aside className="flex h-fit max-h-full w-full shrink-0 flex-col gap-3 overflow-y-auto lg:w-80">
+        <DeviceInformationCard
+          device={device}
+          properties={[
+            { label: "Video Source", value: String(device.data.videoSource ?? "simulation") },
+            ...(streamName ? [{ label: "Stream", value: streamName, monospace: true }] : []),
+          ]}
+        />
+        <CctvOptionsCard
+          disabled={!hlsUrl}
+          objectDetectionEnabled={objectDetectionEnabled}
+          onObjectDetectionChange={onObjectDetectionChange}
+        />
+      </aside>
+    </div>
   );
 }
 
