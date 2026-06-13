@@ -1,6 +1,12 @@
 // ─── Domain types for the facility editor ─────────────────────────────────
 // (merged from src/lib/types.ts)
 
+/** Recursive JSON value type used by device/zone JSON `data` columns. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+/** A plain JSON object — the typical shape of `data` columns. */
+export type JsonObject = { [key: string]: JsonValue };
+
 export type PlacedItemType = "Zone" | "Marker" | "CCTV" | "Sensor" | "Signal";
 
 /** Available icon shapes per component type. */
@@ -72,7 +78,7 @@ export interface PlacedItem {
   status: string;
   notes: string;
   /** Type-specific non-layout properties (stored in the relevant table's data column). */
-  props: Record<string, string | number>;
+  props: JsonObject;
 }
 
 // ─── Persistence shapes ──────────────────────────────────────────────────
@@ -95,7 +101,7 @@ export interface CanvasItemLayout {
 }
 
 /** Type-specific properties by device kind. */
-export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | number>> = {
+export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
   Zone: { iconColor: "#3b82f6" },
   Marker: { label: "", iconColor: "#f59e0b", markerType: "info", iconShape: "diamond" },
   CCTV: {
@@ -107,6 +113,7 @@ export const DEFAULT_PROPS: Record<PlacedItemType, Record<string, string | numbe
     status: "online",
     iconColor: "#10b981",
     iconShape: "camera",
+    plugins: [],
   },
   Sensor: {
     sensorDataSource: "simulation",
@@ -156,7 +163,7 @@ export function toZonePayloads(
   id: string;
   facilityId: string;
   name: string;
-  data: Record<string, string | number>;
+  data: JsonObject;
   notes: string;
 }[] {
   return items
@@ -181,7 +188,7 @@ export function toDevicePayloads(
   name: string;
   type: PlacedItemType;
   status: string;
-  data: Record<string, string | number>;
+  data: JsonObject;
   notes: string;
 }[] {
   return items
@@ -230,7 +237,7 @@ export function fromSnapshot(
   zones: {
     id: string;
     name: string;
-    data: Record<string, string | number>;
+    data: JsonObject;
     notes: string;
   }[],
   devices: {
@@ -238,7 +245,7 @@ export function fromSnapshot(
     name: string;
     type: PlacedItemType;
     status: string;
-    data: Record<string, string | number>;
+    data: JsonObject;
     notes: string;
     zoneId: string | null;
   }[],
@@ -309,10 +316,7 @@ export interface PropertiesPanelProps {
   editMode: EditMode;
   placedItems: PlacedItem[];
   selectedItemId: string | null;
-  onUpdateItem: (
-    id: string,
-    data: Partial<Pick<PlacedItem, "name" | "notes"> & { props: Record<string, string | number> }>,
-  ) => void;
+  onUpdateItem: (id: string, data: Partial<Pick<PlacedItem, "name" | "notes"> & { props: JsonObject }>) => void;
   onUpdateLayout: (id: string, patch: Partial<Pick<PlacedItem, "width" | "height">>) => void;
   onDeleteItem: (id: string) => void;
 }

@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
 import { createDatabase, schema } from "#/src/lib/database";
-import type { CanvasLayoutData, PlacedItemType } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/src/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ export type FacilityRow = {
 export interface ZoneRow {
   id: string;
   name: string;
-  data: Record<string, string | number>;
+  data: JsonObject;
   notes: string;
 }
 
@@ -39,7 +39,7 @@ export interface DeviceRow {
   name: string;
   type: PlacedItemType;
   status: string;
-  data: Record<string, string | number>;
+  data: JsonObject;
   notes: string;
 }
 
@@ -260,7 +260,7 @@ export interface DeviceDetail {
   name: string;
   type: PlacedItemType;
   status: string;
-  data: Record<string, string | number>;
+  data: JsonObject;
   notes: string;
 }
 

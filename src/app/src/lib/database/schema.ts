@@ -1,6 +1,6 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { FacilitySettings } from "#/src/lib/monitoring/logs";
-import type { CanvasLayoutData } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+import type { CanvasLayoutData, JsonObject } from "#/src/routes/(platform)/facility.$id/-helpers/types";
 
 export const asset = sqliteTable("assets", {
   id: text("id")
@@ -122,7 +122,7 @@ export const facilityZone = sqliteTable("facility_zones", {
     .notNull()
     .references(() => facility.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
+  data: text("data", { mode: "json" }).$type<JsonObject>().notNull(),
   notes: text("notes"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
@@ -144,7 +144,7 @@ export const facilityDevice = sqliteTable("facility_devices", {
   name: text("name").notNull(),
   type: text("type").notNull(),
   status: text("status").notNull(),
-  data: text("data", { mode: "json" }).$type<Record<string, string | number>>().notNull(),
+  data: text("data", { mode: "json" }).$type<JsonObject>().notNull(),
   notes: text("notes"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()

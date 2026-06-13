@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { createDatabase } from "#/src/lib/database";
 import * as schema from "#/src/lib/database/schema";
 import { createStorage } from "#/src/lib/storage";
+import type { JsonObject } from "#/src/routes/(platform)/facility.$id/-helpers/types";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
 import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
 
@@ -14,7 +15,7 @@ const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
  * - "rtsp"/"rtmp"/"http": use the raw streamUrl as-is.
  * - Returns empty string if the required fields are missing.
  */
-function resolveCctvStreamUrl(data: Record<string, string | number>, simulationRtspBase: string): string {
+function resolveCctvStreamUrl(data: JsonObject, simulationRtspBase: string): string {
   const videoSource = String(data.videoSource ?? "simulation");
 
   if (videoSource === "simulation") {

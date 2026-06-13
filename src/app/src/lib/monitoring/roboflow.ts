@@ -2,7 +2,7 @@
  * Roboflow hosted-inference helpers.
  *
  * Wraps the Serverless Hosted API
- *   POST {API_BASE}/{dataset_id}/{version_id}?api_key=...
+ *   POST {API_BASE}/{project}/{version}?api_key=...
  *   body: { base64 image } (we use `image_type=base64` to send the raw bytes)
  *
  * The Roboflow response shape for object-detection models is:
@@ -11,11 +11,16 @@
  * pixels), `confidence`, `class`, and `class_id`. We normalise this into
  * the shared `Detection` type used by the monitoring pipeline.
  *
+ * Detection is now driven by **anomaly plugins** — callers pass the
+ * list of enabled Roboflow models that should run for a given frame,
+ * each with its own confidence threshold. If the list is empty, no
+ * requests are made.
+ *
  * @see https://docs.roboflow.com/deploy/serverless-hosted-api-v2/use-with-the-rest-api
  */
 
 import { env } from "cloudflare:workers";
-import { type Detection, type DetectionBox, MIN_CONFIDENCE } from "./detection";
+import { type Detection, type DetectionBox } from "./detection";
 
 /** A raw Roboflow object-detection prediction. */
 type RoboflowPrediction = {
@@ -39,11 +44,18 @@ type RoboflowResponse = {
 };
 
 export type RoboflowModelSpec = {
-  /** Project slug, e.g. `cctv-naxyo`. */
+  /** Project slug, e.g. `ppes-kaxsi`. */
   project: string;
-  /** Model version, e.g. `1`. */
+  /** Model version, e.g. `8`. */
   version: string;
 };
+
+/** Per-model inference request used by anomaly plugins. */
+export interface RoboflowModelRequest {
+  spec: RoboflowModelSpec;
+  /** Per-model confidence threshold (0–1). */
+  confidence: number;
+}
 
 const DEFAULT_API_BASE = "https://serverless.roboflow.com";
 
@@ -55,24 +67,9 @@ function parseModelId(modelId: string | undefined): RoboflowModelSpec | null {
   return { project, version };
 }
 
-/** Cast any env-overridable string to a number with a default. */
-function envFloat(name: string, fallback: number): number {
-  const raw = (env as Record<string, string | undefined>)[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function apiBase(): string {
   const raw = (env as Record<string, string | undefined>).ROBOFLOW_API_BASE;
   return (raw && raw.length > 0 ? raw : DEFAULT_API_BASE).replace(/\/$/, "");
-}
-
-/** Get configured model ids from env, skipping entries that are unset. */
-export function getRoboflowModels(): RoboflowModelSpec[] {
-  const people = parseModelId((env as Record<string, string | undefined>).ROBOFLOW_PEOPLE_MODEL_ID);
-  const ppe = parseModelId((env as Record<string, string | undefined>).ROBOFLOW_PPE_MODEL_ID);
-  return [people, ppe].filter((m): m is RoboflowModelSpec => m !== null);
 }
 
 function apiKey(): string | null {
@@ -161,38 +158,70 @@ async function runSingleModel(
 }
 
 /**
- * Run all configured Roboflow models in parallel and merge their
- * detections into a single flat array.
+ * Run the supplied Roboflow models in parallel and merge their detections
+ * into a single flat array.
  *
- * Models that fail are surfaced as a single error after all attempts
- * complete, so transient failures from one model don't lose detections
- * from another.
+ * - Duplicate specs (same project/version) are deduped, keeping the first
+ *   occurrence's confidence threshold.
+ * - Models that fail are surfaced as a single error after all attempts
+ *   complete, so transient failures from one model don't lose detections
+ *   from another. If every requested model fails, the function throws so
+ *   the workflow can retry.
+ * - When `models` is empty, the function returns `[]` without making any
+ *   network calls. This is the path taken when a CCTV has no enabled
+ *   anomaly plugins.
  */
-export async function detectObjects(frameBytes: ArrayBuffer | Uint8Array): Promise<Detection[]> {
-  const models = getRoboflowModels();
-  if (models.length === 0) {
+export async function detectObjects(
+  frameBytes: ArrayBuffer | Uint8Array,
+  models: RoboflowModelRequest[] = [],
+): Promise<Detection[]> {
+  // Dedupe by `project/version`, keeping the first confidence seen.
+  const seen = new Set<string>();
+  const unique: RoboflowModelRequest[] = [];
+  for (const m of models) {
+    const key = `${m.spec.project}/${m.spec.version}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(m);
+  }
+
+  if (unique.length === 0) {
     return [];
   }
 
-  const minConf = envFloat("ROBOFLOW_CONFIDENCE", MIN_CONFIDENCE);
-  const results = await Promise.allSettled(models.map((m) => runSingleModel(m, frameBytes, { confidence: minConf })));
+  const results = await Promise.allSettled(
+    unique.map((m) => runSingleModel(m.spec, frameBytes, { confidence: m.confidence })),
+  );
 
   const errors: string[] = [];
   const merged: Detection[] = [];
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
+    const m = unique[i];
     if (r.status === "fulfilled") {
       merged.push(...r.value);
     } else {
-      const name = `${models[i].project}/${models[i].version}`;
+      const name = `${m.spec.project}/${m.spec.version}`;
       errors.push(`${name}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`);
     }
   }
 
-  // If every model failed, throw so the workflow retries the step.
-  if (merged.length === 0 && errors.length === models.length) {
+  // If every requested model failed, throw so the workflow retries the step.
+  if (merged.length === 0 && errors.length === unique.length) {
     throw new Error(`All Roboflow models failed: ${errors.join(" | ")}`);
   }
 
   return merged;
+}
+
+/**
+ * Legacy helper: return a list of Roboflow model specs from the
+ * `ROBOFLOW_PEOPLE_MODEL_ID` / `ROBOFLOW_PPE_MODEL_ID` environment
+ * variables. Kept for backwards compatibility and for callers that
+ * haven't migrated to the per-device anomaly-plugin flow yet.
+ */
+export function getRoboflowModels(): RoboflowModelSpec[] {
+  const people = parseModelId((env as Record<string, string | undefined>).ROBOFLOW_PEOPLE_MODEL_ID);
+  const ppe = parseModelId((env as Record<string, string | undefined>).ROBOFLOW_PPE_MODEL_ID);
+  return [people, ppe].filter((m): m is RoboflowModelSpec => m !== null);
 }

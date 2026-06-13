@@ -102,23 +102,30 @@ Every step runs inside `step.do(...)` with exponential backoff retries.
 
 **Frame branch** (`runFrame`):
 
-1. `load-frame` — read JPEG bytes from R2.
-2. `detect-objects` — call `detectObjects()` from
-   `monitoring/roboflow.ts`, which runs every configured Roboflow model
-   in parallel and merges the predictions. Currently:
-   - `cctv-naxyo/1` — people detection
-   - `ppes-kaxsi/8` — PPE (hardhat / vest / etc.) detection
-3. `record-detections` — if no anomalies → emit a `cctv:frame:ok` observation.
-   Otherwise emit one `cctv:anomaly` observation per anomaly (severity is
-   `warn` above 70% confidence) **and** batch-insert a `facility_event` row
-   in D1 for every anomaly.
+1. `load-device-plugins` — read the CCTV device row from D1 and resolve
+   the enabled [anomaly plugins](#anomaly-plugins) on it. If a device
+   has no enabled plugins, **no Roboflow calls are made** and no anomaly
+   events are raised — plugins are the single source of truth.
+2. `load-frame` — read JPEG bytes from R2.
+3. `detect-objects` — call `detectObjects(bytes, modelRequests)` from
+   `monitoring/roboflow.ts`, which runs every Roboflow model required
+   by the enabled plugins in parallel and merges the predictions.
+4. `match-alerts` — for each detection, look up the matching plugin +
+   anomaly option via `findAlertMatch()`. Detections that don't match a
+   selected plugin option are ignored (no events).
+5. `record-detections` — if no matches → emit a `cctv:frame:ok`
+   observation. Otherwise emit one `cctv:anomaly` observation per match
+   (severity is `warn` above 70% confidence) including
+   `pluginId` / `pluginName` / `optionId` / `optionLabel` in the data,
+   **and** batch-insert a `facility_event` row in D1 for every anomaly.
 
 **Segment branch** (`runSegment`):
 
 1. `load-window-detections` — `observer.queryByDeviceWindow(startedAt, endedAt)`
    for the same device, types `cctv:frame:ok` and `cctv:anomaly`.
-2. `aggregate` — counts by label, picks up to 12 sample `assetId`s, computes
-   per-anomaly `atSec` offsets.
+2. `aggregate` — counts by `pluginName · optionLabel`, picks up to 12
+   sample `assetId`s, computes per-anomaly `atSec` offsets, and
+   preserves plugin metadata for downstream consumers.
 3. `summarize-scene` — when anomalies are present, ask the OpenRouter model
    (`qwen/qwen3.6-35b-a3b`) to describe the segment. We first try to send
    the full MP4 as a `video_url`; if the model rejects the video input we
@@ -137,17 +144,24 @@ Every step runs inside `step.do(...)` with exponential backoff retries.
   and the base64-encoded JPEG bytes in the body.
 - Response is normalised from Roboflow's center-xy box
   (`x, y, width, height`) into a top-left + bottom-right `DetectionBox`.
-- Predictions below `ROBOFLOW_CONFIDENCE` (default `0.4`, the model default)
-  are dropped.
-- Models are configured by env vars:
+- `detectObjects(frameBytes, models)` takes the list of Roboflow models
+  that should run for a given frame (one per enabled anomaly plugin),
+  each with its own confidence threshold. The list is built per-frame
+  by the Processor from the CCTV's stored plugin config. When the list
+  is empty, no network calls are made.
+- Predictions below the per-model confidence threshold are dropped.
+- Required env vars:
   - `ROBOFLOW_API_KEY` (secret)
   - `ROBOFLOW_API_BASE` (default `https://serverless.roboflow.com`)
+- Legacy env vars (kept for backwards compatibility, currently unused
+  by the per-device plugin flow):
   - `ROBOFLOW_PEOPLE_MODEL_ID` (default `cctv-naxyo/1`)
   - `ROBOFLOW_PPE_MODEL_ID` (default `ppes-kaxsi/8`)
   - `ROBOFLOW_CONFIDENCE` (default `0.4`)
 
-If every model fails the workflow step throws so `step.do` retries
-automatically. If at least one model succeeds, partial results are kept.
+If every requested model fails the workflow step throws so `step.do`
+retries automatically. If at least one model succeeds, partial results
+are kept.
 
 ### OpenRouter — scene understanding
 
@@ -288,20 +302,53 @@ that is not a high-volume `monitoring:heartbeat`, `cctv:frame:ok`, or
 | Sensor | `sensor:error` | error | yes | Source unreachable. |
 | Heartbeat | `monitoring:heartbeat` | info | no | Every 2 minutes. |
 
-## Anomaly classes
+## Anomaly plugins
 
-`ANOMALY_CLASSES` in `src/app/src/lib/monitoring/detection.ts` — used by the
-Processor to decide which Roboflow predictions become `cctv:anomaly` events.
-Labels are matched case-insensitively after Roboflow normalisation.
+Per-CCTV anomaly detection is configured via **anomaly plugins** stored
+on each device's JSON `data.anomalyPlugins` field. Plugins replace the
+old hardcoded `ANOMALY_CLASSES` set; they are the single source of
+truth for which Roboflow predictions become `cctv:anomaly` events.
 
-People model (`cctv-naxyo/1`):
-- `person`
+- File: `src/app/src/lib/monitoring/anomaly-plugins.ts`
+- The catalog (`ANOMALY_PLUGINS`) is curated and currently ships with
+  the **PPE Compliance** plugin powered by Roboflow model
+  `ppes-kaxsi/8`.
+- Per-device config shape:
+  ```json
+  [
+    {
+      "pluginId": "ppe-compliance",
+      "enabled": true,
+      "selectedAnomalies": ["no-safety-vest", "no-mask", "no-gloves"],
+      "confidence": 0.4
+    }
+  ]
+  ```
+- `normalizeAnomalyPlugins(value)` normalises whatever is in `data`
+  into a clean list, dropping unknown plugins or stale option ids.
+- `resolveEnabledAnomalyPlugins(configs)` returns the plugins that
+  should actually run for a given frame: they must be enabled **and**
+  have at least one selected anomaly option.
+- `findAlertMatch(resolved, detection)` returns the matching plugin +
+  option for a Roboflow prediction, or `null` if the detection isn't
+  interesting for the configured plugins.
+- Adding a new plugin: append an entry to `ANOMALY_PLUGINS` in
+  `anomaly-plugins.ts` with `provider: "roboflow"`, a `modelId`, and
+  the user-selectable `options[]`. No code changes are required
+  elsewhere — the Processor picks it up automatically.
 
-PPE model (`ppes-kaxsi/8`) — positives and negatives alike:
-- `worker`, `hardhat`, `safety-vest` / `safety vest` / `vest`, `mask`,
-  `gloves`, `boots`
-- `no-hardhat` / `no-hard-hat`, `no-safety-vest` / `no-safety vest` /
-  `no-vest`, `no-mask`, `no-gloves`, `no-boots`
+### PPE Compliance plugin
 
-Anything below `MIN_CONFIDENCE = 0.4` (or `ROBOFLOW_CONFIDENCE`) is dropped
-entirely; everything outside this set is counted but not escalated.
+- Roboflow model: `ppes-kaxsi/8`
+- Options:
+  - `No Safety Vest` (`no-safety-vest`, `no-safety vest`, `no-vest`)
+  - `No Mask` (`no-mask`)
+  - `No Gloves` (`no-gloves`)
+  - `No Hardhat` (`no-hardhat`, `no-hard-hat`)
+  - `No Boots` (`no-boots`)
+
+Users can pick any combination of options per CCTV and tune the
+confidence threshold (0–1, default `0.4`). The default for new CCTVs
+is `anomalyPlugins: []` — i.e. **no plugins installed, no inference
+performed, no anomaly events** — so that cameras only pay Roboflow
+costs when an operator explicitly opts in.

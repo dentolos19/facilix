@@ -52,7 +52,7 @@ import { ContainerLogsDialog } from "./-components/container-logs-dialog";
 import { DeviceEventPanel } from "./-components/device-event-panel";
 import { MonitoringLogsPanel } from "./-components/monitoring-logs-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
-import type { EditMode, LogEntry, PlacedItem, PlacedItemType } from "./-helpers/types";
+import type { EditMode, JsonObject, LogEntry, PlacedItem, PlacedItemType } from "./-helpers/types";
 import {
   DEFAULT_PROPS,
   DEFAULT_SIZES,
@@ -348,7 +348,7 @@ function Page() {
   );
 
   const updatePlacedItemData = useCallback(
-    (id: string, data: Partial<Pick<PlacedItem, "name" | "notes"> & { props: Record<string, string | number> }>) => {
+    (id: string, data: Partial<Pick<PlacedItem, "name" | "notes"> & { props: JsonObject }>) => {
       saveSnapshot();
       setPlacedItems((prev) =>
         prev.map((item) =>
