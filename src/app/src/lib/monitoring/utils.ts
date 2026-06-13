@@ -46,7 +46,7 @@ export async function recordObservation(
 export async function recordFacilityEvent(
   db: ReturnType<typeof createDatabase>,
   facilityId: string,
-  deviceId: string,
+  deviceId: string | null,
   type: string,
   severity: "info" | "warn" | "error",
   message: string,

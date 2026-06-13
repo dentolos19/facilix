@@ -207,13 +207,14 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
   await recordObservation(observer, body.deviceId, body.type, severity, body.message, enrichedData);
 
   // 2. Persist high-level events to D1 facility_events
+  // If the event is facility-level (deviceId === facilityId), store null for deviceId.
   if (shouldPersistToD1(body.type, severity)) {
-    await recordFacilityEvent(db, facilityId, body.deviceId, body.type, severity, body.message, enrichedData);
+    await recordFacilityEvent(db, facilityId, device?.id ?? null, body.type, severity, body.message, enrichedData);
   }
 
-  // 3. Record structured sensor reading for sensor events
-  if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data) {
-    await recordSensorReading(db, facilityId, body.deviceId, body.data).catch((err) =>
+  // 3. Record structured sensor reading for sensor events (requires a real device)
+  if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data && device) {
+    await recordSensorReading(db, facilityId, device.id, body.data).catch((err) =>
       console.error("recordSensorReading failed:", err),
     );
   }
