@@ -8,6 +8,9 @@ setup:
 start:
 	cd src/app && bun run dev
 
+migrate:
+	cd src/app && bun run db:migrate
+
 simulate:
 	docker compose up --detach --build
 

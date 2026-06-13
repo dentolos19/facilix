@@ -14,7 +14,7 @@ export class Server extends Container<Env> {
 
   /** The facility ID this container was instantiated for. */
   private get facilityId(): string {
-    return this.ctx.id.name();
+    return this.ctx.id.name ?? this.ctx.id.toString();
   }
 
   /** Record a lifecycle event to the DO observations table and, if important, to D1 facility_events. */
@@ -28,11 +28,7 @@ export class Server extends Container<Env> {
     // 1. Always write to DO observations for Container Logs
     try {
       const stub = this.env.OBSERVER.getByName(facilityId);
-      await stub.recordEvent(
-        facilityId,
-        type,
-        JSON.stringify({ facilityId, source: "monitoring-do", ...extra }),
-      );
+      await stub.recordEvent(facilityId, type, JSON.stringify({ facilityId, source: "monitoring-do", ...extra }));
     } catch (err) {
       log.warn("Observer recordEvent failed (non-fatal)", { error: String(err), facilityId, type });
       // Observer recording is best-effort; don't block container start/stop.

@@ -371,7 +371,10 @@ export class Observer extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const cutoff = new Date(Date.now() - 86_400_000).toISOString();
 
-    const before = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations WHERE created_at < ?", cutoff);
+    const before = this.ctx.storage.sql.exec<{ cnt: number }>(
+      "SELECT COUNT(*) AS cnt FROM observations WHERE created_at < ?",
+      cutoff,
+    );
     const expiredCount = before.one().cnt;
 
     this.ctx.storage.sql.exec("DELETE FROM observations WHERE created_at < ?", cutoff);

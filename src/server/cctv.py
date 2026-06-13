@@ -141,18 +141,14 @@ async def _frame_loop(
             if frame_data:
                 seq += 1
                 cctv_log.info("[%s] frame ok seq=%d size=%d bytes", device_name, seq, len(frame_data))
-                await upload_frame(
-                    device_id, frame_data, seq, captured_at=captured_at
-                )
+                await upload_frame(device_id, frame_data, seq, captured_at=captured_at)
             else:
                 cctv_log.warning("[%s] frame capture failed: %s", device_name, frame_err)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             cctv_log.exception("[%s] frame loop error: %s", device_name, exc)
-            await post_event(
-                device_id, "cctv:error", "warn", f"Frame capture error: {exc}"
-            )
+            await post_event(device_id, "cctv:error", "warn", f"Frame capture error: {exc}")
 
         await asyncio.sleep(interval_sec)
 
@@ -179,11 +175,18 @@ async def _segment_loop(
                 seq += 1
                 cctv_log.info(
                     "[%s] segment ok seq=%d size=%d bytes duration=%.1fs",
-                    device_name, seq, len(segment_data), actual_duration,
+                    device_name,
+                    seq,
+                    len(segment_data),
+                    actual_duration,
                 )
                 await upload_segment(
-                    device_id, segment_data, actual_duration, seq,
-                    started_at=started_at, ended_at=ended_at,
+                    device_id,
+                    segment_data,
+                    actual_duration,
+                    seq,
+                    started_at=started_at,
+                    ended_at=ended_at,
                 )
             else:
                 cctv_log.warning("[%s] segment capture failed: %s", device_name, segment_error)
@@ -198,9 +201,7 @@ async def _segment_loop(
             raise
         except Exception as exc:
             cctv_log.exception("[%s] segment loop error: %s", device_name, exc)
-            await post_event(
-                device_id, "cctv:error", "warn", f"Segment capture error: {exc}"
-            )
+            await post_event(device_id, "cctv:error", "warn", f"Segment capture error: {exc}")
 
         await asyncio.sleep(interval_sec)
 
@@ -245,7 +246,11 @@ async def capture_frame(stream_url: str, timeout_sec: int = 15) -> tuple[bytes |
         detail = stderr_tail or f"ffmpeg_rc_{proc.returncode}_payload_{len(stdout)}B"
         cctv_log.warning(
             "capture_frame failed (rc=%s, %dB out, %.0fms) for %s: %s",
-            proc.returncode, len(stdout), dt_ms, stream_url, stderr_tail,
+            proc.returncode,
+            len(stdout),
+            dt_ms,
+            stream_url,
+            stderr_tail,
         )
         return None, detail
     except TimeoutError:
@@ -259,9 +264,7 @@ async def capture_frame(stream_url: str, timeout_sec: int = 15) -> tuple[bytes |
         return None, "ffmpeg_not_found"
 
 
-async def capture_segment(
-    stream_url: str, duration_sec: int = 30
-) -> tuple[bytes | None, float, float, float, str]:
+async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[bytes | None, float, float, float, str]:
     """Use ffmpeg to capture a short video segment.
 
     Returns (data, actual_duration_sec, started_at_monotonic, ended_at_monotonic, error_detail).
@@ -308,7 +311,10 @@ async def capture_segment(
         stderr_tail = (stderr or b"")[-500:].decode("utf-8", errors="replace").strip()
         cctv_log.warning(
             "capture_segment failed (rc=%s, %dms) for %s: %s",
-            proc.returncode, dt_ms, stream_url, stderr_tail,
+            proc.returncode,
+            dt_ms,
+            stream_url,
+            stderr_tail,
         )
         return None, 0.0, 0.0, 0.0, stderr_tail or f"ffmpeg_rc_{proc.returncode}"
     except TimeoutError:
