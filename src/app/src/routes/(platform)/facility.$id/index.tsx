@@ -37,10 +37,14 @@ import {
   MenubarTrigger,
 } from "#/src/components/ui/menubar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/src/components/ui/resizable";
+import { Separator } from "#/src/components/ui/separator";
+import { Switch } from "#/src/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
 import { type FacilityEventRow, getFacilityEvents } from "#/src/lib/functions/events";
 import { deleteFacility, loadFacility, saveFacility } from "#/src/lib/functions/facility";
+import { getFacilitySettings, saveFacilitySettings } from "#/src/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
+import { type FacilitySettings, logTypesByCategory, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
 import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/src/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
@@ -96,21 +100,24 @@ function d1EventToLogEntry(event: FacilityEventRow, deviceMap: Map<string, Place
   };
 }
 
-/**
- * Guess whether a raw DO event is a high-level facility event (persisted to D1)
- * based on its type and parsed severity. If so, refetch D1 facility_events
- * when it arrives via the WebSocket.
- */
-function isFacilityEvent(ev: FacilityEvent): boolean {
-  if (ev.type === "monitoring:started" || ev.type === "monitoring:stopped") return true;
-  if (ev.type === "monitoring:heartbeat" || ev.type === "cctv:frame:ok" || ev.type === "sensor:reading") return false;
+/** Parse a raw DO event's severity from its JSON payload. */
+function getEventLevel(ev: FacilityEvent): "info" | "warn" | "error" {
   try {
     const parsed = JSON.parse(ev.data);
-    if (parsed.level === "warn" || parsed.level === "error") return true;
+    if (parsed.level === "warn" || parsed.level === "error") return parsed.level;
   } catch {
     // fall through
   }
-  return true;
+  return "info";
+}
+
+/**
+ * Returns true if a raw DO event should be persisted to D1 / shown in Global
+ * Events based on the facility's log settings.
+ */
+function isGlobalEvent(ev: FacilityEvent, facilitySettings: FacilitySettings): boolean {
+  const level = getEventLevel(ev);
+  return shouldShowInGlobalEvents(ev.type, level, facilitySettings);
 }
 
 /** Human-readable label for a MonitoringStatus value. */
@@ -140,6 +147,8 @@ function Page() {
   const [isDirty, setIsDirty] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsName, setSettingsName] = useState("");
+  const [settingsTab, setSettingsTab] = useState<"general" | "events">("general");
+  const [settings, setSettings] = useState<FacilitySettings>({ globalEvents: { enabledLogTypes: [] } });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -192,9 +201,13 @@ function Page() {
   useEffect(() => {
     (async () => {
       try {
-        const snapshot = await loadFacility({ data: { id: facilityId } });
+        const [snapshot, settingsRow] = await Promise.all([
+          loadFacility({ data: { id: facilityId } }),
+          getFacilitySettings({ data: { facilityId } }),
+        ]);
         setFacilityName(snapshot.name);
         setSettingsName(snapshot.name);
+        setSettings(settingsRow.settings);
         const items = fromSnapshot(snapshot.canvasData, snapshot.zones, snapshot.devices);
         setPlacedItems(recomputeZoneLinks(items));
       } catch (err) {
@@ -233,8 +246,8 @@ function Page() {
               break;
             case "event":
               setObservationEvents((prev) => [msg.event, ...prev]);
-              // If a high-level event arrived, refetch D1 facility events
-              if (isFacilityEvent(msg.event)) {
+              // If the event should be visible in Global Events, refetch D1 facility events
+              if (isGlobalEvent(msg.event, settings)) {
                 getFacilityEvents({ data: { facilityId } })
                   .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
                   .catch(() => {});
@@ -484,9 +497,12 @@ function Page() {
       const canvasData = toCanvasData(items);
       const zones = toZonePayloads(facilityId, items);
       const devices = toDevicePayloads(facilityId, items);
-      await saveFacility({
-        data: { facilityId, name: settingsName.trim(), canvasData, zones, devices },
-      });
+      await Promise.all([
+        saveFacility({
+          data: { facilityId, name: settingsName.trim(), canvasData, zones, devices },
+        }),
+        saveFacilitySettings({ data: { facilityId, settings } }),
+      ]);
       setFacilityName(settingsName.trim());
       setSettingsOpen(false);
       setIsDirty(false);
@@ -497,7 +513,7 @@ function Page() {
     } finally {
       setIsSaving(false);
     }
-  }, [facilityId, settingsName]);
+  }, [facilityId, settingsName, settings]);
 
   const handleDelete = useCallback(async () => {
     setDeleting(true);
@@ -714,6 +730,7 @@ function Page() {
             onOpenChange={(open) => {
               setSettingsOpen(open);
               setConfirmDelete(false);
+              setSettingsTab("general");
               if (open) setSettingsName(facilityName);
             }}
             open={settingsOpen}
@@ -728,21 +745,97 @@ function Page() {
               </TooltipTrigger>
               <TooltipContent>Settings</TooltipContent>
             </Tooltip>
-            <DialogContent>
-              <DialogHeader>
+            <DialogContent className="max-h-[80vh] w-full max-w-lg overflow-y-auto p-0 sm:max-w-xl">
+              <DialogHeader className="p-4 pb-0">
                 <DialogTitle>Facility Settings</DialogTitle>
                 <DialogDescription>Edit facility metadata and preferences.</DialogDescription>
               </DialogHeader>
-              <div className="flex flex-col gap-3 p-1">
-                <Field label="Facility name">
-                  <Input
-                    onChange={(e) => setSettingsName(e.target.value)}
-                    placeholder="Enter facility name"
-                    value={settingsName}
-                  />
-                </Field>
+              <div className="flex border-b border-border">
+                {[
+                  { id: "general", label: "General" },
+                  { id: "events", label: "Events" },
+                ].map((tab) => (
+                  <button
+                    className={`relative flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
+                      settingsTab === tab.id
+                        ? "border-b-2 border-primary text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    key={tab.id}
+                    onClick={() => setSettingsTab(tab.id)}
+                    type="button"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-              <DialogFooter>
+              {settingsTab === "events" ? (
+                <div className="flex flex-col gap-4 p-4">
+                  <div>
+                    <h4 className="font-heading text-sm font-medium">Global Events</h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Important logs are always shown. Enable additional log types you want to see in the Global Events
+                      panel.
+                    </p>
+                  </div>
+                  {Object.entries(logTypesByCategory()).map(([category, types]) => (
+                    <div className="flex flex-col gap-2" key={category}>
+                      <h5 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        {category}
+                      </h5>
+                      <div className="flex flex-col gap-2">
+                        {types.map((logType) => {
+                          const enabled = settings.globalEvents.enabledLogTypes.includes(logType.type);
+                          return (
+                            <div className="flex items-start justify-between gap-3" key={logType.type}>
+                              <div className="flex flex-col">
+                                <Label className="text-xs font-medium" htmlFor={`log-${logType.type}`}>
+                                  {logType.label}
+                                  {logType.important && (
+                                    <span className="ml-1.5 text-[10px] text-muted-foreground">(always on)</span>
+                                  )}
+                                  {logType.highVolume && (
+                                    <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+                                      high volume
+                                    </span>
+                                  )}
+                                </Label>
+                                <span className="text-[11px] text-muted-foreground">{logType.description}</span>
+                              </div>
+                              <Switch
+                                checked={logType.important || enabled}
+                                disabled={logType.important}
+                                id={`log-${logType.type}`}
+                                onCheckedChange={(checked) => {
+                                  setSettings((prev) => {
+                                    const next = new Set(prev.globalEvents.enabledLogTypes);
+                                    if (checked) next.add(logType.type);
+                                    else next.delete(logType.type);
+                                    return { globalEvents: { enabledLogTypes: Array.from(next) } };
+                                  });
+                                }}
+                                size="sm"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4">
+                  <Field label="Facility name">
+                    <Input
+                      onChange={(e) => setSettingsName(e.target.value)}
+                      placeholder="Enter facility name"
+                      value={settingsName}
+                    />
+                  </Field>
+                </div>
+              )}
+              <Separator />
+              <DialogFooter className="p-4 pt-0">
                 <div className="flex w-full items-center justify-between">
                   <Button
                     disabled={deleting}

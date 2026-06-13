@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { summarizeImage, summarizeVideo } from "#/src/lib/ai";
 import { createDatabase, schema } from "#/src/lib/database";
 import { ANOMALY_CLASSES, type Detection } from "#/src/lib/monitoring/detection";
+import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
 import { detectObjects } from "#/src/lib/monitoring/roboflow";
 import { recordFacilityEvent, recordObservation } from "#/src/lib/monitoring/utils";
 
@@ -254,7 +255,14 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         anomalyCount,
         detectionCounts: aggregate.detectionCounts,
       });
-      if (anomalyCount > 0) {
+
+      const [facRow] = await db
+        .select({ settings: schema.facility.settings })
+        .from(schema.facility)
+        .where(eq(schema.facility.id, facilityId))
+        .limit(1);
+      const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
+      if (shouldShowInGlobalEvents("cctv:segment:analyzed", "info", settings)) {
         await recordFacilityEvent(db, facilityId, deviceId, "cctv:segment:analyzed", "info", message, {
           source: "facilix-processor",
           recordingId,

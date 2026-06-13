@@ -1,4 +1,5 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { FacilitySettings } from "#/src/lib/monitoring/logs";
 import type { CanvasLayoutData } from "#/src/routes/(platform)/facility.$id/-helpers/types";
 
 export const asset = sqliteTable("assets", {
@@ -103,6 +104,7 @@ export const facility = sqliteTable("facilities", {
     .$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   data: text("data", { mode: "json" }).$type<CanvasLayoutData>().notNull(),
+  settings: text("settings", { mode: "json" }).$type<FacilitySettings>().default("{}").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$default(() => new Date()),

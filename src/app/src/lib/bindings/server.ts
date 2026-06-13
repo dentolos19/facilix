@@ -1,4 +1,7 @@
 import { Container } from "@cloudflare/containers";
+import { eq } from "drizzle-orm";
+import { createDatabase, schema } from "#/src/lib/database";
+import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
 
 const PORT = 3001;
 
@@ -11,9 +14,10 @@ export class Server extends Container<Env> {
     return this.ctx.id.name();
   }
 
-  /** Record a lifecycle event to the DO observations table and to D1 facility_events. */
+  /** Record a lifecycle event to the DO observations table and, if important, to D1 facility_events. */
   private async recordEvent(type: string, extra: Record<string, unknown> = {}): Promise<void> {
     const { level = "info", message } = extra as { level?: string; message?: string };
+    const severity = (level === "warn" || level === "error" ? level : "info") as LogSeverity;
 
     // 1. Always write to DO observations for Container Logs
     try {
@@ -29,14 +33,24 @@ export class Server extends Container<Env> {
 
     // 2. Persist lifecycle events to D1 facility_events
     try {
-      const { createDatabase, schema } = await import("#/src/lib/database");
       const db = createDatabase(this.env.DATABASE);
+      const [facRow] = await db
+        .select({ settings: schema.facility.settings })
+        .from(schema.facility)
+        .where(eq(schema.facility.id, this.facilityId))
+        .limit(1);
+      const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
+
+      if (!shouldShowInGlobalEvents(type, severity, settings)) {
+        return;
+      }
+
       const now = new Date();
       await db.insert(schema.facilityEvent).values({
         id: crypto.randomUUID(),
         facilityId: this.facilityId,
         deviceId: null,
-        severity: (level === "warn" || level === "error" ? level : "info") as "info" | "warn" | "error",
+        severity,
         type,
         message: (message as string) ?? type,
         data: extra,

@@ -2,25 +2,8 @@ import { eq } from "drizzle-orm";
 import { createDatabase } from "#/src/lib/database";
 import * as schema from "#/src/lib/database/schema";
 import { createStorage } from "#/src/lib/storage";
+import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
 import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
-
-// Event types that are high-volume / low-importance and belong in DO observations only.
-const OBSERVATION_ONLY_TYPES = new Set(["monitoring:heartbeat", "cctv:frame:ok", "sensor:reading"]);
-
-/**
- * Returns true if an event is important enough to persist in D1 facility_events.
- * All events always go to the DO observations table for Container Logs.
- */
-function shouldPersistToD1(type: string, severity: string): boolean {
-  // Warnings and errors are always important
-  if (severity === "warn" || severity === "error") return true;
-  // Facility lifecycle events are important
-  if (type === "monitoring:started" || type === "monitoring:stopped") return true;
-  // Skip high-volume observation-only types
-  if (OBSERVATION_ONLY_TYPES.has(type)) return false;
-  // Everything else (anomalies, alerts, segment stored, etc.) is important
-  return true;
-}
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 
@@ -199,16 +182,23 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     return Response.json({ error: "Device not found for this facility" }, { status: 404 });
   }
 
-  const severity = body.severity as "info" | "warn" | "error";
+  const severity = body.severity as LogSeverity;
   const enrichedData = { ...body.data, source: "monitoring-container" };
   const observer = env.OBSERVER.getByName(facilityId);
 
   // 1. Always write to DO observations for Container Logs
   await recordObservation(observer, body.deviceId, body.type, severity, body.message, enrichedData);
 
-  // 2. Persist high-level events to D1 facility_events
-  // If the event is facility-level (deviceId === facilityId), store null for deviceId.
-  if (shouldPersistToD1(body.type, severity)) {
+  // 2. Persist to D1 facility_events only when the log is important or the user
+  //    explicitly enabled this log type in facility settings.
+  const [facRow] = await db
+    .select({ settings: schema.facility.settings })
+    .from(schema.facility)
+    .where(eq(schema.facility.id, facilityId))
+    .limit(1);
+  const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
+  if (shouldShowInGlobalEvents(body.type, severity, settings)) {
+    // If the event is facility-level (deviceId === facilityId), store null for deviceId.
     await recordFacilityEvent(db, facilityId, device?.id ?? null, body.type, severity, body.message, enrichedData);
   }
 
@@ -337,22 +327,31 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
       sizeBytes: buffer.byteLength,
     },
   );
-  await recordFacilityEvent(
-    db,
-    facilityId,
-    deviceId,
-    "cctv:segment:stored",
-    "info",
-    `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
-    {
-      source: "monitoring-container",
-      assetId: asset.id,
-      recordingId,
-      durationSec,
-      contentType,
-      sizeBytes: buffer.byteLength,
-    },
-  );
+
+  const [facRow] = await db
+    .select({ settings: schema.facility.settings })
+    .from(schema.facility)
+    .where(eq(schema.facility.id, facilityId))
+    .limit(1);
+  const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
+  if (shouldShowInGlobalEvents("cctv:segment:stored", "info", settings)) {
+    await recordFacilityEvent(
+      db,
+      facilityId,
+      deviceId,
+      "cctv:segment:stored",
+      "info",
+      `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
+      {
+        source: "monitoring-container",
+        assetId: asset.id,
+        recordingId,
+        durationSec,
+        contentType,
+        sizeBytes: buffer.byteLength,
+      },
+    );
+  }
 
   // Dispatch the durable processor — aggregates frame detections in the
   // [startedAt, endedAt] window, optionally calls a vision model, and

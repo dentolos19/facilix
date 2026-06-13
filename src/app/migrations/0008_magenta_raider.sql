@@ -1,0 +1,1 @@
+ALTER TABLE `facilities` ADD `settings` text DEFAULT '{}' NOT NULL;
