@@ -15,10 +15,10 @@ API_BASE = f"{APP_ORIGIN}/api/facility/{FACILITY_ID}/monitoring"
 AUTH_HEADER = {"Authorization": f"Bearer {INGEST_TOKEN}"}
 CONFIG_READY = bool(FACILITY_ID and INGEST_TOKEN)
 
-# Tuning
-FRAME_INTERVAL_SEC = 30  # sample one frame every 30 s per CCTV
-SEGMENT_INTERVAL_SEC = 60  # create one video segment every 60 s per CCTV
-SEGMENT_DURATION_SEC = 30  # actual segment length in ffmpeg
+# Tuning — these are fallback defaults only.
+# Per-CCTV capture settings from the frontend always take precedence.
+FRAME_INTERVAL_SEC = 5  # sample one frame every 5 s per CCTV (default)
+SEGMENT_DURATION_SEC = 30  # actual segment length in ffmpeg (default)
 HEARTBEAT_INTERVAL_SEC = 120  # post monitoring:heartbeat every 2 min
 HTTP_TIMEOUT_SEC = 30
 

@@ -114,6 +114,10 @@ export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
     iconColor: "#10b981",
     iconShape: "camera",
     plugins: [],
+    capture: {
+      frames: { enabled: true, intervalSec: 5 },
+      segments: { enabled: true, intervalSec: 30, durationSec: 30 },
+    },
   },
   Sensor: {
     sensorDataSource: "simulation",

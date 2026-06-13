@@ -79,11 +79,13 @@ async def fetch_config() -> dict[str, Any] | None:
         return None
 
 
-async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0) -> None:
+async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0, captured_at: float = 0) -> None:
     """POST a sampled frame to the Worker frames endpoint."""
     idem_key = f"{device_id}-frame-{seq}" if seq else f"{device_id}-frame-{int(time.time())}"
     url = f"{API_BASE}/frames"
-    cctv_log.debug("upload_frame -> %s (idem=%s, %dB)", url, idem_key, len(frame_data))
+    captured_iso = now_iso(captured_at) if captured_at else now_iso()
+
+    cctv_log.debug("upload_frame -> %s (idem=%s, %dB, seq=%d)", url, idem_key, len(frame_data), seq)
     try:
         client = get_http_client()
         t0 = time.monotonic()
@@ -94,6 +96,8 @@ async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0) -> None:
                 "X-Device-Id": device_id,
                 "Content-Type": "image/jpeg",
                 "Idempotency-Key": idem_key,
+                "X-Sequence": str(seq),
+                "X-Captured-At": captured_iso,
             },
             content=frame_data,
         )
@@ -106,10 +110,20 @@ async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0) -> None:
         cctv_log.exception("upload_frame error: %s", exc)
 
 
-async def upload_segment(device_id: str, segment_data: bytes, duration: float, seq: int = 0) -> None:
+async def upload_segment(
+    device_id: str,
+    segment_data: bytes,
+    duration: float,
+    seq: int = 0,
+    started_at: float = 0,
+    ended_at: float = 0,
+) -> None:
     """POST a video segment to the Worker segments endpoint."""
     idem_key = f"{device_id}-segment-{seq}" if seq else f"{device_id}-segment-{int(time.time())}"
     url = f"{API_BASE}/segments"
+    started_iso = now_iso(started_at) if started_at else now_iso()
+    ended_iso = now_iso(ended_at) if ended_at else now_iso()
+
     cctv_log.info(
         "upload_segment -> %s (idem=%s, %.1fMB, %.1fs)",
         url,
@@ -127,7 +141,9 @@ async def upload_segment(device_id: str, segment_data: bytes, duration: float, s
                 "X-Device-Id": device_id,
                 "Content-Type": "video/mp4",
                 "X-Duration-Sec": str(int(duration)),
-                "X-Timestamp": now_iso(),
+                "X-Started-At": started_iso,
+                "X-Ended-At": ended_iso,
+                "X-Sequence": str(seq),
                 "Idempotency-Key": idem_key,
             },
             content=segment_data,

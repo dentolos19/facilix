@@ -391,11 +391,11 @@ export const getFacilityAnalytics = createServerFn({ method: "GET" })
     const totalSensorReadings = readingsInRange.length;
     const sensorStatusCountsData = countBy(readingsInRange.map((r) => r.status));
 
-    // ── 6. Video recordings in range ────────────────────────────────────
+    // ── 6. Video segments in range ────────────────────────────────────
     const recordingRows = await db
       .select()
-      .from(schema.videoRecording)
-      .where(and(eq(schema.videoRecording.facilityId, facilityId), gte(schema.videoRecording.createdAt, since)));
+      .from(schema.videoSegment)
+      .where(and(eq(schema.videoSegment.facilityId, facilityId), gte(schema.videoSegment.createdAt, since)));
 
     const recordingCount = recordingRows.length;
     const totalRecordingDurationSec = recordingRows.reduce((acc, r) => acc + (r.durationSec ?? 0), 0);

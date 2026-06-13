@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { FacilitySettings } from "#/lib/monitoring/logs";
 import type { CanvasLayoutData, JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
@@ -104,7 +105,7 @@ export const facility = sqliteTable("facilities", {
     .$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   data: text("data", { mode: "json" }).$type<CanvasLayoutData>().notNull(),
-  settings: text("settings", { mode: "json" }).$type<FacilitySettings>().default("{}").notNull(),
+  settings: text("settings", { mode: "json" }).$type<FacilitySettings>().default(sql`'{}'`).notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$default(() => new Date()),
@@ -177,11 +178,11 @@ export const facilityEvent = sqliteTable("facility_events", {
 });
 
 /**
- * Recorded CCTV segment metadata stored in D1 alongside R2.
+ * Recorded CCTV video segment metadata stored in D1 alongside R2.
  * The actual binary is in the R2 bucket — the `assetId` column
  * references the `assets` table which holds storage metadata.
  */
-export const videoRecording = sqliteTable("video_recordings", {
+export const videoSegment = sqliteTable("video_segments", {
   id: text("id")
     .primaryKey()
     .$default(() => crypto.randomUUID()),
@@ -198,6 +199,32 @@ export const videoRecording = sqliteTable("video_recordings", {
   durationSec: integer("duration_sec"),
   startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
   endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$default(() => new Date()),
+});
+
+/**
+ * Individual CCTV frame metadata stored in D1 alongside R2.
+ * Each captured frame gets a row here. The JPEG binary is in R2.
+ */
+export const videoFrame = sqliteTable("video_frames", {
+  id: text("id")
+    .primaryKey()
+    .$default(() => crypto.randomUUID()),
+  assetId: text("asset_id")
+    .notNull()
+    .references(() => asset.id, { onDelete: "cascade" }),
+  segmentId: text("segment_id").references(() => videoSegment.id, { onDelete: "set null" }),
+  facilityId: text("facility_id")
+    .notNull()
+    .references(() => facility.id, { onDelete: "cascade" }),
+  deviceId: text("device_id")
+    .notNull()
+    .references(() => facilityDevice.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull(),
+  capturedAt: integer("captured_at", { mode: "timestamp_ms" }).notNull(),
+  data: text("data", { mode: "json" }).default("{}").$type<Record<string, unknown>>().notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$default(() => new Date()),
@@ -255,6 +282,7 @@ export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
-export type VideoRecording = typeof videoRecording.$inferSelect;
+export type VideoSegment = typeof videoSegment.$inferSelect;
+export type VideoFrame = typeof videoFrame.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;

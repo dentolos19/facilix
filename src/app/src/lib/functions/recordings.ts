@@ -30,7 +30,7 @@ export interface RecordingRow {
   } | null;
 }
 
-function toRecording(row: typeof schema.videoRecording.$inferSelect): RecordingRow {
+function toRecording(row: typeof schema.videoSegment.$inferSelect): RecordingRow {
   return {
     id: row.id,
     assetId: row.assetId,
@@ -44,8 +44,21 @@ function toRecording(row: typeof schema.videoRecording.$inferSelect): RecordingR
   };
 }
 
+export interface FrameRow {
+  id: string;
+  assetId: string;
+  segmentId: string | null;
+  facilityId: string;
+  deviceId: string;
+  sequence: number;
+  capturedAt: Date;
+  createdAt: Date;
+  /** Per-frame analysis results from the processor. */
+  data: Record<string, unknown> | null;
+}
+
 /**
- * Get the most recent video recordings for a specific CCTV device.
+ * Get the most recent video segments for a specific CCTV device.
  * Results are newest-first, limited to `limit` (default 50, max 200).
  */
 export const getDeviceRecordings = createServerFn({ method: "GET" })
@@ -60,9 +73,9 @@ export const getDeviceRecordings = createServerFn({ method: "GET" })
 
     const rows = await db
       .select()
-      .from(schema.videoRecording)
-      .where(eq(schema.videoRecording.deviceId, data.deviceId))
-      .orderBy(desc(schema.videoRecording.createdAt))
+      .from(schema.videoSegment)
+      .where(eq(schema.videoSegment.deviceId, data.deviceId))
+      .orderBy(desc(schema.videoSegment.createdAt))
       .limit(limit);
 
     return rows.map(toRecording);

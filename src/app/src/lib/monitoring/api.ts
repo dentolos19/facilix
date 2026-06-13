@@ -28,6 +28,34 @@ function resolveCctvStreamUrl(data: JsonObject, simulationRtspBase: string): str
   return String(data.streamUrl ?? "");
 }
 
+/**
+ * Normalize a CCTV capture config from device props into monitoring config fields.
+ * Always returns safe defaults so the Python container doesn't need defaults.
+ */
+function normalizeCaptureConfig(raw: unknown): {
+  frameCaptureEnabled: boolean;
+  frameIntervalSec: number;
+  segmentCaptureEnabled: boolean;
+  segmentIntervalSec: number;
+  segmentDurationSec: number;
+} {
+  const cfg = (raw ?? {}) as Record<string, unknown>;
+  const frames = (cfg.frames ?? {}) as Record<string, unknown>;
+  const segments = (cfg.segments ?? {}) as Record<string, unknown>;
+
+  const frameIntervalSec = Number(frames.intervalSec ?? 5);
+  const segmentIntervalSec = Number(segments.intervalSec ?? 30);
+  const segmentDurationSec = Number(segments.durationSec ?? 30);
+
+  return {
+    frameCaptureEnabled: frames.enabled !== false,
+    frameIntervalSec: Number.isFinite(frameIntervalSec) && frameIntervalSec >= 1 ? frameIntervalSec : 5,
+    segmentCaptureEnabled: segments.enabled !== false,
+    segmentIntervalSec: Number.isFinite(segmentIntervalSec) && segmentIntervalSec >= 5 ? segmentIntervalSec : 30,
+    segmentDurationSec: Number.isFinite(segmentDurationSec) && segmentDurationSec >= 5 ? segmentDurationSec : 30,
+  };
+}
+
 export type MonitoringApiAction = "config" | "events" | "frames" | "segments";
 
 function pad2(n: number): string {
@@ -142,6 +170,7 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
         videoSource: String(d.data.videoSource ?? "simulation"),
         simulationStream: String(d.data.simulationStream ?? ""),
         status: d.status,
+        ...normalizeCaptureConfig(d.data.capture),
       })),
     sensors: devices
       .filter((d) => d.type === "Sensor")
@@ -234,7 +263,11 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   if (buffer.byteLength === 0) return Response.json({ error: "Empty frame" }, { status: 400 });
 
   // Persist the frame to R2 so the workflow can read it durably.
-  const capturedAt = new Date();
+  const capturedAtHeader = request.headers.get("X-Captured-At");
+  const capturedAt = capturedAtHeader ? new Date(capturedAtHeader) : new Date();
+  if (Number.isNaN(capturedAt.getTime()))
+    return Response.json({ error: "Invalid X-Captured-At header" }, { status: 400 });
+
   const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(capturedAt);
   const sequenceHeader = request.headers.get("X-Sequence");
   const sequence = sequenceHeader ? Number(sequenceHeader) : 0;
@@ -244,19 +277,31 @@ async function handleFrame(request: Request, env: Env, facilityId: string): Prom
   const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
+  // Persist frame metadata to D1 so segment workflows can aggregate it durably.
+  const frameId = crypto.randomUUID();
+  await db.insert(schema.videoFrame).values({
+    id: frameId,
+    assetId: asset.id,
+    facilityId,
+    deviceId,
+    sequence,
+    capturedAt,
+  });
+
   // Dispatch to the durable processor — AI inference + DB writes happen there.
   await env.PROCESSOR.create({
     params: {
       kind: "frame",
       facilityId,
       deviceId,
+      frameId,
       assetId: asset.id,
       capturedAt: capturedAt.toISOString(),
       sequence: Number.isFinite(sequence) ? sequence : 0,
     },
   });
 
-  return Response.json({ success: true, queued: true, assetId: asset.id, sizeBytes: buffer.byteLength });
+  return Response.json({ success: true, queued: true, assetId: asset.id, frameId, sizeBytes: buffer.byteLength });
 }
 
 async function handleSegment(request: Request, env: Env, facilityId: string): Promise<Response> {
@@ -288,9 +333,25 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
       ? parsedDurationSec
       : undefined;
   const timestampHeader = request.headers.get("X-Timestamp");
-  const startedAt = timestampHeader ? new Date(timestampHeader) : new Date();
-  if (Number.isNaN(startedAt.getTime())) return Response.json({ error: "Invalid X-Timestamp header" }, { status: 400 });
-  const endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
+  const startedAtHeader = request.headers.get("X-Started-At");
+  const endedAtHeader = request.headers.get("X-Ended-At");
+
+  let startedAt: Date;
+  let endedAt: Date;
+
+  if (startedAtHeader && endedAtHeader) {
+    startedAt = new Date(startedAtHeader);
+    endedAt = new Date(endedAtHeader);
+    if (Number.isNaN(startedAt.getTime()) || Number.isNaN(endedAt.getTime())) {
+      return Response.json({ error: "Invalid X-Started-At or X-Ended-At header" }, { status: 400 });
+    }
+  } else {
+    // Fallback: derive from X-Timestamp + duration for backwards compatibility
+    startedAt = timestampHeader ? new Date(timestampHeader) : new Date();
+    if (Number.isNaN(startedAt.getTime()))
+      return Response.json({ error: "Invalid X-Timestamp header" }, { status: 400 });
+    endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
+  }
 
   // Use date-prefixed key to avoid collision across days: YYYYMMDD/HHMMSS-ms.mp4
   const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(startedAt);
@@ -301,9 +362,9 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   const fileName = `${yyyy}${mm}${dd}/${hh}${min}${ss}-${ms}.mp4`;
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
-  const recordingId = crypto.randomUUID();
-  await db.insert(schema.videoRecording).values({
-    id: recordingId,
+  const segmentId = crypto.randomUUID();
+  await db.insert(schema.videoSegment).values({
+    id: segmentId,
     assetId: asset.id,
     facilityId,
     deviceId,
@@ -322,7 +383,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     {
       source: "monitoring-container",
       assetId: asset.id,
-      recordingId,
+      segmentId,
       durationSec,
       contentType,
       sizeBytes: buffer.byteLength,
@@ -346,7 +407,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
       {
         source: "monitoring-container",
         assetId: asset.id,
-        recordingId,
+        segmentId,
         durationSec,
         contentType,
         sizeBytes: buffer.byteLength,
@@ -356,13 +417,13 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
 
   // Dispatch the durable processor — aggregates frame detections in the
   // [startedAt, endedAt] window, optionally calls a vision model, and
-  // writes the resulting summary onto video_recordings.data.
+  // writes the resulting summary onto video_segments.data.
   await env.PROCESSOR.create({
     params: {
       kind: "segment",
       facilityId,
       deviceId,
-      recordingId,
+      segmentId,
       assetId: asset.id,
       startedAt: startedAt.toISOString(),
       endedAt: endedAt.toISOString(),
@@ -373,7 +434,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   return Response.json({
     success: true,
     queued: true,
-    recordingId,
+    segmentId,
     assetId: asset.id,
     sizeBytes: buffer.byteLength,
   });

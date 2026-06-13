@@ -24,6 +24,7 @@ import { fetchSimulationStreams } from "#/lib/simulation/cctv";
 import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
+import { CaptureSettingsSection } from "./capture-settings";
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
@@ -337,6 +338,23 @@ export function PropertiesPanel({
                       onChange={(next) =>
                         onUpdateItem(selected.id, {
                           props: { plugins: next as unknown as import("../-helpers/types").JsonValue },
+                        })
+                      }
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+
+              {selected.type === "CCTV" && (
+                <AccordionItem value="capture-settings">
+                  <AccordionTrigger>Capture Settings</AccordionTrigger>
+                  <AccordionContent>
+                    <CaptureSettingsSection
+                      capture={selected.props.capture}
+                      isReadOnly={isReadOnly}
+                      onChange={(next) =>
+                        onUpdateItem(selected.id, {
+                          props: { capture: next as unknown as import("../-helpers/types").JsonValue },
                         })
                       }
                     />
@@ -811,7 +829,7 @@ function PluginCard({
   onChange,
   onRemove,
 }: {
-  plugin: IntelligencePlugin;
+  plugin: Plugin;
   config: DevicePluginConfig;
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
@@ -898,7 +916,7 @@ function ObjectAnomalyConfig({
   config: ObjectAnomalyDeviceConfig;
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
-  plugin: IntelligencePlugin;
+  plugin: Plugin;
 }) {
   const selectedSet = new Set(config.selectedAnomalies);
   const toggleAnomaly = (id: string, checked: boolean) => {
@@ -968,7 +986,7 @@ function ObjectCountingConfig({
   config: ObjectCountingDeviceConfig;
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
-  plugin: IntelligencePlugin;
+  plugin: Plugin;
 }) {
   const selectedSet = new Set(config.selectedSignals);
   const toggleSignal = (id: string, checked: boolean) => {

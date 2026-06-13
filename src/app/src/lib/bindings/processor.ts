@@ -1,5 +1,5 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { summarizeImage, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import type { Detection } from "#/lib/monitoring/detection";
@@ -35,6 +35,7 @@ export type FramePayload = {
   kind: "frame";
   facilityId: string;
   deviceId: string;
+  frameId: string;
   assetId: string;
   capturedAt: string; // ISO timestamp
   sequence: number;
@@ -44,7 +45,7 @@ export type SegmentPayload = {
   kind: "segment";
   facilityId: string;
   deviceId: string;
-  recordingId: string;
+  segmentId: string;
   assetId: string;
   startedAt: string; // ISO timestamp
   endedAt: string; // ISO timestamp
@@ -68,7 +69,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
   // ── Frame branch ──────────────────────────────────────────────────────
 
   private async runFrame(payload: FramePayload, step: WorkflowStep): Promise<{ anomalyCount: number; total: number }> {
-    const { facilityId, deviceId, assetId, capturedAt } = payload;
+    const { facilityId, deviceId, frameId, assetId, capturedAt } = payload;
 
     // Load the CCTV device's intelligence-plugin config. If a device has no
     // enabled plugins, no Roboflow calls are made and no anomalies can
@@ -268,6 +269,43 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       return { anomalyCount: totalAlerts, total: detections.length };
     });
 
+    // Persist per-frame analysis results to video_frames.data so segment
+    // workflows can aggregate detections/anomalies durably from D1.
+    await step.do("persist-frame-data", STEP_RETRIES, async () => {
+      const db = createDatabase(this.env.DATABASE);
+      const frameData: Record<string, unknown> = {
+        source: "facilix-processor",
+        detections: detections.map((d) => ({
+          label: d.label,
+          confidence: d.confidence,
+          box: d.box ? { xmin: d.box.xmin, ymin: d.box.ymin, xmax: d.box.xmax, ymax: d.box.ymax } : null,
+          modelId: d.modelId,
+        })),
+        anomalyCount: anomalies.length,
+        anomalies: anomalies.map((a) => ({
+          label: a.detection.label,
+          confidence: a.detection.confidence,
+          pluginId: a.pluginId,
+          pluginName: a.pluginName,
+          optionId: a.optionId,
+          optionLabel: a.optionLabel,
+        })),
+        detectionCounts: Object.fromEntries(
+          Array.from(counts.values()).map((entry) => [entry.plugin.plugin.name, entry.count]),
+        ),
+        thresholdAlerts: thresholdAlerts.map((ta) => ({
+          pluginId: ta.pluginId,
+          pluginName: ta.pluginName,
+          count: ta.count,
+          threshold: ta.config.threshold,
+          operator: ta.config.operator,
+        })),
+        enabledPluginIds: enabledFramePlugins.map((r) => r.plugin.id),
+        analyzedAt: new Date().toISOString(),
+      };
+      await db.update(schema.videoFrame).set({ data: frameData }).where(eq(schema.videoFrame.id, frameId));
+    });
+
     return { anomalyCount: totalAlerts, total: detections.length };
   }
 
@@ -277,15 +315,29 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     payload: SegmentPayload,
     step: WorkflowStep,
   ): Promise<{ detectionCounts: Record<string, number>; anomalyCount: number }> {
-    const { facilityId, deviceId, recordingId, startedAt, endedAt } = payload;
+    const { facilityId, deviceId, segmentId, startedAt, endedAt } = payload;
 
-    const windowEvents = await step.do("load-window-detections", STEP_RETRIES, async () => {
-      const observer = this.env.OBSERVER.getByName(facilityId);
-      return observer.queryByDeviceWindow(deviceId, startedAt, endedAt, ["cctv:frame:ok", "cctv:anomaly"]);
-    });
+    // Sleep briefly to allow in-flight frame workflows to finish writing
+    // their results to video_frames before we aggregate.
+    await step.sleep("wait-for-frames", "5 seconds");
 
-    const aggregate = await step.do("aggregate", async () => {
+    // Aggregate analysis from video_frames rows that fall within the
+    // segment's time window. This is durable — frame results persist in D1.
+    const aggregate = await step.do("aggregate-frame-data", STEP_RETRIES, async () => {
+      const db = createDatabase(this.env.DATABASE);
       const startMs = new Date(startedAt).getTime();
+      const frameRows = await db
+        .select()
+        .from(schema.videoFrame)
+        .where(
+          and(
+            eq(schema.videoFrame.deviceId, deviceId),
+            gte(schema.videoFrame.capturedAt, new Date(startedAt)),
+            lte(schema.videoFrame.capturedAt, new Date(endedAt)),
+          ),
+        )
+        .orderBy(desc(schema.videoFrame.capturedAt));
+
       const detectionCounts: Record<string, number> = {};
       const anomalies: Array<{
         label: string;
@@ -298,45 +350,82 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         optionLabel?: string;
       }> = [];
       const frameSamples: string[] = [];
+      let pendingFrameCount = 0;
 
-      for (const ev of windowEvents) {
-        let parsed: Record<string, unknown> = {};
-        try {
-          parsed = JSON.parse(ev.data) as Record<string, unknown>;
-        } catch {
+      for (const frame of frameRows) {
+        if (frameSamples.length < 12) frameSamples.push(frame.assetId);
+
+        const frameData = frame.data as Record<string, unknown> | null;
+        if (!frameData || !frameData.analyzedAt) {
+          pendingFrameCount++;
           continue;
         }
-        const assetId = typeof parsed.assetId === "string" ? parsed.assetId : undefined;
-        if (assetId && frameSamples.length < 12) frameSamples.push(assetId);
 
-        if (ev.type === "cctv:anomaly") {
-          const label = typeof parsed.label === "string" ? parsed.label : "unknown";
-          const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
-          const atSec = Math.max(0, Math.round((new Date(ev.createdAt).getTime() - startMs) / 1000));
-          const optionLabel = typeof parsed.optionLabel === "string" ? parsed.optionLabel : label;
-          const pluginId = typeof parsed.pluginId === "string" ? parsed.pluginId : undefined;
-          const pluginName = typeof parsed.pluginName === "string" ? parsed.pluginName : undefined;
-          const optionId = typeof parsed.optionId === "string" ? parsed.optionId : undefined;
-          const displayLabel = pluginName ? `${pluginName} · ${optionLabel}` : optionLabel;
-          detectionCounts[displayLabel] = (detectionCounts[displayLabel] ?? 0) + 1;
-          anomalies.push({
-            label,
-            confidence,
-            atSec,
-            assetId,
-            pluginId,
-            pluginName,
-            optionId,
-            optionLabel,
-          });
-        } else if (ev.type === "cctv:frame:ok") {
-          const objectCount = typeof parsed.objectCount === "number" ? parsed.objectCount : 0;
-          if (objectCount > 0) {
-            detectionCounts.__objectsObserved = (detectionCounts.__objectsObserved ?? 0) + objectCount;
+        // Aggregate detection counts
+        const counts = frameData.detectionCounts as Record<string, number> | undefined;
+        if (counts) {
+          for (const [label, count] of Object.entries(counts)) {
+            detectionCounts[label] = (detectionCounts[label] ?? 0) + count;
+          }
+        }
+
+        // Aggregate anomalies
+        const frameAnomalies = frameData.anomalies as Array<Record<string, unknown>> | undefined;
+        if (frameAnomalies) {
+          for (const a of frameAnomalies) {
+            const atSec = Math.max(0, Math.round((frame.capturedAt.getTime() - startMs) / 1000));
+            detectionCounts[(a.pluginName ?? a.optionLabel ?? a.label) as string] =
+              (detectionCounts[(a.pluginName ?? a.optionLabel ?? a.label) as string] ?? 0) + 1;
+            anomalies.push({
+              label: (a.label as string) ?? "unknown",
+              confidence: (a.confidence as number) ?? 0,
+              atSec,
+              assetId: frame.assetId,
+              pluginId: a.pluginId as string | undefined,
+              pluginName: a.pluginName as string | undefined,
+              optionId: a.optionId as string | undefined,
+              optionLabel: a.optionLabel as string | undefined,
+            });
           }
         }
       }
-      return { detectionCounts, anomalies, frameSamples };
+
+      // Fallback: if no frames found in D1, try facility_events for anomaly data
+      if (frameRows.length === 0) {
+        const eventRows = await db
+          .select()
+          .from(schema.facilityEvent)
+          .where(
+            and(
+              eq(schema.facilityEvent.deviceId, deviceId),
+              eq(schema.facilityEvent.type, "cctv:anomaly"),
+              gte(schema.facilityEvent.createdAt, new Date(startedAt)),
+              lte(schema.facilityEvent.createdAt, new Date(endedAt)),
+            ),
+          )
+          .orderBy(desc(schema.facilityEvent.createdAt));
+
+        for (const ev of eventRows) {
+          const ed = ev.data as Record<string, unknown>;
+          if (ev.deviceId && frameSamples.length < 12 && ed.assetId) {
+            frameSamples.push(ed.assetId as string);
+          }
+          const label = typeof ed.optionLabel === "string" ? ed.optionLabel : ((ed.label as string) ?? "unknown");
+          detectionCounts[label] = (detectionCounts[label] ?? 0) + 1;
+          anomalies.push({
+            label: label,
+            confidence: (ed.confidence as number) ?? 0,
+            atSec: 0,
+            assetId: ed.assetId as string | undefined,
+            pluginId: ed.pluginId as string | undefined,
+            pluginName: ed.pluginName as string | undefined,
+            optionId: ed.optionId as string | undefined,
+            optionLabel: ed.optionLabel as string | undefined,
+          });
+        }
+      }
+
+      return { detectionCounts, anomalies, frameSamples, frameCount: frameRows.length, pendingFrameCount };
     });
 
     const sceneSummary = await step.do<string | null>("summarize-scene", STEP_RETRIES, async () => {
@@ -349,29 +438,23 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         `This is a CCTV segment from a monitored facility. Detected anomalies in this segment: ${labelList || "none"}. ` +
         "Describe what is happening in the scene in one or two sentences. Be factual and concise.";
 
-      // Preferred path: send the full video clip to the multimodal
-      // OpenRouter model when we have an assetId that points at a
-      // segment file. Falls back to the best single frame if video
+      // Preferred path: send the actual segment video clip to the multimodal
+      // OpenRouter model. Falls back to the best single frame if video
       // input fails for any reason.
       if (aggregate.anomalies.length > 0) {
-        const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
-        if (best.assetId) {
-          try {
-            const segmentObject = await this.env.BUCKET.get(best.assetId);
-            if (segmentObject) {
-              const buffer = await segmentObject.arrayBuffer();
-              const summary = await summarizeVideo(new Uint8Array(buffer), "video/mp4", basePrompt);
-              if (summary) return summary;
-            }
-          } catch (err) {
-            // Fall through to image summary if the model can't accept
-            // video input or any other transient error occurs.
-            console.error("summarizeVideo failed, falling back to image:", err);
+        try {
+          const segmentObject = await this.env.BUCKET.get(payload.assetId);
+          if (segmentObject) {
+            const buffer = await segmentObject.arrayBuffer();
+            const summary = await summarizeVideo(new Uint8Array(buffer), "video/mp4", basePrompt);
+            if (summary) return summary;
           }
+        } catch (err) {
+          console.error("summarizeVideo failed, falling back to image:", err);
         }
       }
 
-      // Fallback: best-detection frame as a JPEG.
+      // Fallback: best-anomaly frame as a JPEG.
       if (aggregate.anomalies.length > 0) {
         const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
         if (best.assetId) {
@@ -393,10 +476,12 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         detectionCounts: aggregate.detectionCounts,
         anomalies: aggregate.anomalies,
         frameSamples: aggregate.frameSamples,
+        frameCount: aggregate.frameCount,
+        pendingFrameCount: aggregate.pendingFrameCount,
         sceneSummary,
         analyzedAt: new Date().toISOString(),
       };
-      await db.update(schema.videoRecording).set({ data }).where(eq(schema.videoRecording.id, recordingId));
+      await db.update(schema.videoSegment).set({ data }).where(eq(schema.videoSegment.id, segmentId));
 
       const observer = this.env.OBSERVER.getByName(facilityId);
       const anomalyCount = aggregate.anomalies.length;
@@ -405,7 +490,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         : `Segment analyzed — ${anomalyCount} anomal${anomalyCount === 1 ? "y" : "ies"}`;
       await recordObservation(observer, deviceId, "cctv:segment:analyzed", "info", message, {
         source: "facilix-processor",
-        recordingId,
+        segmentId,
         anomalyCount,
         detectionCounts: aggregate.detectionCounts,
       });
@@ -419,7 +504,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       if (shouldShowInGlobalEvents("cctv:segment:analyzed", "info", settings)) {
         await recordFacilityEvent(db, facilityId, deviceId, "cctv:segment:analyzed", "info", message, {
           source: "facilix-processor",
-          recordingId,
+          segmentId,
           anomalyCount,
           detectionCounts: aggregate.detectionCounts,
           sceneSummary,

@@ -14,8 +14,13 @@ from config import HTTP_TIMEOUT_SEC, HTTPX_LOG_LEVEL, LOG_LEVEL
 # ---------------------------------------------------------------------------
 
 
-def now_iso() -> str:
-    """Return the current UTC timestamp as an ISO 8601 string."""
+def now_iso(ts: float | None = None) -> str:
+    """Return a UTC timestamp as an ISO 8601 string.
+
+    If ``ts`` is given (seconds since epoch), converts that; otherwise current time.
+    """
+    if ts is not None:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
     return datetime.now(timezone.utc).isoformat()
 
 
