@@ -1,7 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+import { summarizeImage, summarizeVideo } from "#/src/lib/ai";
 import { createDatabase, schema } from "#/src/lib/database";
-import { ANOMALY_CLASSES, type Detection, type DetectionBox, MIN_CONFIDENCE } from "#/src/lib/monitoring/detection";
+import { ANOMALY_CLASSES, type Detection } from "#/src/lib/monitoring/detection";
+import { detectObjects } from "#/src/lib/monitoring/roboflow";
 import { recordFacilityEvent, recordObservation } from "#/src/lib/monitoring/utils";
 
 /**
@@ -11,6 +13,10 @@ import { recordFacilityEvent, recordObservation } from "#/src/lib/monitoring/uti
  * (`monitoring/api.ts`), then the workflow is dispatched with a JSON pointer
  * (`assetId` + metadata). Each AI inference / DB write runs inside `step.do`,
  * which retries automatically on transient failures.
+ *
+ * Object detection is performed by Roboflow hosted inference
+ * (`monitoring/roboflow.ts`) and scene understanding by OpenRouter
+ * (`lib/ai.ts`).
  *
  * Triggered from `handleFrame` and `handleSegment` via `env.PROCESSOR.create({ params })`.
  */
@@ -58,23 +64,16 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       const object = await this.env.BUCKET.get(assetId);
       if (!object) throw new Error(`frame not found in R2: ${assetId}`);
       const buffer = await object.arrayBuffer();
-      return Array.from(new Uint8Array(buffer));
+      return new Uint8Array(buffer);
     });
 
     const detections = await step.do<Detection[]>("detect-objects", STEP_RETRIES, async () => {
-      const aiResult = await this.env.AI.run("@cf/facebook/detr-resnet-50", {
-        image: frameBytes,
-      });
-      if (!Array.isArray(aiResult)) return [];
-      return (aiResult as Array<{ label: string; score: number; box?: DetectionBox }>)
-        .filter((d) => d.score >= MIN_CONFIDENCE)
-        .map((d) => ({ label: d.label, confidence: d.score, box: d.box }));
+      return detectObjects(frameBytes);
     });
 
     const anomalies = detections.filter((d) => ANOMALY_CLASSES.has(d.label));
 
     await step.do("record-detections", STEP_RETRIES, async () => {
-      const db = createDatabase(this.env.DATABASE);
       const observer = this.env.OBSERVER.getByName(facilityId);
 
       if (anomalies.length === 0) {
@@ -104,10 +103,36 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           detectionCount: anomalies.length,
           assetId,
           capturedAt,
+          modelId: det.modelId,
         };
         await recordObservation(observer, deviceId, "cctv:anomaly", severity, message, data);
-        await recordFacilityEvent(db, facilityId, deviceId, "cctv:anomaly", severity, message, data);
       }
+
+      // Persist anomalies to D1 in a single batched write so we don't
+      // hold a Durable Object open while writing many rows.
+      const db = createDatabase(this.env.DATABASE);
+      const now = new Date();
+      await db.insert(schema.facilityEvent).values(
+        anomalies.map((det) => ({
+          id: crypto.randomUUID(),
+          facilityId,
+          deviceId,
+          severity: (det.confidence > 0.7 ? "warn" : "info") as "info" | "warn" | "error",
+          type: "cctv:anomaly",
+          message: `${det.label} detected (${(det.confidence * 100).toFixed(0)}%)`,
+          data: {
+            source: "facilix-processor",
+            label: det.label,
+            confidence: det.confidence,
+            detectionCount: anomalies.length,
+            assetId,
+            capturedAt,
+            modelId: det.modelId,
+          },
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
       return { anomalyCount: anomalies.length, total: detections.length };
     });
 
@@ -160,33 +185,50 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     });
 
     const sceneSummary = await step.do<string | null>("summarize-scene", STEP_RETRIES, async () => {
-      if (aggregate.anomalies.length === 0) return null;
-      const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
-      if (!best.assetId) return null;
-
-      const object = await this.env.BUCKET.get(best.assetId);
-      if (!object) return null;
-      const buffer = await object.arrayBuffer();
-      const imageBytes = Array.from(new Uint8Array(buffer));
-
       const labelList = Object.entries(aggregate.detectionCounts)
         .filter(([k]) => !k.startsWith("__"))
         .map(([label, count]) => `${count}× ${label}`)
         .join(", ");
 
-      const prompt =
-        `This is a CCTV frame from a monitored facility. Detected objects in this segment: ${labelList || "none"}. ` +
-        "Describe what is happening in the frame in one or two sentences. Be factual and concise.";
+      const basePrompt =
+        `This is a CCTV segment from a monitored facility. Detected objects in this segment: ${labelList || "none"}. ` +
+        "Describe what is happening in the scene in one or two sentences. Be factual and concise.";
 
-      const aiResult = await this.env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
-        image: imageBytes,
-        prompt,
-        max_tokens: 200,
-      });
-      const description =
-        (aiResult as { description?: string } | undefined)?.description ??
-        (typeof aiResult === "string" ? aiResult : null);
-      return description?.trim() || null;
+      // Preferred path: send the full video clip to the multimodal
+      // OpenRouter model when we have an assetId that points at a
+      // segment file. Falls back to the best single frame if video
+      // input fails for any reason.
+      if (aggregate.anomalies.length > 0) {
+        const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
+        if (best.assetId) {
+          try {
+            const segmentObject = await this.env.BUCKET.get(best.assetId);
+            if (segmentObject) {
+              const buffer = await segmentObject.arrayBuffer();
+              const summary = await summarizeVideo(new Uint8Array(buffer), "video/mp4", basePrompt);
+              if (summary) return summary;
+            }
+          } catch (err) {
+            // Fall through to image summary if the model can't accept
+            // video input or any other transient error occurs.
+            console.error("summarizeVideo failed, falling back to image:", err);
+          }
+        }
+      }
+
+      // Fallback: best-detection frame as a JPEG.
+      if (aggregate.anomalies.length > 0) {
+        const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
+        if (best.assetId) {
+          const object = await this.env.BUCKET.get(best.assetId);
+          if (object) {
+            const buffer = await object.arrayBuffer();
+            return summarizeImage(new Uint8Array(buffer), "image/jpeg", basePrompt);
+          }
+        }
+      }
+
+      return null;
     });
 
     await step.do("persist", STEP_RETRIES, async () => {

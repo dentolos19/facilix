@@ -19,11 +19,11 @@
     "custom_domain": true
   },
   "vars": {
-    "CCTV_SIMULATION_RTSP_BASE": "rtsp://localhost:3003"
-  },
-  "ai": {
-    "binding": "AI",
-    "remote": true
+    "CCTV_SIMULATION_RTSP_BASE": "rtsp://localhost:3003",
+    "ROBOFLOW_API_BASE": "https://serverless.roboflow.com",
+    "ROBOFLOW_PEOPLE_MODEL_ID": "cctv-naxyo/1",
+    "ROBOFLOW_PPE_MODEL_ID": "ppes-kaxsi/8",
+    "ROBOFLOW_CONFIDENCE": "0.4"
   },
   "d1_databases": [
     {
