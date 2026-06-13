@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq, inArray } from "drizzle-orm";
-import { createDatabase, schema } from "#/src/lib/database";
-import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+import { createDatabase, schema } from "#/lib/database";
+import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 

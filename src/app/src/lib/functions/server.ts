@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
-import type { FacilityStatusEntry, MonitoringStatus } from "#/src/lib/monitoring/types";
+import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
 
 /** Origin the monitoring container uses to call back to the Worker API. */
 const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";

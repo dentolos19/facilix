@@ -1,9 +1,9 @@
 import Hls from "hls.js";
 import { MaximizeIcon, PauseIcon, PlayIcon, VideoIcon, Volume2Icon, VolumeXIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "#/src/components/ui/button";
-import { Dialog, DialogContent } from "#/src/components/ui/dialog";
-import { cn } from "#/src/lib/utils";
+import { Button } from "#/components/ui/button";
+import { Dialog, DialogContent } from "#/components/ui/dialog";
+import { cn } from "#/lib/utils";
 import { ObjectDetectionOverlay } from "./object-detection-overlay";
 
 export interface CctvPlayerProps {
@@ -244,9 +244,9 @@ export function CctvPlayer({
         <ObjectDetectionOverlay enabled={!!objectDetectionEnabled} videoRef={videoRef} />
 
         {/* REC/LIVE indicator */}
-        <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5 pointer-events-none">
-          <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-[9px] font-medium text-white/80 uppercase">LIVE</span>
+        <div className="pointer-events-none absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5">
+          <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
+          <span className="font-medium text-[9px] text-white/80 uppercase">LIVE</span>
           {streamName && <span className="ml-1 text-[9px] text-white/60">{streamName}</span>}
         </div>
       </div>
@@ -518,7 +518,7 @@ function CctvExpandedDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent
-        className="max-w-[85vw] w-[85vw] sm:max-w-[85vw] p-0 gap-0 bg-black overflow-hidden"
+        className="w-[85vw] max-w-[85vw] gap-0 overflow-hidden bg-black p-0 sm:max-w-[85vw]"
         showCloseButton={false}
       >
         <div
@@ -536,11 +536,11 @@ function CctvExpandedDialog({
           {!playing && state === "playing" && (
             <button
               aria-label="Play"
-              className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+              className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/20"
               onClick={togglePlay}
             >
               <div className="flex size-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition-transform hover:scale-105">
-                <PlayIcon className="size-7 text-white fill-white" />
+                <PlayIcon className="size-7 fill-white text-white" />
               </div>
             </button>
           )}
@@ -548,17 +548,17 @@ function CctvExpandedDialog({
           {/* Top bar — stream name + close */}
           <div
             className={cn(
-              "absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-200",
-              showControls ? "opacity-100" : "opacity-0 pointer-events-none",
+              "absolute top-0 right-0 left-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3 transition-opacity duration-200",
+              showControls ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[11px] font-medium text-white/80 uppercase">LIVE</span>
-              {streamName && <span className="text-[11px] text-white/60 font-mono">{streamName}</span>}
+              <span className="size-2 animate-pulse rounded-full bg-red-500" />
+              <span className="font-medium text-[11px] text-white/80 uppercase">LIVE</span>
+              {streamName && <span className="font-mono text-[11px] text-white/60">{streamName}</span>}
             </div>
             <Button
-              className="text-white/70 hover:text-white hover:bg-white/10"
+              className="text-white/70 hover:bg-white/10 hover:text-white"
               onClick={() => onOpenChange(false)}
               size="icon-sm"
               variant="ghost"
@@ -571,16 +571,16 @@ function CctvExpandedDialog({
           {/* Bottom controls bar */}
           <div
             className={cn(
-              "absolute bottom-0 left-0 right-0 transition-opacity duration-200",
-              showControls ? "opacity-100" : "opacity-0 pointer-events-none",
+              "absolute right-0 bottom-0 left-0 transition-opacity duration-200",
+              showControls ? "opacity-100" : "pointer-events-none opacity-0",
             )}
           >
-            <div className="px-3 pt-8 pb-3 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="bg-gradient-to-t from-black/80 to-transparent px-3 pt-8 pb-3">
               <div className="flex items-center gap-1">
                 {/* Play/Pause */}
                 <button
                   aria-label={playing ? "Pause" : "Play"}
-                  className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                   onClick={togglePlay}
                 >
                   {playing ? <PauseIcon className="size-4" /> : <PlayIcon className="size-4" />}
@@ -589,14 +589,14 @@ function CctvExpandedDialog({
                 {/* Volume */}
                 <button
                   aria-label={muted ? "Unmute" : "Mute"}
-                  className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                   onClick={toggleMute}
                 >
                   {muted ? <VolumeXIcon className="size-4" /> : <Volume2Icon className="size-4" />}
                 </button>
                 <input
                   aria-label="Volume"
-                  className="w-16 h-1 accent-white/80 cursor-pointer"
+                  className="h-1 w-16 cursor-pointer accent-white/80"
                   max={1}
                   min={0}
                   onChange={handleVolumeChange}
@@ -606,7 +606,7 @@ function CctvExpandedDialog({
                 />
 
                 {/* Time */}
-                <span className="text-[11px] text-white/60 font-mono tabular-nums ml-1">{formatTime(currentTime)}</span>
+                <span className="ml-1 font-mono text-[11px] text-white/60 tabular-nums">{formatTime(currentTime)}</span>
 
                 {/* Spacer */}
                 <div className="flex-1" />
@@ -614,7 +614,7 @@ function CctvExpandedDialog({
                 {/* Fullscreen */}
                 <button
                   aria-label="Fullscreen"
-                  className="flex size-8 items-center justify-center rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                  className="flex size-8 items-center justify-center rounded text-white/80 transition-colors hover:bg-white/10 hover:text-white"
                   onClick={toggleFullscreen}
                 >
                   <MaximizeIcon className="size-4" />

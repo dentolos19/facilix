@@ -1,7 +1,7 @@
 import { Container } from "@cloudflare/containers";
 import { eq } from "drizzle-orm";
-import { createDatabase, schema } from "#/src/lib/database";
-import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
+import { createDatabase, schema } from "#/lib/database";
+import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 
 const PORT = 3001;
 

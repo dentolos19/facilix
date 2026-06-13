@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
-import { createDatabase, schema } from "#/src/lib/database";
+import { createDatabase, schema } from "#/lib/database";
 
 export interface RecordingAnomaly {
   label: string;

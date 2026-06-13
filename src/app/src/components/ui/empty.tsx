@@ -1,12 +1,12 @@
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "#/src/lib/utils";
+import { cn } from "#/lib/utils";
 
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-none border-dashed p-6 text-center text-balance",
+        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 text-balance rounded-none border-dashed p-6 text-center",
         className,
       )}
       data-slot="empty"
@@ -52,14 +52,14 @@ function EmptyMedia({
 }
 
 function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("font-heading text-sm font-medium", className)} data-slot="empty-title" {...props} />;
+  return <div className={cn("font-heading font-medium text-sm", className)} data-slot="empty-title" {...props} />;
 }
 
 function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <div
       className={cn(
-        "text-xs/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
+        "text-muted-foreground text-xs/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         className,
       )}
       data-slot="empty-description"
@@ -71,7 +71,7 @@ function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
 function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex w-full max-w-sm min-w-0 flex-col items-center gap-2.5 text-xs text-balance", className)}
+      className={cn("flex w-full min-w-0 max-w-sm flex-col items-center gap-2.5 text-balance text-xs", className)}
       data-slot="empty-content"
       {...props}
     />

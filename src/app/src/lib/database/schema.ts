@@ -1,6 +1,6 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { FacilitySettings } from "#/src/lib/monitoring/logs";
-import type { CanvasLayoutData, JsonObject } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+import type { FacilitySettings } from "#/lib/monitoring/logs";
+import type { CanvasLayoutData, JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 export const asset = sqliteTable("assets", {
   id: text("id")

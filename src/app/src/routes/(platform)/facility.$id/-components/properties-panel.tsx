@@ -1,13 +1,13 @@
 import { PlusIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/src/components/ui/accordion";
-import { Button } from "#/src/components/ui/button";
-import { Checkbox } from "#/src/components/ui/checkbox";
-import { Input } from "#/src/components/ui/input";
-import { Label } from "#/src/components/ui/label";
-import { ScrollArea } from "#/src/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/src/components/ui/select";
-import { Switch } from "#/src/components/ui/switch";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
+import { Button } from "#/components/ui/button";
+import { Checkbox } from "#/components/ui/checkbox";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
+import { ScrollArea } from "#/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
+import { Switch } from "#/components/ui/switch";
 import {
   DEFAULT_PLUGIN_CONFIDENCE,
   type DevicePluginConfig,
@@ -18,10 +18,10 @@ import {
   PLUGINS,
   type Plugin,
   type SegmentAnalysisDeviceConfig,
-} from "#/src/lib/monitoring/plugins";
-import type { SimulationStream } from "#/src/lib/simulation/cctv";
-import { fetchSimulationStreams } from "#/src/lib/simulation/cctv";
-import { FALLBACK_SIMULATION_SENSORS } from "#/src/lib/simulation/sensors";
+} from "#/lib/monitoring/plugins";
+import type { SimulationStream } from "#/lib/simulation/cctv";
+import { fetchSimulationStreams } from "#/lib/simulation/cctv";
+import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 
@@ -69,7 +69,7 @@ export function PropertiesPanel({
         <div className="flex flex-col p-4">
           {/* ── Header with title and delete button ── */}
           <div className="mb-3 flex shrink-0 items-center justify-between">
-            <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <h3 className="font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
               Properties
             </h3>
             {selected && editMode === "edit" && (
@@ -118,14 +118,14 @@ export function PropertiesPanel({
                     </Field>
 
                     <Field label="Type">
-                      <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                      <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-muted-foreground text-xs">
                         {selected.type}
                       </div>
                     </Field>
 
                     {selected.type !== "Zone" && (
                       <Field label="Zone">
-                        <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                        <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-muted-foreground text-xs">
                           {placedItems.find((i) => i.type === "Zone" && i.id === selected.zoneId)?.name ?? "Unassigned"}
                         </div>
                       </Field>
@@ -134,13 +134,13 @@ export function PropertiesPanel({
                     <Field label="Position" noGrow>
                       <div className="flex gap-2">
                         <Input
-                          className="w-1/2 pointer-events-none opacity-60"
+                          className="pointer-events-none w-1/2 opacity-60"
                           readOnly
                           tabIndex={-1}
                           value={Math.round(selected.x)}
                         />
                         <Input
-                          className="w-1/2 pointer-events-none opacity-60"
+                          className="pointer-events-none w-1/2 opacity-60"
                           readOnly
                           tabIndex={-1}
                           value={Math.round(selected.y)}
@@ -152,7 +152,7 @@ export function PropertiesPanel({
                       <Field label="Size" noGrow>
                         <div className="flex gap-2">
                           <Input
-                            className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
+                            className={isReadOnly ? "pointer-events-none w-1/2 opacity-60" : "w-1/2"}
                             onChange={(e) =>
                               onUpdateLayout(selected.id, { width: Math.max(10, Number(e.target.value)) })
                             }
@@ -161,7 +161,7 @@ export function PropertiesPanel({
                             value={selected.width}
                           />
                           <Input
-                            className={isReadOnly ? "w-1/2 pointer-events-none opacity-60" : "w-1/2"}
+                            className={isReadOnly ? "pointer-events-none w-1/2 opacity-60" : "w-1/2"}
                             onChange={(e) =>
                               onUpdateLayout(selected.id, { height: Math.max(10, Number(e.target.value)) })
                             }
@@ -175,7 +175,7 @@ export function PropertiesPanel({
 
                     <Field label="Notes" noGrow>
                       <textarea
-                        className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
+                        className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
                         onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
                         readOnly={isReadOnly}
                         rows={3}
@@ -193,7 +193,7 @@ export function PropertiesPanel({
                           value={String(selected.props.iconColor ?? "#3b82f6")}
                         />
                         <Input
-                          className={isReadOnly ? "flex-1 pointer-events-none opacity-60" : "flex-1"}
+                          className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
                           onChange={(e) => onUpdateItem(selected.id, { props: { iconColor: e.target.value } })}
                           readOnly={isReadOnly}
                           value={String(selected.props.iconColor ?? "")}
@@ -666,7 +666,7 @@ function Field({
 }) {
   return (
     <div className={noGrow ? "flex flex-col gap-1" : "flex flex-col gap-1"}>
-      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
+      <Label className="font-medium text-[11px] text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -750,12 +750,12 @@ function CctvPluginsSection({
       )}
 
       {configs.length === 0 && (
-        <div className="flex flex-col items-start gap-1 rounded-none border border-dashed border-border bg-muted/20 p-3 text-[11px] text-muted-foreground">
+        <div className="flex flex-col items-start gap-1 rounded-none border border-border border-dashed bg-muted/20 p-3 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-1.5 font-medium text-foreground/70">
             <ShieldAlertIcon className="size-3.5" />
             No intelligence plugins installed
           </div>
-          <p className="text-[10px] leading-snug text-muted-foreground/70">
+          <p className="text-[10px] text-muted-foreground/70 leading-snug">
             Plugins power CCTV analysis. Add one to start processing frames or segments.
           </p>
         </div>
@@ -779,8 +779,8 @@ function CctvPluginsSection({
       </div>
 
       {!isReadOnly && available.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-          <Label className="text-[11px] font-medium text-muted-foreground">Add Plugin</Label>
+        <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+          <Label className="font-medium text-[11px] text-muted-foreground">Add Plugin</Label>
           <div className="flex flex-col gap-1">
             {available.map((plugin) => (
               <Button
@@ -791,8 +791,8 @@ function CctvPluginsSection({
                 variant="outline"
               >
                 <span className="flex flex-col gap-0.5">
-                  <span className="text-[11px] font-medium text-foreground/80">{plugin.name}</span>
-                  <span className="text-[10px] font-normal text-muted-foreground/70">{plugin.description}</span>
+                  <span className="font-medium text-[11px] text-foreground/80">{plugin.name}</span>
+                  <span className="font-normal text-[10px] text-muted-foreground/70">{plugin.description}</span>
                 </span>
                 <PlusIcon className="size-3.5 text-muted-foreground" />
               </Button>
@@ -823,9 +823,9 @@ function PluginCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <ShieldAlertIcon className="size-3.5 text-foreground/70" />
-            <p className="truncate text-[11px] font-medium text-foreground/90">{plugin.name}</p>
+            <p className="truncate font-medium text-[11px] text-foreground/90">{plugin.name}</p>
           </div>
-          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/70">{plugin.description}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground/70 leading-snug">{plugin.description}</p>
           {plugin.modelId && <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">{plugin.modelId}</p>}
         </div>
         <div className="flex items-center gap-1">
@@ -846,7 +846,7 @@ function PluginCard({
       {/* Enable switch */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium text-foreground/80">Enabled</p>
+          <p className="font-medium text-[11px] text-foreground/80">Enabled</p>
           <p className="text-[10px] text-muted-foreground/60">Run analysis and raise alerts.</p>
         </div>
         <Switch
@@ -913,8 +913,8 @@ function ObjectAnomalyConfig({
 
   return (
     <>
-      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Anomalies to detect</Label>
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Anomalies to detect</Label>
         <div className="flex flex-col gap-1">
           {plugin.options.map((opt) => {
             const id = `intel-${plugin.id}-${opt.id}`;
@@ -933,8 +933,8 @@ function ObjectAnomalyConfig({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Confidence threshold</Label>
+      <div className="flex flex-col gap-1 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Confidence threshold</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={1}
@@ -983,8 +983,8 @@ function ObjectCountingConfig({
 
   return (
     <>
-      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Classes to count</Label>
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Classes to count</Label>
         <div className="flex flex-col gap-1">
           {plugin.options.map((opt) => {
             const id = `intel-${plugin.id}-${opt.id}`;
@@ -1003,8 +1003,8 @@ function ObjectCountingConfig({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Confidence threshold</Label>
+      <div className="flex flex-col gap-1 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Confidence threshold</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={1}
@@ -1024,11 +1024,11 @@ function ObjectCountingConfig({
         <p className="text-[10px] text-muted-foreground/60">0–1 (lower = more sensitive).</p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Threshold</Label>
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Threshold</Label>
         <div className="flex items-center gap-2">
           <select
-            className="h-8 rounded-none border border-input bg-muted/30 px-2 text-xs text-foreground/80 disabled:opacity-60"
+            className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
             disabled={isReadOnly}
             onChange={(e) =>
               onChange((c) => ({
@@ -1045,7 +1045,7 @@ function ObjectCountingConfig({
             <option value="eq">=</option>
           </select>
           <Input
-            className={isReadOnly ? "pointer-events-none opacity-60 flex-1" : "flex-1"}
+            className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
             max={10000}
             min={0}
             onChange={(e) => {
@@ -1079,10 +1079,10 @@ function SegmentAnalysisConfig({
 }) {
   return (
     <>
-      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Prompt</Label>
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Prompt</Label>
         <textarea
-          className={`h-20 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${
+          className={`h-20 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${
             isReadOnly ? "pointer-events-none opacity-60" : ""
           }`}
           disabled={isReadOnly}
@@ -1100,10 +1100,10 @@ function SegmentAnalysisConfig({
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
-        <Label className="text-[11px] font-medium text-muted-foreground">Alert severity</Label>
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Alert severity</Label>
         <select
-          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-xs text-foreground/80 disabled:opacity-60"
+          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((c) => ({

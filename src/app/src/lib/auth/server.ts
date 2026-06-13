@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { createDatabase } from "#/src/lib/database";
+import { createDatabase } from "#/lib/database";
 
 export function createAuth(binding: D1Database) {
   const db = createDatabase(binding);

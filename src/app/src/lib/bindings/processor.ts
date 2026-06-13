@@ -1,9 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
-import { summarizeImage, summarizeVideo } from "#/src/lib/ai";
-import { createDatabase, schema } from "#/src/lib/database";
-import { type Detection } from "#/src/lib/monitoring/detection";
-import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
+import { summarizeImage, summarizeVideo } from "#/lib/ai";
+import { createDatabase, schema } from "#/lib/database";
+import type { Detection } from "#/lib/monitoring/detection";
+import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 import {
   type AlertMatch,
   countByClassGroup,
@@ -11,10 +11,10 @@ import {
   normalizePlugins,
   resolveEnabledPlugins,
   thresholdExceeded,
-} from "#/src/lib/monitoring/plugins";
-import { detectObjects } from "#/src/lib/monitoring/roboflow";
-import { recordFacilityEvent, recordObservation } from "#/src/lib/monitoring/utils";
-import type { JsonObject } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+} from "#/lib/monitoring/plugins";
+import { detectObjects } from "#/lib/monitoring/roboflow";
+import { recordFacilityEvent, recordObservation } from "#/lib/monitoring/utils";
+import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 /**
  * Durable processor for CCTV frames and video segments.
@@ -87,7 +87,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
 
     // Build Roboflow model requests from frame-capable plugins only.
     const env = this.env as unknown as Record<string, string | undefined>;
-    const modelRequests: import("#/src/lib/monitoring/roboflow").RoboflowModelRequest[] = [];
+    const modelRequests: import("#/lib/monitoring/roboflow").RoboflowModelRequest[] = [];
     for (const r of resolved) {
       if (r.plugin.kind !== "object-anomaly" && r.plugin.kind !== "object-counting") continue;
       if (!r.plugin.modelId && !r.plugin.modelEnv) continue;
@@ -130,7 +130,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       pluginId: string;
       pluginName: string;
       count: number;
-      config: import("#/src/lib/monitoring/plugins").ObjectCountingDeviceConfig;
+      config: import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig;
     }> = [];
     for (const [, entry] of counts) {
       if (thresholdExceeded(entry.count, entry.config)) {
@@ -440,9 +440,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
  * hardcoded `modelId`.  Returns `null` when no spec can be resolved.
  */
 function resolveModelSpec(
-  plugin: import("#/src/lib/monitoring/plugins").Plugin,
+  plugin: import("#/lib/monitoring/plugins").Plugin,
   env?: Record<string, string | undefined>,
-): import("#/src/lib/monitoring/roboflow").RoboflowModelSpec | null {
+): import("#/lib/monitoring/roboflow").RoboflowModelSpec | null {
   // Try env override first
   if (plugin.modelEnv && env) {
     const raw = env[plugin.modelEnv];

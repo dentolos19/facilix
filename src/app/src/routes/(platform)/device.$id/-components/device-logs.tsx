@@ -1,7 +1,7 @@
 import { AlertTriangleIcon, FileTextIcon, InfoIcon, Loader2Icon, OctagonAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { type FacilityEventRow, getDeviceEvents } from "#/src/lib/functions/events";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
+import { type FacilityEventRow, getDeviceEvents } from "#/lib/functions/events";
+import type { DeviceDetail } from "#/lib/functions/facility";
 
 export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   const [events, setEvents] = useState<FacilityEventRow[]>([]);
@@ -46,7 +46,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <FileTextIcon className="size-8 text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">{error}</p>
+        <p className="text-muted-foreground/50 text-xs">{error}</p>
       </div>
     );
   }
@@ -55,7 +55,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <FileTextIcon className="size-8 text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">No logs for this device yet.</p>
+        <p className="text-muted-foreground/50 text-xs">No logs for this device yet.</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-heading text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <h3 className="font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
           Recent events
         </h3>
         <span className="text-[10px] text-muted-foreground/50">{events.length} shown</span>
@@ -88,8 +88,8 @@ function EventRow({ event }: { event: FacilityEventRow }) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-[11px] font-medium text-foreground/80">{event.type}</span>
-          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground/50">
+          <span className="truncate font-medium text-[11px] text-foreground/80">{event.type}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground/50 tabular-nums">
             {new Date(event.createdAt).toLocaleString()}
           </span>
         </div>

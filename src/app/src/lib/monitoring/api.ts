@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm";
-import { createDatabase } from "#/src/lib/database";
-import * as schema from "#/src/lib/database/schema";
-import { createStorage } from "#/src/lib/storage";
-import type { JsonObject } from "#/src/routes/(platform)/facility.$id/-helpers/types";
+import { createDatabase } from "#/lib/database";
+import * as schema from "#/lib/database/schema";
+import { createStorage } from "#/lib/storage";
+import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
 import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
 

@@ -2,10 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { Button } from "#/src/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/src/components/ui/card";
-import { Label } from "#/src/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/src/components/ui/select";
+import { Button } from "#/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
+import { Label } from "#/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 
 export const Route = createFileRoute("/(platform)/settings")({
   component: Page,
@@ -29,8 +29,8 @@ function Page() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-heading text-lg font-medium tracking-tight">Settings</h1>
-          <p className="text-xs text-muted-foreground">Manage your application preferences</p>
+          <h1 className="font-heading font-medium text-lg tracking-tight">Settings</h1>
+          <p className="text-muted-foreground text-xs">Manage your application preferences</p>
         </div>
         <Link to="/dashboard">
           <Button size="sm" variant="outline">
@@ -64,7 +64,7 @@ function Page() {
             </div>
 
             {mounted && theme && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {THEME_OPTIONS.find((o) => o.value === theme)?.description}
               </p>
             )}

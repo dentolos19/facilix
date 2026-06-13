@@ -1,4 +1,4 @@
-import { ScrollArea } from "#/src/components/ui/scroll-area";
+import { ScrollArea } from "#/components/ui/scroll-area";
 import type { LogEntry } from "../-helpers/types";
 
 /** Time-ordered feed of all IoT device logs (monitoring left panel). */
@@ -14,7 +14,7 @@ export function MonitoringLogsPanel({
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-2 p-4">
-        <h3 className="shrink-0 font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <h3 className="shrink-0 font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
           Global Events
         </h3>
 
@@ -55,5 +55,5 @@ export function LogLevelBadge({ level }: { level: LogEntry["level"] }) {
     warn: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
     error: "bg-red-500/15 text-red-600 dark:text-red-400",
   };
-  return <span className={`rounded-none px-1 py-0.5 text-[10px] font-medium uppercase ${colors[level]}`}>{level}</span>;
+  return <span className={`rounded-none px-1 py-0.5 font-medium text-[10px] uppercase ${colors[level]}`}>{level}</span>;
 }

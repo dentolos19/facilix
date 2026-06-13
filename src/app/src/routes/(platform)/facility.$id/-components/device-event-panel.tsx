@@ -1,10 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ExternalLinkIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollArea } from "#/src/components/ui/scroll-area";
-import type { SensorReadingRow } from "#/src/lib/functions/sensors";
-import { getLatestSensorReading } from "#/src/lib/functions/sensors";
-import { simulationHlsUrl } from "#/src/lib/simulation/cctv";
+import { ScrollArea } from "#/components/ui/scroll-area";
+import type { SensorReadingRow } from "#/lib/functions/sensors";
+import { getLatestSensorReading } from "#/lib/functions/sensors";
+import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import type { LogEntry, PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
 import { LogLevelBadge } from "./monitoring-logs-panel";
@@ -21,7 +21,7 @@ function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[10px] uppercase ${style.bg}`}
     >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
@@ -115,7 +115,7 @@ export function DeviceEventPanel({
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-2 p-4">
-        <h3 className="shrink-0 font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <h3 className="shrink-0 font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
           Device Details
         </h3>
 
@@ -139,7 +139,7 @@ export function DeviceEventPanel({
             <div className="rounded-none border border-border bg-muted/20 p-2">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-medium text-foreground">{selectedDevice.name}</p>
+                  <p className="font-medium text-foreground text-xs">{selectedDevice.name}</p>
                   <p className="text-[11px] text-muted-foreground/70">Type: {selectedDevice.type}</p>
                   <div className="mt-1 flex items-center gap-1.5">
                     <span className="text-[11px] text-muted-foreground/70">Status:</span>
@@ -152,7 +152,7 @@ export function DeviceEventPanel({
                 </div>
                 <button
                   aria-label="View device details"
-                  className="flex size-6 items-center justify-center rounded text-muted-foreground/50 hover:text-foreground hover:bg-muted/40 transition-colors"
+                  className="flex size-6 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted/40 hover:text-foreground"
                   onClick={() => navigate({ to: "/device/$id", params: { id: selectedDevice.id } })}
                 >
                   <ExternalLinkIcon className="size-3.5" />
@@ -163,7 +163,7 @@ export function DeviceEventPanel({
             {/* Video feed for CCTVs */}
             {isCCTV && (
               <div className="flex flex-col gap-2">
-                <h4 className="font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
                   Live Feed
                 </h4>
                 <CctvPlayer
@@ -172,7 +172,7 @@ export function DeviceEventPanel({
                     selectedDevice.type === "CCTV" ? String(selectedDevice.props.simulationStream ?? "") : undefined
                   }
                 />
-                {cctvHlsUrl && <p className="text-[10px] text-muted-foreground/50 break-all">{cctvHlsUrl}</p>}
+                {cctvHlsUrl && <p className="break-all text-[10px] text-muted-foreground/50">{cctvHlsUrl}</p>}
               </div>
             )}
 
@@ -184,7 +184,7 @@ export function DeviceEventPanel({
             {/* Log entries */}
             {deviceEvents.length > 0 && (
               <>
-                <h4 className="font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
                   Event History
                 </h4>
                 <div className="flex flex-col gap-1">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getLatestSensorReading } from "#/src/lib/functions/sensors";
+import { getLatestSensorReading } from "#/lib/functions/sensors";
 import type { PlacedItem } from "../-helpers/types";
 
 export interface SensorReadingPanelProps {
@@ -99,7 +99,7 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
         Live Reading
       </h4>
 
@@ -132,7 +132,7 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
         <div className="rounded-none border border-border bg-muted/20 p-3">
           {/* Main value */}
           <div className="flex items-baseline gap-1.5">
-            <span className={`text-2xl font-bold tabular-nums ${isAlert ? "text-red-500" : "text-foreground"}`}>
+            <span className={`font-bold text-2xl tabular-nums ${isAlert ? "text-red-500" : "text-foreground"}`}>
               {reading.value.toFixed(1)}
             </span>
             <span className="text-[11px] text-muted-foreground/70">{unit || reading.unit}</span>
@@ -142,7 +142,7 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
           <div className="mt-2 flex items-center gap-2">
             <StatusBadge status={reading.status} />
             {isAlert && (
-              <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500">
+              <span className="rounded bg-red-500/10 px-1.5 py-0.5 font-medium text-[10px] text-red-500">
                 Threshold exceeded
               </span>
             )}
@@ -191,7 +191,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}
+      className={`rounded px-1.5 py-0.5 font-medium text-[10px] ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}
     >
       {labelMap[status] ?? status}
     </span>

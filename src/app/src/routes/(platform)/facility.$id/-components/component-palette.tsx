@@ -1,4 +1,4 @@
-import { ScrollArea } from "#/src/components/ui/scroll-area";
+import { ScrollArea } from "#/components/ui/scroll-area";
 import { PLACEABLE_ITEMS } from "../-helpers/constants";
 
 /** Component palette shown in edit mode. */
@@ -7,10 +7,10 @@ export function ComponentPalette() {
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
         <div className="space-y-1">
-          <h3 className="font-heading text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <h3 className="font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
             Components
           </h3>
-          <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+          <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
             Drag items onto the canvas to place them.
           </p>
         </div>
@@ -19,7 +19,7 @@ export function ComponentPalette() {
             const Icon = item.icon;
             return (
               <button
-                className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:cursor-grabbing active:scale-[0.98]"
+                className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:scale-[0.98] active:cursor-grabbing"
                 draggable
                 key={item.label}
                 onDragStart={(e) => {
@@ -35,7 +35,7 @@ export function ComponentPalette() {
                 </span>
                 <div className="flex flex-col gap-0.5">
                   <span className="font-medium text-foreground/90">{item.label}</span>
-                  <span className="text-[10px] leading-tight text-muted-foreground/60">{item.description}</span>
+                  <span className="text-[10px] text-muted-foreground/60 leading-tight">{item.description}</span>
                 </div>
               </button>
             );

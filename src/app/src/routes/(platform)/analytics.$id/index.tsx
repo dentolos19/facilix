@@ -8,11 +8,9 @@ import {
   ArrowLeftIcon,
   BarChart3Icon,
   CircleCheckIcon,
-  CircleXIcon,
   EyeIcon,
   HeartPulseIcon,
   InfoIcon,
-  Loader2Icon,
   MonitorIcon,
   RefreshCwIcon,
   ScanEyeIcon,
@@ -23,15 +21,15 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { Button } from "#/src/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/src/components/ui/card";
-import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/src/components/ui/chart";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/src/components/ui/empty";
-import { Skeleton } from "#/src/components/ui/skeleton";
-import { Spinner } from "#/src/components/ui/spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/src/components/ui/table";
-import { ToggleGroup, ToggleGroupItem } from "#/src/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
+import { Button } from "#/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/components/ui/chart";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
+import { Skeleton } from "#/components/ui/skeleton";
+import { Spinner } from "#/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "#/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
 import type {
   AnalyticsTimeRange,
   DeviceInfo,
@@ -40,9 +38,9 @@ import type {
   FacilityAnalytics,
   RecentAlert,
   SensorMetric,
-} from "#/src/lib/functions/analytics";
-import { getFacilityAnalytics } from "#/src/lib/functions/analytics";
-import { cn } from "#/src/lib/utils";
+} from "#/lib/functions/analytics";
+import { getFacilityAnalytics } from "#/lib/functions/analytics";
+import { cn } from "#/lib/utils";
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
@@ -123,7 +121,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] font-medium leading-none whitespace-nowrap",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
         styles[severity] ?? styles.info,
       )}
     >
@@ -160,13 +158,13 @@ function KpiCard({
       </CardHeader>
       <CardContent className="flex items-end justify-between gap-2">
         <div>
-          <p className="font-heading text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+          <p className="font-heading font-semibold text-2xl tabular-nums tracking-tight">{value}</p>
           {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
         </div>
         {trend && (
           <span
             className={cn(
-              "flex shrink-0 items-center gap-0.5 text-[10px] font-medium tabular-nums",
+              "flex shrink-0 items-center gap-0.5 font-medium text-[10px] tabular-nums",
               trendDirection === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
             )}
           >
@@ -237,7 +235,7 @@ function EventTrendChart({ data, range }: { data: EventBucket[]; range: Analytic
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-xs text-muted-foreground">No events in this period</p>
+        <p className="text-muted-foreground text-xs">No events in this period</p>
       </div>
     );
   }
@@ -288,7 +286,7 @@ function DeviceCompositionChart({ data }: { data: DeviceTypeCount[] }) {
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-xs text-muted-foreground">No devices configured</p>
+        <p className="text-muted-foreground text-xs">No devices configured</p>
       </div>
     );
   }
@@ -317,7 +315,7 @@ function DeviceCompositionChart({ data }: { data: DeviceTypeCount[] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value, name) => <span className="font-mono font-medium tabular-nums">{String(value)}</span>}
+              formatter={(value, name) => <span className="font-medium font-mono tabular-nums">{String(value)}</span>}
             />
           }
         />
@@ -338,7 +336,7 @@ function SeverityBarChart({ data }: { data: { severity: string; count: number }[
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-xs text-muted-foreground">No events in this period</p>
+        <p className="text-muted-foreground text-xs">No events in this period</p>
       </div>
     );
   }
@@ -370,7 +368,7 @@ function RecentAlertsTable({ alerts }: { alerts: RecentAlert[] }) {
   if (alerts.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-xs text-muted-foreground">No alerts recorded</p>
+        <p className="text-muted-foreground text-xs">No alerts recorded</p>
       </div>
     );
   }
@@ -399,7 +397,7 @@ function RecentAlertsTable({ alerts }: { alerts: RecentAlert[] }) {
             </TableCell>
             <TableCell className="hidden truncate sm:table-cell">{alert.deviceName ?? "—"}</TableCell>
             <TableCell className="hidden text-muted-foreground md:table-cell">{alert.type}</TableCell>
-            <TableCell className="text-right tabular-nums text-muted-foreground">
+            <TableCell className="text-right text-muted-foreground tabular-nums">
               {formatTimestamp(alert.createdAt)}
             </TableCell>
           </TableRow>
@@ -415,7 +413,7 @@ function DeviceHealthTable({ devices }: { devices: DeviceInfo[] }) {
   if (devices.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-xs text-muted-foreground">No devices configured</p>
+        <p className="text-muted-foreground text-xs">No devices configured</p>
       </div>
     );
   }
@@ -480,7 +478,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] font-medium leading-none whitespace-nowrap",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
         style.class,
       )}
     >
@@ -505,7 +503,7 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
   if (metrics.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-xs text-muted-foreground">No sensor readings available</p>
+        <p className="text-muted-foreground text-xs">No sensor readings available</p>
       </div>
     );
   }
@@ -527,13 +525,13 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
           <TableRow key={m.deviceId}>
             <TableCell className="truncate font-medium">{m.deviceName}</TableCell>
             <TableCell className="text-muted-foreground">{m.sensorType}</TableCell>
-            <TableCell className="text-right tabular-nums font-mono">
+            <TableCell className="text-right font-mono tabular-nums">
               {m.value} {m.unit}
             </TableCell>
             <TableCell className="hidden sm:table-cell">
               <SeverityBadge severity={m.status === "ok" ? "info" : m.status} />
             </TableCell>
-            <TableCell className="hidden tabular-nums text-right md:table-cell">
+            <TableCell className="hidden text-right tabular-nums md:table-cell">
               {m.batteryPct !== null ? `${Math.round(m.batteryPct)}%` : "—"}
             </TableCell>
             <TableCell className="hidden text-right text-muted-foreground lg:table-cell">
@@ -621,8 +619,8 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
         <AlertCircleIcon className="size-12 text-muted-foreground/30" />
-        <h2 className="font-heading text-lg font-medium">Failed to Load Analytics</h2>
-        <p className="text-sm text-muted-foreground">{message}</p>
+        <h2 className="font-heading font-medium text-lg">Failed to Load Analytics</h2>
+        <p className="text-muted-foreground text-sm">{message}</p>
         <Button onClick={onRetry} size="sm" variant="outline">
           <RefreshCwIcon data-icon="inline-start" />
           Try Again
@@ -809,8 +807,8 @@ function Page() {
               </Link>
             </Button>
             <div>
-              <h1 className="font-heading text-lg font-medium tracking-tight">{data?.facilityName ?? "Analytics"}</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="font-heading font-medium text-lg tracking-tight">{data?.facilityName ?? "Analytics"}</h1>
+              <p className="text-muted-foreground text-xs">
                 Operational analytics and AI insights
                 {lastUpdated && <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>}
               </p>
@@ -912,7 +910,7 @@ function Page() {
             </div>
             {/* Legend */}
             {data && data.devicesByType.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-border border-t pt-3">
                 {data.devicesByType.map((d, i) => (
                   <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground" key={d.type}>
                     <span
@@ -922,7 +920,7 @@ function Page() {
                       }}
                     />
                     {d.type}
-                    <span className="font-medium tabular-nums text-foreground">{d.count}</span>
+                    <span className="font-medium text-foreground tabular-nums">{d.count}</span>
                   </span>
                 ))}
               </div>

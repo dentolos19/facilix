@@ -14,8 +14,8 @@ import {
   Thermometer,
   Wifi,
 } from "lucide-react";
-import { Button } from "#/src/components/ui/button";
-import { useSession } from "#/src/lib/auth/client";
+import { Button } from "#/components/ui/button";
+import { useSession } from "#/lib/auth/client";
 
 export const Route = createFileRoute("/(public)/")({ component: Home });
 
@@ -85,10 +85,10 @@ function Home() {
   return (
     <div className="flex flex-col">
       {/* ──────── Navigation ──────── */}
-      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-sm md:px-10">
+      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-border border-b bg-background/80 px-6 backdrop-blur-sm md:px-10">
         <div className="flex items-center gap-2">
           <img alt="Facilix" className="h-6 w-6 rounded-lg" src="/icon.png" />
-          <span className="text-base font-semibold tracking-tight">Facilix</span>
+          <span className="font-semibold text-base tracking-tight">Facilix</span>
         </div>
         <nav className="flex items-center gap-3">
           {session ? (
@@ -116,7 +116,7 @@ function Home() {
       </header>
 
       {/* ──────── Hero ──────── */}
-      <section className="relative overflow-hidden border-b border-border">
+      <section className="relative overflow-hidden border-border border-b">
         {/* Background pattern */}
         <div
           aria-hidden
@@ -130,19 +130,19 @@ function Home() {
           }}
         />
 
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center px-6 pb-24 pt-20 text-center md:pb-32 md:pt-28">
-          <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3.5 py-1 text-xs font-medium text-muted-foreground">
+        <div className="relative mx-auto flex max-w-6xl flex-col items-center px-6 pt-20 pb-24 text-center md:pt-28 md:pb-32">
+          <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3.5 py-1 font-medium text-muted-foreground text-xs">
             <Brain className="h-3.5 w-3.5" />
             AI-powered digital twin platform
           </div>
 
-          <h1 className="font-heading text-4xl font-bold leading-[1.1] tracking-tight md:text-6xl lg:text-7xl">
+          <h1 className="font-bold font-heading text-4xl leading-[1.1] tracking-tight md:text-6xl lg:text-7xl">
             Your factory floor,
             <br />
             <span className="text-muted-foreground">intelligently mapped</span>
           </h1>
 
-          <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+          <p className="mt-6 max-w-2xl text-base text-muted-foreground leading-relaxed md:text-lg">
             Upload your floorplan, place virtual CCTV cameras, sensors, gateways, and alert markers — then simulate
             real-time device statuses, environmental readings, and security events in a living digital twin of your
             facility.
@@ -176,7 +176,7 @@ function Home() {
       {/* ──────── Features ──────── */}
       <section className="mx-auto w-full max-w-6xl px-6 py-20 md:py-28">
         <div className="mb-14 text-center">
-          <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="font-bold font-heading text-3xl tracking-tight md:text-4xl">
             Everything you need to monitor your facility
           </h2>
           <p className="mt-3 text-muted-foreground">
@@ -195,8 +195,8 @@ function Home() {
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/50">
                   <Icon className="h-5 w-5 text-foreground" />
                 </div>
-                <h3 className="font-heading text-sm font-semibold tracking-tight">{feature.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+                <h3 className="font-heading font-semibold text-sm tracking-tight">{feature.title}</h3>
+                <p className="mt-2 text-muted-foreground text-sm leading-relaxed">{feature.description}</p>
               </article>
             );
           })}
@@ -204,21 +204,21 @@ function Home() {
       </section>
 
       {/* ──────── How it works ──────── */}
-      <section className="border-y border-border bg-muted/30">
+      <section className="border-border border-y bg-muted/30">
         <div className="mx-auto max-w-6xl px-6 py-20 md:py-28">
           <div className="mb-14 text-center">
-            <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">From blueprint to live view</h2>
+            <h2 className="font-bold font-heading text-3xl tracking-tight md:text-4xl">From blueprint to live view</h2>
             <p className="mt-3 text-muted-foreground">Three steps to get your digital twin running.</p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-3">
             {steps.map((step) => (
               <div className="relative" key={step.step}>
-                <span className="font-heading text-5xl font-bold tracking-tighter text-muted-foreground/20">
+                <span className="font-bold font-heading text-5xl text-muted-foreground/20 tracking-tighter">
                   {step.step}
                 </span>
-                <h3 className="mt-2 font-heading text-base font-semibold tracking-tight">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.description}</p>
+                <h3 className="mt-2 font-heading font-semibold text-base tracking-tight">{step.title}</h3>
+                <p className="mt-2 text-muted-foreground text-sm leading-relaxed">{step.description}</p>
               </div>
             ))}
           </div>
@@ -238,8 +238,8 @@ function Home() {
             return (
               <div className="rounded-xl border border-border bg-card p-5 text-center" key={stat.label}>
                 <Icon className="mx-auto h-5 w-5 text-muted-foreground" />
-                <p className="mt-3 font-heading text-2xl font-bold tracking-tight">{stat.value}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{stat.label}</p>
+                <p className="mt-3 font-bold font-heading text-2xl tracking-tight">{stat.value}</p>
+                <p className="mt-0.5 text-muted-foreground text-xs">{stat.label}</p>
               </div>
             );
           })}
@@ -247,13 +247,13 @@ function Home() {
       </section>
 
       {/* ──────── Security note ──────── */}
-      <section className="border-t border-border bg-muted/30">
+      <section className="border-border border-t bg-muted/30">
         <div className="mx-auto flex max-w-6xl flex-col items-center px-6 py-16 text-center md:py-20">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card">
             <Shield className="h-6 w-6 text-foreground" />
           </div>
-          <h2 className="font-heading text-2xl font-bold tracking-tight md:text-3xl">Built for operational security</h2>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+          <h2 className="font-bold font-heading text-2xl tracking-tight md:text-3xl">Built for operational security</h2>
+          <p className="mt-3 max-w-xl text-muted-foreground text-sm leading-relaxed">
             Role-based access, encrypted telemetry, and on-premises deployment options. Facilix is designed from the
             ground up for food safety compliance and industrial security requirements.
           </p>
@@ -266,8 +266,8 @@ function Home() {
       </section>
 
       {/* ──────── Footer ──────── */}
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-xs text-muted-foreground">
+      <footer className="border-border border-t">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-muted-foreground text-xs">
           <span>© {new Date().getFullYear()} Dennise Catolos. All rights reserved.</span>
           <span className="hidden sm:inline">Made for Nanyang Polytechnic and SCCCI</span>
         </div>

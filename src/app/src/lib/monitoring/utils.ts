@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { createDatabase } from "#/src/lib/database";
-import * as schema from "#/src/lib/database/schema";
+import type { createDatabase } from "#/lib/database";
+import * as schema from "#/lib/database/schema";
 
 /**
  * Validate that a deviceId belongs to the given facility and return its row.

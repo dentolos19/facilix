@@ -1,7 +1,7 @@
 import { FilmIcon, Loader2Icon, VideoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
-import { getDeviceRecordings, type RecordingRow } from "#/src/lib/functions/recordings";
+import type { DeviceDetail } from "#/lib/functions/facility";
+import { getDeviceRecordings, type RecordingRow } from "#/lib/functions/recordings";
 import { PlaybackPlayer } from "./playback-player";
 
 export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
@@ -51,7 +51,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <VideoIcon className="size-8 text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">{error}</p>
+        <p className="text-muted-foreground/50 text-xs">{error}</p>
       </div>
     );
   }
@@ -60,7 +60,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <FilmIcon className="size-8 text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">No recordings available for this device.</p>
+        <p className="text-muted-foreground/50 text-xs">No recordings available for this device.</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
 
       {/* Recording list */}
       <div className="flex h-48 shrink-0 flex-col gap-2 lg:h-auto lg:w-72">
-        <h3 className="shrink-0 font-heading text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <h3 className="shrink-0 font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
           Recordings
         </h3>
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-none border border-border bg-muted/20 p-2">

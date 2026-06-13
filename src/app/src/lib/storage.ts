@@ -1,8 +1,8 @@
 import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { asset } from "#/src/lib/database/schema";
+import { asset } from "#/lib/database/schema";
 
-export { asset } from "#/src/lib/database/schema";
+export { asset } from "#/lib/database/schema";
 
 function hex(buffer: ArrayBuffer): string {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");

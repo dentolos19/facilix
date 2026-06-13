@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "#/src/components/ui/button";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
+import { Button } from "#/components/ui/button";
+import type { DeviceDetail } from "#/lib/functions/facility";
 import { DeviceTabs } from "./device-tabs";
 
 export interface DeviceInfoProperty {
@@ -37,14 +37,14 @@ export function DeviceDetailShell({
 }: DeviceDetailShellProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+      <div className="flex shrink-0 items-center gap-3 border-border border-b px-4 py-3">
         <Link params={{ id: device.facilityId }} to="/facility/$id">
           <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
             <ArrowLeftIcon className="size-4" />
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate font-heading text-sm font-medium text-foreground">{device.name}</h1>
+          <h1 className="truncate font-heading font-medium text-foreground text-sm">{device.name}</h1>
           <p className="truncate text-[11px] text-muted-foreground/60">
             {subtitle ?? (
               <>
@@ -75,7 +75,7 @@ export function DeviceDetailLayout({ device, subtitle, children, sidebar, status
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate font-heading text-sm font-medium text-foreground">{device.name}</h1>
+          <h1 className="truncate font-heading font-medium text-foreground text-sm">{device.name}</h1>
           <p className="truncate text-[11px] text-muted-foreground/60">
             {subtitle ?? (
               <>
@@ -131,7 +131,7 @@ export function DeviceInformationCard({
 }) {
   return (
     <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
         Device Information
       </h2>
       <dl className="flex flex-col gap-2 text-[11px]">
@@ -143,7 +143,7 @@ export function DeviceInformationCard({
           <InfoRow key={property.label} {...property} />
         ))}
         {device.notes && (
-          <div className="mt-1 flex flex-col gap-0.5 border-t border-border pt-2">
+          <div className="mt-1 flex flex-col gap-0.5 border-border border-t pt-2">
             <dt className="text-muted-foreground/60">Notes</dt>
             <dd className="text-foreground/70">{device.notes}</dd>
           </div>
@@ -180,7 +180,7 @@ export function DeviceStatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[10px] uppercase ${style.bg}`}
     >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}

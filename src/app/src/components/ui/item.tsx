@@ -1,8 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
-import * as React from "react";
-import { Separator } from "#/src/components/ui/separator";
-import { cn } from "#/src/lib/utils";
+import type * as React from "react";
+import { Separator } from "#/components/ui/separator";
+import { cn } from "#/lib/utils";
 
 function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -111,7 +111,7 @@ function ItemContent({ className, ...props }: React.ComponentProps<"div">) {
 function ItemTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("line-clamp-1 flex w-fit items-center gap-2 text-xs font-medium underline-offset-4", className)}
+      className={cn("line-clamp-1 flex w-fit items-center gap-2 font-medium text-xs underline-offset-4", className)}
       data-slot="item-title"
       {...props}
     />
@@ -122,7 +122,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
     <p
       className={cn(
-        "line-clamp-2 text-left text-xs/relaxed font-normal text-muted-foreground group-data-[size=xs]/item:text-xs/relaxed [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
+        "line-clamp-2 text-left font-normal text-muted-foreground text-xs/relaxed group-data-[size=xs]/item:text-xs/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         className,
       )}
       data-slot="item-description"

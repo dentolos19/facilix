@@ -4,11 +4,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2Icon, CircleCheckIcon, CircleXIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "#/src/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "#/src/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/src/components/ui/empty";
-import { Field, FieldLabel } from "#/src/components/ui/field";
-import { Input } from "#/src/components/ui/input";
+import { Button } from "#/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
+import { Field, FieldLabel } from "#/components/ui/field";
+import { Input } from "#/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -17,12 +17,12 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "#/src/components/ui/sheet";
-import { Spinner } from "#/src/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
-import { createFacility, getFacilities } from "#/src/lib/functions/facility";
-import { getMonitoringStatuses } from "#/src/lib/functions/server";
-import type { MonitoringStatus } from "#/src/lib/monitoring/types";
+} from "#/components/ui/sheet";
+import { Spinner } from "#/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
+import { createFacility, getFacilities } from "#/lib/functions/facility";
+import { getMonitoringStatuses } from "#/lib/functions/server";
+import type { MonitoringStatus } from "#/lib/monitoring/types";
 
 export const Route = createFileRoute("/(platform)/dashboard")({
   component: Page,

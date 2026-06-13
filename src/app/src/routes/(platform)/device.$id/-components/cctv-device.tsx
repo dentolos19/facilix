@@ -1,10 +1,10 @@
 import { ShieldAlertIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Switch } from "#/src/components/ui/switch";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
-import { getPlugin, normalizePlugins } from "#/src/lib/monitoring/plugins";
-import { simulationHlsUrl } from "#/src/lib/simulation/cctv";
-import { CctvPlayer } from "#/src/routes/(platform)/facility.$id/-components/cctv-player";
+import { Switch } from "#/components/ui/switch";
+import type { DeviceDetail } from "#/lib/functions/facility";
+import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
+import { simulationHlsUrl } from "#/lib/simulation/cctv";
+import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 import { CctvPlaybackTab } from "./cctv-playback";
 import { DeviceDetailShell, DeviceInformationCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
@@ -72,7 +72,7 @@ function CctvLiveTab({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-2">
-        <h2 className="shrink-0 font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <h2 className="shrink-0 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
           Live Feed
         </h2>
         <div className="min-h-0 flex-1">
@@ -117,13 +117,13 @@ function CctvOptionsCard({
 }) {
   return (
     <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
         Options
       </h2>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium text-foreground/80">Live object detection</p>
-          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/60">
+          <p className="font-medium text-[11px] text-foreground/80">Live object detection</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground/60 leading-snug">
             Draw MediaPipe labels and bounding boxes on the current HLS feed.
           </p>
         </div>
@@ -158,7 +158,7 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
   return (
     <section className="rounded-none border border-border bg-muted/20 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="font-heading text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <h2 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
           Anomaly Plugins
         </h2>
         <span className="text-[10px] text-muted-foreground/60">
@@ -179,12 +179,12 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
             // Read kind-specific display fields
             const kindLabels: string[] = [];
             if (plugin.kind === "object-anomaly") {
-              const c = config as import("#/src/lib/monitoring/plugins").ObjectAnomalyDeviceConfig;
+              const c = config as import("#/lib/monitoring/plugins").ObjectAnomalyDeviceConfig;
               const opts = plugin.options.filter((o) => c.selectedAnomalies.includes(o.id));
               kindLabels.push(...opts.map((o) => o.label));
             }
             if (plugin.kind === "object-counting") {
-              const c = config as import("#/src/lib/monitoring/plugins").ObjectCountingDeviceConfig;
+              const c = config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig;
               const opts = plugin.options.filter((o) => c.selectedSignals.includes(o.id));
               kindLabels.push(...opts.map((o) => o.label));
             }
@@ -195,12 +195,12 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
                 key={plugin.id}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-medium text-foreground/80">{plugin.name}</p>
+                  <p className="font-medium text-[11px] text-foreground/80">{plugin.name}</p>
                   <span
                     className={
                       config.enabled
-                        ? "rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600 uppercase"
-                        : "rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase"
+                        ? "rounded bg-green-500/10 px-1.5 py-0.5 font-medium text-[10px] text-green-600 uppercase"
+                        : "rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground uppercase"
                     }
                   >
                     {config.enabled ? "On" : "Off"}
@@ -217,9 +217,9 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
                   </div>
                 ) : plugin.kind === "segment-understanding" ? (
                   <p className="text-[10px] text-muted-foreground/60 leading-snug">
-                    {(config as import("#/src/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.length > 60
-                      ? `"${(config as import("#/src/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.slice(0, 60)}…"`
-                      : `"${(config as import("#/src/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt}"`}
+                    {(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.length > 60
+                      ? `"${(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.slice(0, 60)}…"`
+                      : `"${(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt}"`}
                   </p>
                 ) : (
                   <p className="text-[10px] text-muted-foreground/60">No signals selected</p>
@@ -229,13 +229,13 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
                 )}
                 {plugin.kind === "object-counting" && (
                   <p className="text-[10px] text-muted-foreground/60">
-                    Alert when {(config as import("#/src/lib/monitoring/plugins").ObjectCountingDeviceConfig).operator}{" "}
-                    {(config as import("#/src/lib/monitoring/plugins").ObjectCountingDeviceConfig).threshold}
+                    Alert when {(config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig).operator}{" "}
+                    {(config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig).threshold}
                   </p>
                 )}
                 {plugin.kind === "segment-understanding" && (
                   <p className="text-[10px] text-muted-foreground/60">
-                    Severity: {(config as import("#/src/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).severity}
+                    Severity: {(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).severity}
                   </p>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import type { FacilityEvent, ObserverSocketMessage } from "#/src/lib/monitoring/types";
+import type { FacilityEvent, ObserverSocketMessage } from "#/lib/monitoring/types";
 
 interface Observation {
   id: string;

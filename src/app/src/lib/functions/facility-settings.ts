@@ -1,8 +1,8 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
-import { createDatabase, schema } from "#/src/lib/database";
-import { DEFAULT_FACILITY_SETTINGS, type FacilitySettings, normalizeFacilitySettings } from "#/src/lib/monitoring/logs";
+import { createDatabase, schema } from "#/lib/database";
+import { type FacilitySettings, normalizeFacilitySettings } from "#/lib/monitoring/logs";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

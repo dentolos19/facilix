@@ -1,8 +1,8 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { Spinner } from "#/src/components/ui/spinner";
-import { useSession } from "#/src/lib/auth/client";
-import { requireSession } from "#/src/lib/auth/guard";
+import { Spinner } from "#/components/ui/spinner";
+import { useSession } from "#/lib/auth/client";
+import { requireSession } from "#/lib/auth/guard";
 
 export const Route = createFileRoute("/(platform)")({
   beforeLoad: async ({ context }) => {

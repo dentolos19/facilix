@@ -1,4 +1,4 @@
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/src/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "#/components/ui/empty";
 
 export default function ErrorOccurred({ error }: { error: Error }) {
   return (

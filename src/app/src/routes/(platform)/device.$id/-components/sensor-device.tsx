@@ -1,7 +1,7 @@
 import { ActivityIcon, BatteryIcon, WifiIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
-import { getLatestSensorReading } from "#/src/lib/functions/sensors";
+import type { DeviceDetail } from "#/lib/functions/facility";
+import { getLatestSensorReading } from "#/lib/functions/sensors";
 import { DeviceDetailShell, DeviceInformationCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
@@ -150,7 +150,7 @@ function SensorLiveTab({
               <div className="flex h-full flex-col justify-between gap-4">
                 <div className="flex items-baseline gap-2">
                   <span
-                    className={`text-4xl font-light tabular-nums ${
+                    className={`font-light text-4xl tabular-nums ${
                       isAboveThreshold ? "text-red-500" : "text-foreground"
                     }`}
                   >
@@ -164,7 +164,7 @@ function SensorLiveTab({
                   </p>
                 )}
                 {isAboveThreshold && (
-                  <p className="mt-2 text-[11px] font-medium text-red-500">
+                  <p className="mt-2 font-medium text-[11px] text-red-500">
                     Above threshold ({threshold}
                     {unit})
                   </p>
@@ -181,23 +181,23 @@ function SensorLiveTab({
               <div className="rounded-none border border-border bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 text-muted-foreground/60">
                   <BatteryIcon className="size-3" />
-                  <span className="text-[10px] font-medium uppercase">Battery</span>
+                  <span className="font-medium text-[10px] uppercase">Battery</span>
                 </div>
-                <p className="mt-1 text-sm font-medium tabular-nums text-foreground/80">{batteryPct.toFixed(0)}%</p>
+                <p className="mt-1 font-medium text-foreground/80 text-sm tabular-nums">{batteryPct.toFixed(0)}%</p>
               </div>
               <div className="rounded-none border border-border bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 text-muted-foreground/60">
                   <WifiIcon className="size-3" />
-                  <span className="text-[10px] font-medium uppercase">Signal</span>
+                  <span className="font-medium text-[10px] uppercase">Signal</span>
                 </div>
-                <p className="mt-1 text-sm font-medium tabular-nums text-foreground/80">{signalRssi} dBm</p>
+                <p className="mt-1 font-medium text-foreground/80 text-sm tabular-nums">{signalRssi} dBm</p>
               </div>
               <div className="rounded-none border border-border bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 text-muted-foreground/60">
                   <ActivityIcon className="size-3" />
-                  <span className="text-[10px] font-medium uppercase">Status</span>
+                  <span className="font-medium text-[10px] uppercase">Status</span>
                 </div>
-                <p className="mt-1 text-sm font-medium text-foreground/80">{reading?.status ?? "unknown"}</p>
+                <p className="mt-1 font-medium text-foreground/80 text-sm">{reading?.status ?? "unknown"}</p>
               </div>
             </div>
           </>

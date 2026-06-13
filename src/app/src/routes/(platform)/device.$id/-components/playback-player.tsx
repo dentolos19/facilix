@@ -1,7 +1,7 @@
 import { PlayIcon, VideoIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RecordingAnomaly, RecordingRow } from "#/src/lib/functions/recordings";
-import { cn } from "#/src/lib/utils";
+import type { RecordingAnomaly, RecordingRow } from "#/lib/functions/recordings";
+import { cn } from "#/lib/utils";
 
 interface PlaybackPlayerProps {
   recording: RecordingRow;
@@ -100,15 +100,15 @@ export function PlaybackPlayer({ recording, className }: PlaybackPlayerProps) {
       <div className="grid shrink-0 gap-3 lg:grid-cols-2">
         {sceneSummary && (
           <div className="rounded-none border border-border bg-muted/20 p-3">
-            <h3 className="mb-1 font-heading text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <h3 className="mb-1 font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
               Scene understanding
             </h3>
-            <p className="text-[11px] leading-relaxed text-foreground/80">{sceneSummary}</p>
+            <p className="text-[11px] text-foreground/80 leading-relaxed">{sceneSummary}</p>
           </div>
         )}
 
         <div className="rounded-none border border-border bg-muted/20 p-3">
-          <h3 className="mb-2 font-heading text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-2 font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
             Detections
           </h3>
           {Object.keys(detectionCounts).length === 0 ? (
@@ -133,7 +133,7 @@ export function PlaybackPlayer({ recording, className }: PlaybackPlayerProps) {
       {/* Timeline of anomalies */}
       {anomalies.length > 0 && (
         <div className="shrink-0 rounded-none border border-border bg-muted/20 p-3">
-          <h3 className="mb-2 font-heading text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-2 font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
             Anomaly timeline
           </h3>
           <div className="flex gap-2 overflow-x-auto pb-1">

@@ -1,10 +1,10 @@
 import { env } from "cloudflare:workers";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
-import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/src/lib/monitoring/api";
+import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/lib/monitoring/api";
 
-export { Observer } from "#/src/lib/bindings/observer";
-export { Processor } from "#/src/lib/bindings/processor";
-export { Server } from "#/src/lib/bindings/server";
+export { Observer } from "#/lib/bindings/observer";
+export { Processor } from "#/lib/bindings/processor";
+export { Server } from "#/lib/bindings/server";
 
 /**
  * Parse an HTTP Range header of the form `bytes=start-end`.

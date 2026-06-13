@@ -1,10 +1,10 @@
 import { SearchIcon, TerminalIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "#/src/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "#/src/components/ui/dialog";
-import { Input } from "#/src/components/ui/input";
-import { ScrollArea } from "#/src/components/ui/scroll-area";
-import type { FacilityEvent } from "#/src/lib/monitoring/types";
+import { Button } from "#/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "#/components/ui/dialog";
+import { Input } from "#/components/ui/input";
+import { ScrollArea } from "#/components/ui/scroll-area";
+import type { FacilityEvent } from "#/lib/monitoring/types";
 import type { LogEntry } from "../-helpers/types";
 import { LogLevelBadge } from "./monitoring-logs-panel";
 

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "#/src/components/ui/button";
+import { Button } from "#/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -24,9 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "#/src/components/ui/dialog";
-import { Input } from "#/src/components/ui/input";
-import { Label } from "#/src/components/ui/label";
+} from "#/components/ui/dialog";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
 import {
   Menubar,
   MenubarContent,
@@ -35,17 +35,17 @@ import {
   MenubarSeparator,
   MenubarShortcut,
   MenubarTrigger,
-} from "#/src/components/ui/menubar";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/src/components/ui/resizable";
-import { Separator } from "#/src/components/ui/separator";
-import { Switch } from "#/src/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "#/src/components/ui/tooltip";
-import { type FacilityEventRow, getFacilityEvents } from "#/src/lib/functions/events";
-import { deleteFacility, loadFacility, saveFacility } from "#/src/lib/functions/facility";
-import { getFacilitySettings, saveFacilitySettings } from "#/src/lib/functions/facility-settings";
-import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/src/lib/functions/server";
-import { type FacilitySettings, logTypesByCategory, shouldShowInGlobalEvents } from "#/src/lib/monitoring/logs";
-import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/src/lib/monitoring/types";
+} from "#/components/ui/menubar";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable";
+import { Separator } from "#/components/ui/separator";
+import { Switch } from "#/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
+import { type FacilityEventRow, getFacilityEvents } from "#/lib/functions/events";
+import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
+import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
+import { type FacilitySettings, logTypesByCategory, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
+import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
 import { ContainerLogsDialog } from "./-components/container-logs-dialog";
@@ -750,15 +750,15 @@ function Page() {
                 <DialogTitle>Facility Settings</DialogTitle>
                 <DialogDescription>Edit facility metadata and preferences.</DialogDescription>
               </DialogHeader>
-              <div className="flex border-b border-border">
+              <div className="flex border-border border-b">
                 {[
                   { id: "general", label: "General" },
                   { id: "events", label: "Events" },
                 ].map((tab) => (
                   <button
-                    className={`relative flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
+                    className={`relative flex-1 px-4 py-3 text-center font-medium text-sm transition-colors ${
                       settingsTab === tab.id
-                        ? "border-b-2 border-primary text-foreground"
+                        ? "border-primary border-b-2 text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                     key={tab.id}
@@ -772,7 +772,7 @@ function Page() {
               {settingsTab === "events" ? (
                 <div className="flex flex-col gap-4 p-4">
                   <div>
-                    <h4 className="font-heading text-sm font-medium">Global Events</h4>
+                    <h4 className="font-heading font-medium text-sm">Global Events</h4>
                     <p className="text-[11px] text-muted-foreground">
                       Important logs are always shown. Enable additional log types you want to see in the Global Events
                       panel.
@@ -780,7 +780,7 @@ function Page() {
                   </div>
                   {Object.entries(logTypesByCategory()).map(([category, types]) => (
                     <div className="flex flex-col gap-2" key={category}>
-                      <h5 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <h5 className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
                         {category}
                       </h5>
                       <div className="flex flex-col gap-2">
@@ -789,7 +789,7 @@ function Page() {
                           return (
                             <div className="flex items-start justify-between gap-3" key={logType.type}>
                               <div className="flex flex-col">
-                                <Label className="text-xs font-medium" htmlFor={`log-${logType.type}`}>
+                                <Label className="font-medium text-xs" htmlFor={`log-${logType.type}`}>
                                   {logType.label}
                                   {logType.important && (
                                     <span className="ml-1.5 text-[10px] text-muted-foreground">(always on)</span>

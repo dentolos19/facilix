@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2Icon, VideoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DeviceDetail } from "#/src/lib/functions/facility";
-import { getDevice } from "#/src/lib/functions/facility";
+import type { DeviceDetail } from "#/lib/functions/facility";
+import { getDevice } from "#/lib/functions/facility";
 import { CctvDeviceDetail } from "./-components/cctv-device";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-detail-layout";
 import { SensorDeviceDetail } from "./-components/sensor-device";
@@ -55,7 +55,7 @@ function Page() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
         <VideoIcon className="size-8 text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">{error ?? "Device not found"}</p>
+        <p className="text-muted-foreground/50 text-xs">{error ?? "Device not found"}</p>
       </div>
     );
   }
