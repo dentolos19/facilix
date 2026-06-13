@@ -2,6 +2,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { summarizeImage, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
+import { createLogger } from "#/lib/logs";
 import type { Detection } from "#/lib/monitoring/detection";
 import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 import {
@@ -60,6 +61,8 @@ const STEP_RETRIES = {
 };
 
 export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
+  #log = createLogger("processor");
+
   async run(event: WorkflowEvent<ProcessorPayload>, step: WorkflowStep): Promise<unknown> {
     const payload = event.payload;
     if (payload.kind === "frame") return this.runFrame(payload, step);
@@ -321,6 +324,31 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     // their results to video_frames before we aggregate.
     await step.sleep("wait-for-frames", "5 seconds");
 
+    // Load the CCTV device's intelligence-plugin config so we can
+    // find segment-understanding plugins and use their prompts.
+    const segmentPlugins: import("#/lib/monitoring/plugins").ResolvedPlugin<
+      import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig
+    >[] = [];
+    await step.do("load-device-plugins", STEP_RETRIES, async () => {
+      const db = createDatabase(this.env.DATABASE);
+      const [row] = await db
+        .select({ data: schema.facilityDevice.data })
+        .from(schema.facilityDevice)
+        .where(eq(schema.facilityDevice.id, deviceId))
+        .limit(1);
+      const configs = normalizePlugins((row?.data as JsonObject | undefined)?.plugins);
+      const enabled = resolveEnabledPlugins(configs);
+      for (const r of enabled) {
+        if (r.plugin.kind === "segment-understanding") {
+          segmentPlugins.push(
+            r as unknown as import("#/lib/monitoring/plugins").ResolvedPlugin<
+              import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig
+            >,
+          );
+        }
+      }
+    });
+
     // Aggregate analysis from video_frames rows that fall within the
     // segment's time window. This is durable — frame results persist in D1.
     const aggregate = await step.do("aggregate-frame-data", STEP_RETRIES, async () => {
@@ -434,35 +462,69 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         .map(([label, count]) => `${count}× ${label}`)
         .join(", ");
 
+      // Build the prompt from the first enabled segment-understanding plugin.
+      // If none is configured, use the legacy hardcoded basePrompt as a fallback.
+      const segmentPlugin = segmentPlugins[0];
+      const prompt = segmentPlugin
+        ? (segmentPlugin.config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt
+        : null;
       const basePrompt =
+        prompt ??
         `This is a CCTV segment from a monitored facility. Detected anomalies in this segment: ${labelList || "none"}. ` +
-        "Describe what is happening in the scene in one or two sentences. Be factual and concise.";
+          "Describe what is happening in the scene in one or two sentences. Be factual and concise.";
+
+      // Gate: run only if a segment-understanding plugin is enabled OR
+      // frame anomalies exist (legacy path).
+      const hasSegmentPlugin = segmentPlugins.length > 0;
+      if (!hasSegmentPlugin && aggregate.anomalies.length === 0) {
+        return null;
+      }
 
       // Preferred path: send the actual segment video clip to the multimodal
       // OpenRouter model. Falls back to the best single frame if video
       // input fails for any reason.
-      if (aggregate.anomalies.length > 0) {
-        try {
-          const segmentObject = await this.env.BUCKET.get(payload.assetId);
-          if (segmentObject) {
-            const buffer = await segmentObject.arrayBuffer();
-            const summary = await summarizeVideo(new Uint8Array(buffer), "video/mp4", basePrompt);
-            if (summary) return summary;
+      try {
+        const segmentObject = await this.env.BUCKET.get(payload.assetId);
+        if (segmentObject) {
+          const buffer = await segmentObject.arrayBuffer();
+          const summary = await summarizeVideo(new Uint8Array(buffer), "video/mp4", basePrompt);
+          if (summary) {
+            this.#log.info("segment AI summary ok (video)", {
+              length: summary.length,
+              prompt: basePrompt.slice(0, 80),
+            });
+            return summary;
           }
-        } catch (err) {
-          console.error("summarizeVideo failed, falling back to image:", err);
         }
+      } catch (err) {
+        this.#log.error("summarizeVideo failed, falling back to image", {
+          error: String(err),
+          segmentId: payload.segmentId,
+        });
       }
 
-      // Fallback: best-anomaly frame as a JPEG.
-      if (aggregate.anomalies.length > 0) {
-        const best = aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b));
-        if (best.assetId) {
-          const object = await this.env.BUCKET.get(best.assetId);
+      // Fallback: use a frame as JPEG still image.
+      const bestFrameAsset =
+        aggregate.anomalies.length > 0
+          ? aggregate.anomalies.reduce((a, b) => (a.confidence >= b.confidence ? a : b)).assetId
+          : (aggregate.frameSamples[0] ?? payload.assetId);
+
+      if (bestFrameAsset) {
+        try {
+          const object = await this.env.BUCKET.get(bestFrameAsset);
           if (object) {
             const buffer = await object.arrayBuffer();
-            return summarizeImage(new Uint8Array(buffer), "image/jpeg", basePrompt);
+            const summary = await summarizeImage(new Uint8Array(buffer), "image/jpeg", basePrompt);
+            if (summary) {
+              this.#log.info("segment AI summary ok (image)", { length: summary.length });
+              return summary;
+            }
           }
+        } catch (err) {
+          this.#log.error("summarizeImage fallback failed", {
+            error: String(err),
+            segmentId: payload.segmentId,
+          });
         }
       }
 

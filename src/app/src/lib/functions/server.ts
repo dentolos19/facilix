@@ -1,6 +1,9 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
+import { createLogger } from "#/lib/logs";
 import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
+
+const log = createLogger("server-functions");
 
 /** Origin the monitoring container uses to call back to the Worker API. */
 const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
@@ -126,7 +129,7 @@ export const clearContainerLogs = createServerFn({ method: "POST" })
       await stub.clearEvents();
       return { success: true } as const;
     } catch (err) {
-      console.error("clearContainerLogs failed:", err);
+      log.error("clearContainerLogs failed", { error: String(err), facilityId: data.facilityId });
       return { success: false } as const;
     }
   });

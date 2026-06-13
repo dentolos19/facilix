@@ -1,6 +1,9 @@
 import { eq } from "drizzle-orm";
 import type { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
+import { createLogger } from "#/lib/logs";
+
+const log = createLogger("monitoring-utils");
 
 /**
  * Validate that a deviceId belongs to the given facility and return its row.
@@ -31,7 +34,7 @@ export async function recordObservation(
     await observer.recordEvent(deviceId, type, JSON.stringify({ level: severity, message, ...data }));
     return true;
   } catch (err) {
-    console.error("Observer recordEvent failed:", err);
+    log.error("Observer recordEvent failed", { error: String(err), deviceId, type });
     return false;
   }
 }
@@ -69,7 +72,7 @@ export async function recordFacilityEvent(
     });
     return id;
   } catch (err) {
-    console.error("D1 facilityEvent insert failed:", err);
+    log.error("D1 facilityEvent insert failed", { error: String(err), facilityId, type });
     return null;
   }
 }
@@ -104,7 +107,7 @@ export async function recordSensorReading(
     });
     return true;
   } catch (err) {
-    console.error("sensor_readings insert failed", err);
+    log.error("sensor_readings insert failed", { error: String(err), facilityId, deviceId });
     return false;
   }
 }

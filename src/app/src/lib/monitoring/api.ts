@@ -1,10 +1,13 @@
 import { eq } from "drizzle-orm";
 import { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
+import { createLogger } from "#/lib/logs";
 import { createStorage } from "#/lib/storage";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
 import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
+
+const log = createLogger("monitoring-api");
 
 const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 
@@ -235,7 +238,7 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
   // 3. Record structured sensor reading for sensor events (requires a real device)
   if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data && device) {
     await recordSensorReading(db, facilityId, device.id, body.data).catch((err) =>
-      console.error("recordSensorReading failed:", err),
+      log.error("recordSensorReading failed", { error: String(err), facilityId, deviceId: device.id }),
     );
   }
 

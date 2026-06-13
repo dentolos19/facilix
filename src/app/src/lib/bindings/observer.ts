@@ -1,5 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
+import { createLogger } from "#/lib/logs";
 import type { FacilityEvent, ObserverSocketMessage } from "#/lib/monitoring/types";
+
+const log = createLogger("observer");
 
 interface Observation {
   id: string;
@@ -94,6 +97,9 @@ export class Observer extends DurableObject<Env> {
     const recent = this.queryEvents(undefined, undefined, 200);
     this.send(server, { type: "snapshot", events: recent });
 
+    const clientCount = this.ctx.getWebSockets().length;
+    log.info("WebSocket client connected", { clientCount, eventsInSnapshot: recent.length });
+
     return new Response(null, {
       status: 101,
       webSocket: client,
@@ -144,6 +150,9 @@ export class Observer extends DurableObject<Env> {
       this.lastCleanup = Date.now();
     }
 
+    const clientCount = this.ctx.getWebSockets().length;
+    log.debug("Event recorded", { id, type, deviceId, clientCount });
+
     return { success: true };
   }
 
@@ -171,6 +180,8 @@ export class Observer extends DurableObject<Env> {
       await this.ctx.storage.setAlarm(Date.now() + 60_000);
       this.lastCleanup = Date.now();
     }
+
+    log.debug("Observation recorded", { id, type, deviceId });
 
     return { success: true };
   }
@@ -335,11 +346,16 @@ export class Observer extends DurableObject<Env> {
    * to every connected WebSocket client so the UI updates immediately.
    */
   async clearEvents(): Promise<{ success: boolean }> {
+    const before = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations");
+    const countBefore = before.one().cnt;
+
     this.ctx.storage.sql.exec("DELETE FROM observations");
     this.lastCleanup = 0;
 
     // Broadcast empty snapshot so all connected clients see cleared state
     this.broadcast({ type: "snapshot", events: [] });
+
+    log.info("Events cleared", { deletedCount: countBefore });
 
     return { success: true };
   }
@@ -355,14 +371,20 @@ export class Observer extends DurableObject<Env> {
   async alarm(): Promise<void> {
     const cutoff = new Date(Date.now() - 86_400_000).toISOString();
 
+    const before = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations WHERE created_at < ?", cutoff);
+    const expiredCount = before.one().cnt;
+
     this.ctx.storage.sql.exec("DELETE FROM observations WHERE created_at < ?", cutoff);
 
     const remaining = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations");
+    const remainingCount = remaining.one().cnt;
 
-    if (remaining.one().cnt > 0) {
+    if (remainingCount > 0) {
       await this.ctx.storage.setAlarm(Date.now() + 3_600_000);
+      log.info("Alarm cleanup completed", { expiredCount, remainingCount, nextAlarmMs: 3_600_000 });
     } else {
       this.lastCleanup = 0;
+      log.info("Alarm cleanup completed — no events remain", { expiredCount });
     }
   }
 }

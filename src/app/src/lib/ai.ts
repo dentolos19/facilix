@@ -1,4 +1,7 @@
 import { env } from "cloudflare:workers";
+import { createLogger } from "#/lib/logs";
+
+const log = createLogger("openrouter");
 
 /**
  * Cloudflare Workers-compatible OpenRouter client used for image and
@@ -106,16 +109,19 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
 
   if (!response.ok) {
     const tail = (await response.text()).slice(0, 500);
+    log.error(`OpenRouter HTTP ${response.status}`, { model: request.model, status: response.status, response: tail });
     throw new Error(`OpenRouter HTTP ${response.status}: ${tail}`);
   }
 
   const payload = (await response.json()) as ChatResponse;
   if (payload.error?.message) {
+    log.error(`OpenRouter API error: ${payload.error.message}`, { code: payload.error.code, model: request.model });
     throw new Error(`OpenRouter error ${payload.error.code ?? "?"}: ${payload.error.message}`);
   }
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") return null;
   const trimmed = content.trim();
+  log.info("OpenRouter completion ok", { model: request.model, outputLength: trimmed.length });
   return trimmed.length > 0 ? trimmed : null;
 }
 

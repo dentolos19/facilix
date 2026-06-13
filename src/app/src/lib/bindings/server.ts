@@ -1,7 +1,10 @@
 import { Container } from "@cloudflare/containers";
 import { eq } from "drizzle-orm";
 import { createDatabase, schema } from "#/lib/database";
+import { createLogger } from "#/lib/logs";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
+
+const log = createLogger("server-container");
 
 const PORT = 3001;
 
@@ -18,16 +21,20 @@ export class Server extends Container<Env> {
   private async recordEvent(type: string, extra: Record<string, unknown> = {}): Promise<void> {
     const { level = "info", message } = extra as { level?: string; message?: string };
     const severity = (level === "warn" || level === "error" ? level : "info") as LogSeverity;
+    const facilityId = this.facilityId;
+
+    log.info(`Container lifecycle: ${type}`, { facilityId, severity, ...extra });
 
     // 1. Always write to DO observations for Container Logs
     try {
-      const stub = this.env.OBSERVER.getByName(this.facilityId);
+      const stub = this.env.OBSERVER.getByName(facilityId);
       await stub.recordEvent(
-        this.facilityId,
+        facilityId,
         type,
-        JSON.stringify({ facilityId: this.facilityId, source: "monitoring-do", ...extra }),
+        JSON.stringify({ facilityId, source: "monitoring-do", ...extra }),
       );
-    } catch {
+    } catch (err) {
+      log.warn("Observer recordEvent failed (non-fatal)", { error: String(err), facilityId, type });
       // Observer recording is best-effort; don't block container start/stop.
     }
 
@@ -37,7 +44,7 @@ export class Server extends Container<Env> {
       const [facRow] = await db
         .select({ settings: schema.facility.settings })
         .from(schema.facility)
-        .where(eq(schema.facility.id, this.facilityId))
+        .where(eq(schema.facility.id, facilityId))
         .limit(1);
       const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
 
@@ -48,7 +55,7 @@ export class Server extends Container<Env> {
       const now = new Date();
       await db.insert(schema.facilityEvent).values({
         id: crypto.randomUUID(),
-        facilityId: this.facilityId,
+        facilityId,
         deviceId: null,
         severity,
         type,
@@ -57,7 +64,8 @@ export class Server extends Container<Env> {
         createdAt: now,
         updatedAt: now,
       });
-    } catch {
+    } catch (err) {
+      log.warn("D1 facilityEvent insert failed (non-fatal)", { error: String(err), facilityId, type });
       // D1 recording is best-effort; don't block container start/stop.
     }
   }
