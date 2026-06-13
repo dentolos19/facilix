@@ -109,6 +109,14 @@ export function PropertiesPanel({
                     </div>
                   </Field>
 
+                  {selected.type !== "Zone" && (
+                    <Field label="Zone">
+                      <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
+                        {placedItems.find((i) => i.type === "Zone" && i.id === selected.zoneId)?.name ?? "Unassigned"}
+                      </div>
+                    </Field>
+                  )}
+
                   <Field label="Position" noGrow>
                     <div className="flex gap-2">
                       <Input

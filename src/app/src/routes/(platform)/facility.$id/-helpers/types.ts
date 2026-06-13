@@ -198,6 +198,32 @@ export function toDevicePayloads(
     }));
 }
 
+/** Geometry helper: detect whether a non-zone device intersects or touches a zone rectangle. */
+export function findZoneForDevice(device: PlacedItem, zones: PlacedItem[]): string | null {
+  if (device.type === "Zone") return null;
+  const r = device.width / 2;
+  for (const zone of zones) {
+    if (zone.type !== "Zone") continue;
+    const closestX = Math.max(zone.x, Math.min(device.x, zone.x + zone.width));
+    const closestY = Math.max(zone.y, Math.min(device.y, zone.y + zone.height));
+    const dx = device.x - closestX;
+    const dy = device.y - closestY;
+    if (dx * dx + dy * dy <= r * r) return zone.id;
+  }
+  return null;
+}
+
+/** Recompute zoneId for every non-zone item based on current geometry. */
+export function recomputeZoneLinks(items: PlacedItem[]): PlacedItem[] {
+  const zones = items.filter((i) => i.type === "Zone");
+  if (zones.length === 0) return items;
+  return items.map((item) => {
+    if (item.type === "Zone") return item;
+    const zoneId = findZoneForDevice(item, zones);
+    return zoneId === item.zoneId ? item : { ...item, zoneId };
+  });
+}
+
 /** Reconstruct PlacedItem[] from canvas layout + zone rows + device rows. */
 export function fromSnapshot(
   layout: CanvasLayoutData,

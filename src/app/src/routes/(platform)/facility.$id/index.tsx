@@ -53,6 +53,7 @@ import {
   DEFAULT_PROPS,
   DEFAULT_SIZES,
   fromSnapshot,
+  recomputeZoneLinks,
   toCanvasData,
   toDevicePayloads,
   toZonePayloads,
@@ -195,7 +196,7 @@ function Page() {
         setFacilityName(snapshot.name);
         setSettingsName(snapshot.name);
         const items = fromSnapshot(snapshot.canvasData, snapshot.zones, snapshot.devices);
-        setPlacedItems(items);
+        setPlacedItems(recomputeZoneLinks(items));
       } catch (err) {
         toast.error("Failed to load facility data");
         console.error(err);
@@ -293,22 +294,24 @@ function Page() {
     saveSnapshot();
     const id = crypto.randomUUID();
     const size = DEFAULT_SIZES[type];
-    setPlacedItems((prev) => [
-      ...prev,
-      {
-        id,
-        type,
-        x,
-        y,
-        width: size.width,
-        height: size.height,
-        zoneId: null,
-        name: type,
-        status: "unknown",
-        notes: "",
-        props: { ...DEFAULT_PROPS[type] },
-      },
-    ]);
+    setPlacedItems((prev) =>
+      recomputeZoneLinks([
+        ...prev,
+        {
+          id,
+          type,
+          x,
+          y,
+          width: size.width,
+          height: size.height,
+          zoneId: null,
+          name: type,
+          status: "unknown",
+          notes: "",
+          props: { ...DEFAULT_PROPS[type] },
+        },
+      ]),
+    );
     setIsDirty(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -324,7 +327,7 @@ function Page() {
   const updatePlacedItem = useCallback(
     (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => {
       saveSnapshot();
-      setPlacedItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+      setPlacedItems((prev) => recomputeZoneLinks(prev.map((item) => (item.id === id ? { ...item, ...patch } : item))));
       setIsDirty(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -349,7 +352,7 @@ function Page() {
 
   const removePlacedItem = useCallback((id: string) => {
     saveSnapshot();
-    setPlacedItems((prev) => prev.filter((item) => item.id !== id));
+    setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => item.id !== id)));
     setSelectedItemId((prev) => (prev === id ? null : prev));
     setIsDirty(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
