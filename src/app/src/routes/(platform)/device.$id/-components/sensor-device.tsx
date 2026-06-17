@@ -2,7 +2,7 @@ import { ActivityIcon, BatteryIcon, WifiIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
-import { DeviceDetailShell, DeviceInformationCard } from "./device-detail-layout";
+import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
 const TABS = [
@@ -137,6 +137,12 @@ function SensorLiveTab({
   const batteryPct = reading?.batteryPct ?? 0;
   const signalRssi = reading?.signalRssiDbm ?? 0;
 
+  const sensorType = String(device.data.sensorType ?? "unknown");
+  const simulationDeviceId = String(device.data.simulationDeviceId ?? "");
+  const pullUrl = String(device.data.pullUrl ?? "");
+  const pollInterval = String(device.data.pollInterval ?? "");
+  const payloadFormat = String(device.data.payloadFormat ?? "facilix");
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-4">
@@ -205,13 +211,21 @@ function SensorLiveTab({
       </main>
 
       <aside className="flex h-fit max-h-full w-full shrink-0 flex-col gap-3 overflow-y-auto lg:w-80">
-        <DeviceInformationCard
-          device={device}
+        <DeviceInformationCard device={device} />
+        <DevicePropertiesCard
           properties={[
-            { label: "Sensor Type", value: String(device.data.sensorType ?? "unknown") },
+            { label: "Sensor Type", value: sensorType },
             { label: "Data Source", value: sensorDataSource },
             { label: "Reading Status", value: reading?.status ?? "unknown" },
             { label: "Threshold", value: `${threshold}${unit}` },
+            ...(sensorDataSource === "simulation" && simulationDeviceId
+              ? [{ label: "Simulation Device", value: simulationDeviceId, monospace: true }]
+              : []),
+            ...(sensorDataSource === "http-pull" && pullUrl
+              ? [{ label: "Pull URL", value: pullUrl, monospace: true }]
+              : []),
+            ...(pollInterval ? [{ label: "Poll Interval", value: `${pollInterval}s` }] : []),
+            { label: "Payload Format", value: payloadFormat },
           ]}
         />
       </aside>

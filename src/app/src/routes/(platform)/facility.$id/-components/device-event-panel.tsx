@@ -29,6 +29,107 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/**
+ * Device properties info row for use inside the monitoring panel.
+ */
+function PropRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <dt className="shrink-0 text-muted-foreground/60 text-[10px]">{label}</dt>
+      <dd
+        className={
+          monospace
+            ? "break-all text-right font-mono text-foreground/70 text-[10px]"
+            : "break-words text-right text-foreground/70 text-[10px]"
+        }
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * Renders the configuration properties for the selected device.
+ */
+function DevicePropertiesSection({ device }: { device: PlacedItem }) {
+  const props = device.props;
+  if (!props) return null;
+
+  if (device.type === "CCTV") {
+    const videoSource = String(props.videoSource ?? "simulation");
+    const streamName = String(props.simulationStream ?? "");
+    const streamUrl = String(props.streamUrl ?? "");
+    const streamPath = String(props.streamPath ?? "");
+    const deviceId = String(props.deviceId ?? "");
+    const raw = props.capture;
+    const capture: {
+      frames?: { enabled?: boolean; intervalSec?: number };
+      segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
+    } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
+    const frames = { enabled: true, intervalSec: 5, ...capture.frames };
+    const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
+
+    return (
+      <div className="flex flex-col gap-2">
+        <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+          Properties
+        </h4>
+        <div className="rounded-none border border-border bg-muted/20 p-2">
+          <dl className="flex flex-col gap-1.5">
+            <PropRow label="Video Source" value={videoSource} />
+            {streamName && videoSource === "simulation" && (
+              <PropRow label="Simulation Stream" monospace value={streamName} />
+            )}
+            {streamUrl && videoSource !== "simulation" && <PropRow label="Stream URL" monospace value={streamUrl} />}
+            {streamPath && <PropRow label="Stream Path" monospace value={streamPath} />}
+            {deviceId && <PropRow label="Device ID" monospace value={deviceId} />}
+            <PropRow label="Frame Capture" value={frames.enabled ? `Every ${frames.intervalSec ?? 5}s` : "Off"} />
+            <PropRow
+              label="Segment Capture"
+              value={segments.enabled ? `Every ${segments.intervalSec ?? 30}s, ${segments.durationSec ?? 30}s` : "Off"}
+            />
+          </dl>
+        </div>
+      </div>
+    );
+  }
+
+  if (device.type === "Sensor") {
+    const sensorDataSource = String(props.sensorDataSource ?? "simulation");
+    const sensorType = String(props.sensorType ?? "unknown");
+    const simulationDeviceId = String(props.simulationDeviceId ?? "");
+    const pullUrl = String(props.pullUrl ?? "");
+    const pollInterval = String(props.pollInterval ?? "");
+    const payloadFormat = String(props.payloadFormat ?? "facilix");
+    const unit = String(props.unit ?? "");
+    const threshold = String(props.threshold ?? "");
+
+    return (
+      <div className="flex flex-col gap-2">
+        <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+          Properties
+        </h4>
+        <div className="rounded-none border border-border bg-muted/20 p-2">
+          <dl className="flex flex-col gap-1.5">
+            <PropRow label="Sensor Type" value={sensorType} />
+            <PropRow label="Data Source" value={sensorDataSource} />
+            {sensorDataSource === "simulation" && simulationDeviceId && (
+              <PropRow label="Simulation Device" monospace value={simulationDeviceId} />
+            )}
+            {sensorDataSource === "http-pull" && pullUrl && <PropRow label="Pull URL" monospace value={pullUrl} />}
+            {threshold && unit && <PropRow label="Threshold" value={`${threshold}${unit}`} />}
+            {pollInterval && <PropRow label="Poll Interval" value={`${pollInterval}s`} />}
+            <PropRow label="Payload Format" value={payloadFormat} />
+          </dl>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 /** Derive a device-level status string from a sensor reading. */
 function deriveSensorDeviceStatus(reading: SensorReadingRow | null): string | null {
   if (!reading) return null;
@@ -160,6 +261,9 @@ export function DeviceEventPanel({
               </div>
             </div>
 
+            {/* Device properties */}
+            <DevicePropertiesSection device={selectedDevice} />
+
             {/* Video feed for CCTVs */}
             {isCCTV && (
               <div className="flex flex-col gap-2">
@@ -181,31 +285,38 @@ export function DeviceEventPanel({
               <SensorReadingPanel facilityId={facilityId} selectedDevice={selectedDevice} />
             )}
 
-            {/* Log entries */}
-            {deviceEvents.length > 0 && (
-              <>
+            {/* Log entries (not applicable to zones) */}
+            {selectedDevice.type !== "Zone" && (
+              <div className="flex flex-col gap-2">
                 <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
                   Event History
                 </h4>
-                <div className="flex flex-col gap-1">
-                  {deviceEvents.map((log) => (
-                    <div
-                      className="flex flex-col gap-0.5 rounded-none border-l-2 px-2.5 py-1.5 text-[11px] leading-relaxed"
-                      key={log.id}
-                      style={{
-                        borderLeftColor:
-                          log.level === "error" ? "#ef4444" : log.level === "warn" ? "#f59e0b" : "#22c55e",
-                      }}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <LogLevelBadge level={log.level} />
-                        <span className="text-muted-foreground/40">{log.timestamp.toLocaleTimeString()}</span>
+                {deviceEvents.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {deviceEvents.map((log) => (
+                      <div
+                        className="flex flex-col gap-0.5 rounded-none border-l-2 px-2.5 py-1.5 text-[11px] leading-relaxed"
+                        key={log.id}
+                        style={{
+                          borderLeftColor:
+                            log.level === "error" ? "#ef4444" : log.level === "warn" ? "#f59e0b" : "#22c55e",
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <LogLevelBadge level={log.level} />
+                          <span className="text-muted-foreground/40">{log.timestamp.toLocaleTimeString()}</span>
+                        </div>
+                        <span className="text-foreground/80">{log.message}</span>
                       </div>
-                      <span className="text-foreground/80">{log.message}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/50 leading-snug">
+                    No events recorded for this device yet. Events appear here when the sensor triggers alerts or state
+                    changes.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

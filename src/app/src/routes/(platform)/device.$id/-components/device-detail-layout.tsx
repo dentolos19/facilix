@@ -116,19 +116,14 @@ export function DeviceDetailSidebar({
 }) {
   return (
     <>
-      <DeviceInformationCard device={device} properties={properties} />
+      <DeviceInformationCard device={device} />
+      <DevicePropertiesCard properties={properties} />
       {children}
     </>
   );
 }
 
-export function DeviceInformationCard({
-  device,
-  properties = [],
-}: {
-  device: DeviceDetail;
-  properties?: DeviceInfoProperty[];
-}) {
+export function DeviceInformationCard({ device }: { device: DeviceDetail }) {
   return (
     <section className="rounded-none border border-border bg-muted/20 p-3">
       <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
@@ -139,15 +134,29 @@ export function DeviceInformationCard({
         <InfoRow label="Type" value={device.type} />
         <InfoRow label="Status" value={device.status} />
         <InfoRow label="Facility" value={device.facilityName} />
-        {properties.map((property) => (
-          <InfoRow key={property.label} {...property} />
-        ))}
         {device.notes && (
-          <div className="mt-1 flex flex-col gap-0.5 border-border border-t pt-2">
+          <div className="flex flex-col gap-0.5">
             <dt className="text-muted-foreground/60">Notes</dt>
             <dd className="text-foreground/70">{device.notes}</dd>
           </div>
         )}
+      </dl>
+    </section>
+  );
+}
+
+export function DevicePropertiesCard({ properties = [] }: { properties?: DeviceInfoProperty[] }) {
+  if (properties.length === 0) return null;
+
+  return (
+    <section className="rounded-none border border-border bg-muted/20 p-3">
+      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        Properties
+      </h2>
+      <dl className="flex flex-col gap-2 text-[11px]">
+        {properties.map((property) => (
+          <InfoRow key={property.label} {...property} />
+        ))}
       </dl>
     </section>
   );

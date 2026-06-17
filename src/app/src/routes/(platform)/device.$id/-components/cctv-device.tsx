@@ -6,7 +6,7 @@ import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 import { CctvPlaybackTab } from "./cctv-playback";
-import { DeviceDetailShell, DeviceInformationCard } from "./device-detail-layout";
+import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
 const TABS = [
@@ -69,6 +69,11 @@ function CctvLiveTab({
   objectDetectionEnabled: boolean;
   onObjectDetectionChange: (enabled: boolean) => void;
 }) {
+  const videoSource = String(device.data.videoSource ?? "simulation");
+  const streamUrl = String(device.data.streamUrl ?? "");
+  const streamPath = String(device.data.streamPath ?? "");
+  const deviceId = String(device.data.deviceId ?? "");
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-2">
@@ -88,14 +93,22 @@ function CctvLiveTab({
       </main>
 
       <aside className="flex h-fit max-h-full w-full shrink-0 flex-col gap-3 overflow-y-auto lg:w-80">
-        <DeviceInformationCard
-          device={device}
+        <DeviceInformationCard device={device} />
+        <DevicePropertiesCard
           properties={[
-            { label: "Video Source", value: String(device.data.videoSource ?? "simulation") },
-            ...(streamName ? [{ label: "Stream", value: streamName, monospace: true }] : []),
+            { label: "Video Source", value: videoSource },
+            ...(streamName && videoSource === "simulation"
+              ? [{ label: "Simulation Stream", value: streamName, monospace: true }]
+              : []),
+            ...(streamUrl && videoSource !== "simulation"
+              ? [{ label: "Stream URL", value: streamUrl, monospace: true }]
+              : []),
+            ...(streamPath ? [{ label: "Stream Path", value: streamPath, monospace: true }] : []),
+            ...(deviceId ? [{ label: "Device ID", value: deviceId, monospace: true }] : []),
           ]}
         />
-        <CctvAnomalyPluginsCard device={device} />
+        <CctvCaptureSettingsCard device={device} />
+        <CctvIntelligencePluginsCard device={device} />
         <CctvOptionsCard
           disabled={!hlsUrl}
           objectDetectionEnabled={objectDetectionEnabled}
@@ -103,6 +116,64 @@ function CctvLiveTab({
         />
       </aside>
     </div>
+  );
+}
+
+/**
+ * Read-only card displaying the CCTV capture settings (frame + segment intervals).
+ */
+function CctvCaptureSettingsCard({ device }: { device: DeviceDetail }) {
+  const raw = device.data.capture;
+  const capture: {
+    frames?: { enabled?: boolean; intervalSec?: number };
+    segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
+  } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
+  const frames = { enabled: true, intervalSec: 5, ...capture.frames };
+  const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
+
+  return (
+    <section className="rounded-none border border-border bg-muted/20 p-3">
+      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        Capture Settings
+      </h2>
+      <div className="flex flex-col gap-2">
+        {/* Frame capture */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium text-[11px] text-foreground/80">Frames</p>
+            <p className="text-[10px] text-muted-foreground/60 leading-snug">
+              {frames.enabled ? `Every ${frames.intervalSec ?? 5}s` : "Disabled"}
+            </p>
+          </div>
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[10px] ${
+              frames.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {frames.enabled ? "On" : "Off"}
+          </span>
+        </div>
+
+        {/* Segment capture */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium text-[11px] text-foreground/80">Segments</p>
+            <p className="text-[10px] text-muted-foreground/60 leading-snug">
+              {segments.enabled
+                ? `Every ${segments.intervalSec ?? 30}s, ${segments.durationSec ?? 30}s long`
+                : "Disabled"}
+            </p>
+          </div>
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[10px] ${
+              segments.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {segments.enabled ? "On" : "Off"}
+          </span>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -143,10 +214,10 @@ function CctvOptionsCard({
 }
 
 /**
- * Read-only summary of the anomaly plugins installed on this CCTV.
+ * Read-only summary of the intelligence plugins installed on this CCTV.
  * Editing happens in the facility editor's properties panel.
  */
-function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
+function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
   const configs = normalizePlugins(device.data.plugins);
   const installed = configs
     .map((c) => ({ config: c, plugin: getPlugin(c.pluginId) }))
@@ -159,7 +230,7 @@ function CctvAnomalyPluginsCard({ device }: { device: DeviceDetail }) {
     <section className="rounded-none border border-border bg-muted/20 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
-          Anomaly Plugins
+          Intelligence Plugins
         </h2>
         <span className="text-[10px] text-muted-foreground/60">
           {installed.length === 0 ? "None" : `${installed.length}`}
