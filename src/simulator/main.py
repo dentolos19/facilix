@@ -34,17 +34,15 @@ from fastapi.responses import JSONResponse
 
 import config
 import cctv as cctv_module
-import sensor_engine
-from sensor_routes import router as sensor_router
+from logs import configure_logging
+from sensor import router as sensor_router
+import sensor as sensor_engine
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging — structured JSON matching the TypeScript logger
 # ---------------------------------------------------------------------------
 
-logging.basicConfig(
-    level=getattr(logging, config.LOG_LEVEL.upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+configure_logging(config.LOG_LEVEL)
 logger = logging.getLogger("simulator")
 
 # ---------------------------------------------------------------------------

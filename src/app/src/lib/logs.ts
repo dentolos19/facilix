@@ -1,10 +1,15 @@
 /**
- * Structured logging system for Facilix background tasks and services.
+ * Logging system for Facilix background tasks and services.
  *
- * Every logger instance is created with a namespace (e.g. "processor",
- * "openrouter", "observer").  Log entries are emitted as structured JSON
- * via `console.log` / `console.error` so they are automatically captured
- * by Cloudflare logpush and surfaced in the Observability dashboard.
+ * By default emits clean human-readable log lines:
+ *
+ *     2026-06-17T13:40:15Z  INFO  [processor]  frame processed  {"frameId":5}
+ *     2026-06-17T13:40:15Z ERROR  [openrouter]  API call failed
+ *
+ * Set `FACILIX_LOG_FORMAT=json` in the environment to emit structured
+ * JSON (one object per line) for Cloudflare logpush or log aggregation:
+ *
+ *     {"level":"info","namespace":"processor","message":"frame processed","timestamp":"...","data":{"frameId":5}}
  *
  * Usage:
  * ```ts
@@ -33,6 +38,23 @@ export interface Logger {
   error(message: string, data?: Record<string, unknown>): void;
 }
 
+/** Match Python's ConsoleFormatter output exactly. */
+function formatConsole(entry: LogEntry): string {
+  const level = entry.level.padEnd(5);
+  const line = `${entry.timestamp}  ${level}  [${entry.namespace}]  ${entry.message}`;
+  if (entry.data && Object.keys(entry.data).length > 0) {
+    return `${line}\n  ${JSON.stringify(entry.data)}`;
+  }
+  return line;
+}
+
+/** Compact JSON (one object per line) for log aggregation. */
+function formatJson(entry: LogEntry): string {
+  return JSON.stringify(entry);
+}
+
+const useJson = typeof process !== "undefined" && process.env?.FACILIX_LOG_FORMAT === "json";
+
 /**
  * Create a namespaced logger.
  *
@@ -53,17 +75,17 @@ export function createLogger(namespace: string): Logger {
       entry.data = data;
     }
 
-    const json = JSON.stringify(entry);
+    const output = useJson ? formatJson(entry) : formatConsole(entry);
 
     switch (level) {
       case "error":
-        console.error(json);
+        console.error(output);
         break;
       case "warn":
-        console.warn(json);
+        console.warn(output);
         break;
       default:
-        console.log(json);
+        console.log(output);
     }
   }
 

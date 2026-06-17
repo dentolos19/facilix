@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import httpx
 
 from config import HTTP_TIMEOUT_SEC, HTTPX_LOG_LEVEL, LOG_LEVEL
+from logs import configure_logging as _configure_logging
 
 # ---------------------------------------------------------------------------
 # Time
@@ -53,11 +54,7 @@ async def close_http_client() -> None:
 
 
 def configure_logging() -> None:
-    """Configure application logging and quiet noisy upstream libraries."""
-    logging.basicConfig(
-        level=LOG_LEVEL,
-        format="%(asctime)s.%(msecs)03d %(levelname)-5s [%(name)s] %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    """Configure structured JSON logging and quiet noisy upstream libraries."""
+    _configure_logging(LOG_LEVEL)
     logging.getLogger("httpx").setLevel(HTTPX_LOG_LEVEL)
     logging.getLogger("httpcore").setLevel("WARNING")
