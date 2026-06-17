@@ -39,7 +39,7 @@ function toRow(r: typeof schema.facilityEvent.$inferSelect): FacilityEventRow {
  * Pass `before` (ISO timestamp or Date) for cursor-based pagination.
  */
 export const getFacilityEvents = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; limit?: number; before?: string }) => {
+  .validator((data: { facilityId: string; limit?: number; before?: string }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     return data;
   })
@@ -69,7 +69,7 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
  * Pass `before` (ISO timestamp or Date) for cursor-based pagination.
  */
 export const getDeviceEvents = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; deviceId: string; limit?: number; before?: string }) => {
+  .validator((data: { facilityId: string; deviceId: string; limit?: number; before?: string }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.deviceId) throw new Error("Device ID is required");
     return data;

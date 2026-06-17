@@ -292,7 +292,7 @@ function calculateHealthScore(
 // ─── Server function ──────────────────────────────────────────────────────
 
 export const getFacilityAnalytics = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; range?: AnalyticsTimeRange }) => {
+  .validator((data: { facilityId: string; range?: AnalyticsTimeRange }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     return { facilityId: data.facilityId, range: data.range ?? "24h" };
   })

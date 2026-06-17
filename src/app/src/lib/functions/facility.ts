@@ -70,7 +70,7 @@ export const getFacilities = createServerFn({ method: "GET" }).handler(async () 
 });
 
 export const createFacility = createServerFn({ method: "POST" })
-  .inputValidator((data: { name: string }) => {
+  .validator((data: { name: string }) => {
     if (!data.name || typeof data.name !== "string") {
       throw new Error("Name is required");
     }
@@ -94,7 +94,7 @@ export const createFacility = createServerFn({ method: "POST" })
  * Load the full editor state for a facility.
  */
 export const loadFacility = createServerFn({ method: "GET" })
-  .inputValidator((data: { id: string }) => {
+  .validator((data: { id: string }) => {
     if (!data.id) throw new Error("Facility ID is required");
     return data;
   })
@@ -145,7 +145,7 @@ export const loadFacility = createServerFn({ method: "GET" })
  *   IDs so device_event FK references stay valid.
  */
 export const saveFacility = createServerFn({ method: "POST" })
-  .inputValidator((data: SaveInput) => {
+  .validator((data: SaveInput) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.name || typeof data.name !== "string") throw new Error("Name is required");
     if (!data.canvasData) throw new Error("Canvas data is required");
@@ -268,7 +268,7 @@ export interface DeviceDetail {
  * Fetch a single device by its ID, including the owning facility name.
  */
 export const getDevice = createServerFn({ method: "GET" })
-  .inputValidator((data: { id: string }) => {
+  .validator((data: { id: string }) => {
     if (!data.id) throw new Error("Device ID is required");
     return data;
   })
@@ -306,7 +306,7 @@ export const getDevice = createServerFn({ method: "GET" })
  * Delete a facility and all its related zones, devices, and logs (cascade).
  */
 export const deleteFacility = createServerFn({ method: "POST" })
-  .inputValidator((data: { id: string }) => {
+  .validator((data: { id: string }) => {
     if (!data.id) throw new Error("Facility ID is required");
     return data;
   })

@@ -50,7 +50,7 @@ export interface MonitoringActionResult {
  * Get the current status of a facility's Monitoring container.
  */
 export const getMonitoringStatus = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string }) => {
+  .validator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
@@ -71,7 +71,7 @@ export const getMonitoringStatus = createServerFn({ method: "GET" })
  * which facility to monitor and where to POST frames, events, and segments.
  */
 export const startMonitoring = createServerFn({ method: "POST" })
-  .inputValidator((data: { facilityId: string }) => {
+  .validator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
@@ -98,7 +98,7 @@ export const startMonitoring = createServerFn({ method: "POST" })
  * Stop a facility's Monitoring container.
  */
 export const stopMonitoring = createServerFn({ method: "POST" })
-  .inputValidator((data: { facilityId: string }) => {
+  .validator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
@@ -119,7 +119,7 @@ export const stopMonitoring = createServerFn({ method: "POST" })
  * Broadcasts an empty snapshot so all connected clients update immediately.
  */
 export const clearContainerLogs = createServerFn({ method: "POST" })
-  .inputValidator((data: { facilityId: string }) => {
+  .validator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("facilityId is required");
     return data;
   })
@@ -139,7 +139,7 @@ export const clearContainerLogs = createServerFn({ method: "POST" })
  * Returns status for each requested facility ID.
  */
 export const getMonitoringStatuses = createServerFn({ method: "POST" })
-  .inputValidator((data: { facilityIds: string[] }) => {
+  .validator((data: { facilityIds: string[] }) => {
     if (!Array.isArray(data.facilityIds)) throw new Error("facilityIds array is required");
     return data;
   })

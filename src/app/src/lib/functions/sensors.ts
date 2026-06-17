@@ -48,7 +48,7 @@ function toRow(r: typeof schema.sensorReading.$inferSelect): SensorReadingRow {
  * Returns null if no reading exists.
  */
 export const getLatestSensorReading = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; deviceId: string }) => {
+  .validator((data: { facilityId: string; deviceId: string }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.deviceId) throw new Error("Device ID is required");
     return data;
@@ -72,7 +72,7 @@ export const getLatestSensorReading = createServerFn({ method: "GET" })
  * Get sensor reading history for a given device.
  */
 export const getSensorReadingHistory = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; deviceId: string; limit?: number }) => {
+  .validator((data: { facilityId: string; deviceId: string; limit?: number }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.deviceId) throw new Error("Device ID is required");
     return data;

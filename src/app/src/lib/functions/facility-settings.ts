@@ -18,7 +18,7 @@ export interface FacilitySettingsRow {
  * settings so callers never have to handle null.
  */
 export const getFacilitySettings = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string }) => {
+  .validator((data: { facilityId: string }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     return data;
   })
@@ -41,7 +41,7 @@ export const getFacilitySettings = createServerFn({ method: "GET" })
  * can be saved independently of the canvas auto-save flow.
  */
 export const saveFacilitySettings = createServerFn({ method: "POST" })
-  .inputValidator((data: { facilityId: string; settings: FacilitySettings }) => {
+  .validator((data: { facilityId: string; settings: FacilitySettings }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.settings || typeof data.settings !== "object") throw new Error("Settings object is required");
     if (!Array.isArray(data.settings.globalEvents?.enabledLogTypes)) {

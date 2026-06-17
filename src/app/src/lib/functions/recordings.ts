@@ -62,7 +62,7 @@ export interface FrameRow {
  * Results are newest-first, limited to `limit` (default 50, max 200).
  */
 export const getDeviceRecordings = createServerFn({ method: "GET" })
-  .inputValidator((data: { facilityId: string; deviceId: string; limit?: number }) => {
+  .validator((data: { facilityId: string; deviceId: string; limit?: number }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.deviceId) throw new Error("Device ID is required");
     return data;
