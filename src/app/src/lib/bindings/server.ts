@@ -4,7 +4,7 @@ import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 
-const log = createLogger("server-container");
+const log = createLogger("server");
 
 const PORT = 3001;
 

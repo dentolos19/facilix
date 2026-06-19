@@ -1,9 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, ShieldAlertIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollArea } from "#/components/ui/scroll-area";
 import type { SensorReadingRow } from "#/lib/functions/sensors";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
+import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import type { LogEntry, PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
@@ -26,6 +27,71 @@ function StatusBadge({ status }: { status: string }) {
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
     </span>
+  );
+}
+
+/**
+ * Compact intelligence plugins section for CCTV devices in the monitoring panel.
+ */
+function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
+  const configs = normalizePlugins(device.props.plugins);
+  const installed = configs
+    .map((c) => ({ config: c, plugin: getPlugin(c.pluginId) }))
+    .filter(
+      (entry): entry is { config: ReturnType<typeof normalizePlugins>[number]; plugin: NonNullable<ReturnType<typeof getPlugin>> } =>
+        entry.plugin !== undefined,
+    );
+
+  if (installed.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        Intelligence Plugins
+      </h4>
+      <div className="flex flex-col gap-1.5">
+        {installed.map(({ config, plugin }) => {
+          const kindLabels: string[] = [];
+          if (plugin.kind === "object-anomaly") {
+            const c = config as import("#/lib/monitoring/plugins").ObjectAnomalyDeviceConfig;
+            kindLabels.push(...plugin.options.filter((o) => c.selectedAnomalies.includes(o.id)).map((o) => o.label));
+          }
+          if (plugin.kind === "object-counting") {
+            const c = config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig;
+            kindLabels.push(...plugin.options.filter((o) => c.selectedSignals.includes(o.id)).map((o) => o.label));
+          }
+
+          return (
+            <div className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted/20 p-2" key={plugin.id}>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <ShieldAlertIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground/60" />
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-[11px] text-foreground/80">{plugin.name}</p>
+                  {kindLabels.length > 0 && (
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {kindLabels.map((label) => (
+                        <span className="rounded bg-primary/10 px-1 py-0.5 text-[9px] text-primary" key={label}>
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span
+                className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[9px] ${
+                  config.enabled
+                    ? "bg-green-500/10 text-green-600"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {config.enabled ? "On" : "Off"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -263,6 +329,9 @@ export function DeviceEventPanel({
 
             {/* Device properties */}
             <DevicePropertiesSection device={selectedDevice} />
+
+            {/* Intelligence plugins (CCTV only) */}
+            {isCCTV && <CctvIntelligencePluginsSection device={selectedDevice} />}
 
             {/* Video feed for CCTVs */}
             {isCCTV && (
