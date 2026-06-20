@@ -60,19 +60,13 @@ export interface WorkflowRuntimeConfig {
   requestedRegion: string;
 }
 
-/** Get shared runtime settings from environment variables. */
+/** Get shared runtime settings. */
 export function getRuntimeConfig(): WorkflowRuntimeConfig {
-  const envVars = env as Record<string, string | undefined>;
   return {
-    processingTimeoutSec: normalizePositiveInt(envVars.ROBOFLOW_PROCESSING_TIMEOUT_SEC, 3600),
-    requestedPlan: envVars.ROBOFLOW_WEBRTC_PLAN ?? "webrtc-gpu-medium",
-    requestedRegion: envVars.ROBOFLOW_WEBRTC_REGION ?? "us",
+    processingTimeoutSec: 3600,
+    requestedPlan: "webrtc-gpu-medium",
+    requestedRegion: "us",
   };
-}
-
-function normalizePositiveInt(value: string | undefined, fallback: number): number {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
 /**

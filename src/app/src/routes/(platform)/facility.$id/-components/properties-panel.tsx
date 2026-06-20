@@ -27,6 +27,8 @@ import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 import { CaptureSettingsSection } from "./capture-settings";
 
+const simulationEnabled = !import.meta.env?.PROD;
+
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
   editMode,
@@ -42,6 +44,7 @@ export function PropertiesPanel({
   // Fetch available simulation streams from the combined simulator
   const [fetchedStreams, setFetchedStreams] = useState<SimulationStream[]>([]);
   useEffect(() => {
+    if (!simulationEnabled) return;
     let ignore = false;
     fetchSimulationStreams().then((streams) => {
       if (!ignore) setFetchedStreams(streams);
@@ -52,11 +55,11 @@ export function PropertiesPanel({
   }, []);
 
   // Only use streams fetched live from the simulator (no static fallbacks)
-  const allStreams = fetchedStreams;
+  const allStreams = simulationEnabled ? fetchedStreams : [];
 
   // Auto-select first available stream if current selection is empty
   useEffect(() => {
-    if (!selected || selected.type !== "CCTV" || isReadOnly) return;
+    if (!simulationEnabled || !selected || selected.type !== "CCTV" || isReadOnly) return;
     const currentStream = String(selected.props.simulationStream ?? "");
     if (!currentStream && allStreams.length > 0) {
       onUpdateItem(selected.id, {
@@ -271,19 +274,19 @@ export function PropertiesPanel({
                       <Select
                         disabled={isReadOnly}
                         onValueChange={(value) => onUpdateItem(selected.id, { props: { videoSource: value } })}
-                        value={String(selected.props.videoSource ?? "simulation")}
+                        value={String(selected.props.videoSource ?? (simulationEnabled ? "simulation" : "rtsp"))}
                       >
                         <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
                           <SelectValue placeholder="Select video source" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="simulation">Simulation</SelectItem>
+                          {simulationEnabled && <SelectItem value="simulation">Simulation</SelectItem>}
                           <SelectItem value="rtsp">Stream (RTSP)</SelectItem>
                           <SelectItem value="rtmp">Stream (RTMP)</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
-                    {String(selected.props.videoSource ?? "simulation") === "simulation" ? (
+                    {simulationEnabled && String(selected.props.videoSource ?? "simulation") === "simulation" ? (
                       <>
                         <Field label="Simulation Stream">
                           <Select
@@ -367,20 +370,20 @@ export function PropertiesPanel({
                       <Select
                         disabled={isReadOnly}
                         onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorDataSource: value } })}
-                        value={String(selected.props.sensorDataSource ?? "simulation")}
+                        value={String(selected.props.sensorDataSource ?? (simulationEnabled ? "simulation" : "http-pull"))}
                       >
                         <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
                           <SelectValue placeholder="Select data source" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="simulation">Simulation</SelectItem>
+                          {simulationEnabled && <SelectItem value="simulation">Simulation</SelectItem>}
                           <SelectItem value="http-pull">HTTP Pull</SelectItem>
                           <SelectItem value="http-push">HTTP Push / Ingest</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
 
-                    {String(selected.props.sensorDataSource ?? "simulation") === "simulation" ? (
+                    {simulationEnabled && String(selected.props.sensorDataSource ?? "simulation") === "simulation" ? (
                       <>
                         <Field label="Simulation Device">
                           <Select

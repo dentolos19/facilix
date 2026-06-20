@@ -14,7 +14,7 @@ const SIMULATION_SENSOR_API =
 
 /** Roboflow API configuration passed to the container for video processing. */
 const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
-const ROBOFLOW_API_BASE = (env as { ROBOFLOW_API_BASE?: string }).ROBOFLOW_API_BASE ?? "https://serverless.roboflow.com";
+const ROBOFLOW_API_BASE = "https://serverless.roboflow.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
