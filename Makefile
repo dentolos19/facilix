@@ -2,6 +2,7 @@
 
 setup:
 	cd src/app && bun install
+	cd src/app && bun run db:migrate
 	cd src/server && uv sync
 	cd src/simulator && uv sync
 
