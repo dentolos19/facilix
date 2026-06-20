@@ -205,32 +205,6 @@ export const videoSegment = sqliteTable("video_segments", {
 });
 
 /**
- * Individual CCTV frame metadata stored in D1 alongside R2.
- * Each captured frame gets a row here. The JPEG binary is in R2.
- */
-export const videoFrame = sqliteTable("video_frames", {
-  id: text("id")
-    .primaryKey()
-    .$default(() => crypto.randomUUID()),
-  assetId: text("asset_id")
-    .notNull()
-    .references(() => asset.id, { onDelete: "cascade" }),
-  segmentId: text("segment_id").references(() => videoSegment.id, { onDelete: "set null" }),
-  facilityId: text("facility_id")
-    .notNull()
-    .references(() => facility.id, { onDelete: "cascade" }),
-  deviceId: text("device_id")
-    .notNull()
-    .references(() => facilityDevice.id, { onDelete: "cascade" }),
-  sequence: integer("sequence").notNull(),
-  capturedAt: integer("captured_at", { mode: "timestamp_ms" }).notNull(),
-  data: text("data", { mode: "json" }).default("{}").$type<Record<string, unknown>>().notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" })
-    .notNull()
-    .$default(() => new Date()),
-});
-
-/**
  * Sensor readings persisted for history and latest-value queries.
  * Each reading from the monitoring container gets a row here.
  */
@@ -260,14 +234,14 @@ export const sensorReading = sqliteTable("sensor_readings", {
 });
 
 /**
- * Idempotency tracking for monitoring API (frame/segment uploads).
+ * Idempotency tracking for monitoring API (segment uploads).
  * Prevents duplicate processing on network retry.
  */
 export const idempotencyKey = sqliteTable("idempotency_keys", {
   id: text("id").primaryKey(), // the idempotency key value itself
   facilityId: text("facility_id").notNull(),
   deviceId: text("device_id").notNull(),
-  action: text("action").notNull(), // "frame" | "segment"
+  action: text("action").notNull(), // "segment"
   result: text("result", { mode: "json" }).$type<string>().notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
@@ -283,6 +257,5 @@ export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
-export type VideoFrame = typeof videoFrame.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;

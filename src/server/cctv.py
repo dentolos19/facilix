@@ -1,4 +1,4 @@
-"""CCTV stream monitoring and ffmpeg capture helpers."""
+"""CCTV stream monitoring and ffmpeg segment capture helpers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 
 from network import ffmpeg_input_options, probe_stream_url, rewrite_stream_host
-from api import post_event, upload_frame, upload_segment
+from api import post_event, upload_segment
 
 cctv_log = logging.getLogger("facilix.cctv")
 
@@ -20,20 +20,13 @@ async def monitor_cctv(
     stream_url: str,
     video_source: str = "simulation",
     simulation_stream: str = "",
-    frame_enabled: bool = True,
-    frame_interval_sec: int = 5,
-    segment_enabled: bool = True,
-    segment_interval_sec: int = 30,
     segment_duration_sec: int = 30,
 ) -> None:
     """
     Background task for a single CCTV device.
 
-    Spawns two independent async loops per camera:
-      - Frame loop: captures a JPEG every ``frame_interval_sec``
-      - Segment loop: captures a short MP4 every ``segment_interval_sec``
-
-    Both loops read the same RTSP/RTMP stream concurrently via ffmpeg.
+    Continuously captures video segments from the stream, splitting it into
+    clips of the specified duration. Each segment is uploaded for processing.
     """
     # Rewrite host-relative URLs (the Worker returns rtsp://localhost:... for
     # simulation, but inside this container localhost is unreachable).
@@ -63,9 +56,7 @@ async def monitor_cctv(
         )
         return
 
-    # Clamp intervals to safe ranges
-    frame_interval_sec = max(1, frame_interval_sec)
-    segment_interval_sec = max(5, segment_interval_sec)
+    # Clamp duration to safe range
     segment_duration_sec = max(5, min(300, segment_duration_sec))
 
     await post_event(
@@ -75,95 +66,31 @@ async def monitor_cctv(
         f"Started monitoring CCTV '{device_name}'",
         {
             "streamUrl": stream_url,
-            "frameEnabled": frame_enabled,
-            "frameIntervalSec": frame_interval_sec,
-            "segmentEnabled": segment_enabled,
-            "segmentIntervalSec": segment_interval_sec,
             "segmentDurationSec": segment_duration_sec,
         },
     )
 
-    loops: list[asyncio.Task] = []
-
-    if frame_enabled:
-        loops.append(
-            asyncio.create_task(
-                _frame_loop(
-                    device_id,
-                    device_name,
-                    stream_url,
-                    frame_interval_sec,
-                ),
-                name=f"cctv-{device_id}-frames",
-            )
-        )
-
-    if segment_enabled:
-        loops.append(
-            asyncio.create_task(
-                _segment_loop(
-                    device_id,
-                    device_name,
-                    stream_url,
-                    segment_interval_sec,
-                    segment_duration_sec,
-                ),
-                name=f"cctv-{device_id}-segments",
-            )
-        )
-
-    if not loops:
-        cctv_log.info("[%s] both frame and segment capture disabled — will idle", device_name)
-
     try:
-        await asyncio.gather(*loops, return_exceptions=True)
+        await _segment_loop(
+            device_id,
+            device_name,
+            stream_url,
+            segment_duration_sec,
+        )
     except asyncio.CancelledError:
         pass
 
 
-# ── Frame loop (independent) ─────────────────────────────────────────────
-
-
-async def _frame_loop(
-    device_id: str,
-    device_name: str,
-    stream_url: str,
-    interval_sec: int,
-) -> None:
-    """Continuously capture JPEG frames at the configured interval."""
-    seq = 0
-    while True:
-        try:
-            captured_at = time.time()
-            cctv_log.info("[%s] capturing frame seq=%d from %s", device_name, seq + 1, stream_url)
-            frame_timeout_sec = max(interval_sec, 15)
-            frame_data, frame_err = await capture_frame(stream_url, timeout_sec=frame_timeout_sec)
-            if frame_data:
-                seq += 1
-                cctv_log.info("[%s] frame ok seq=%d size=%d bytes", device_name, seq, len(frame_data))
-                await upload_frame(device_id, frame_data, seq, captured_at=captured_at)
-            else:
-                cctv_log.warning("[%s] frame capture failed: %s", device_name, frame_err)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            cctv_log.exception("[%s] frame loop error: %s", device_name, exc)
-            await post_event(device_id, "cctv:error", "warn", f"Frame capture error: {exc}")
-
-        await asyncio.sleep(interval_sec)
-
-
-# ── Segment loop (independent) ──────────────────────────────────────────
+# ── Segment loop ──────────────────────────────────────────────────────────
 
 
 async def _segment_loop(
     device_id: str,
     device_name: str,
     stream_url: str,
-    interval_sec: int,
     duration_sec: int,
 ) -> None:
-    """Continuously capture video segments at the configured interval and duration."""
+    """Continuously capture video segments, splitting the stream into clips."""
     seq = 0
     while True:
         try:
@@ -203,65 +130,8 @@ async def _segment_loop(
             cctv_log.exception("[%s] segment loop error: %s", device_name, exc)
             await post_event(device_id, "cctv:error", "warn", f"Segment capture error: {exc}")
 
-        await asyncio.sleep(interval_sec)
-
 
 # ── ffmpeg helpers ─────────────────────────────────────────────────────────
-
-
-async def capture_frame(stream_url: str, timeout_sec: int = 15) -> tuple[bytes | None, str]:
-    """Use ffmpeg to capture a single JPEG frame from the stream.
-
-    Returns ``(data, error_detail)``. ``error_detail`` is empty on success.
-    """
-    proc: asyncio.subprocess.Process | None = None
-    t0 = time.monotonic()
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg",
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            *ffmpeg_input_options(stream_url),
-            "-i",
-            stream_url,
-            "-frames:v",
-            "1",
-            "-f",
-            "image2pipe",
-            "-vcodec",
-            "mjpeg",
-            "-q:v",
-            "2",  # lower = higher quality for AI analysis (2-31 scale)
-            "-",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout_sec)
-        dt_ms = (time.monotonic() - t0) * 1000
-        if proc.returncode == 0 and len(stdout) > 100:
-            cctv_log.debug("capture_frame ok %dB in %.0fms", len(stdout), dt_ms)
-            return stdout, ""
-        stderr_tail = (stderr or b"")[-500:].decode("utf-8", errors="replace").strip()
-        detail = stderr_tail or f"ffmpeg_rc_{proc.returncode}_payload_{len(stdout)}B"
-        cctv_log.warning(
-            "capture_frame failed (rc=%s, %dB out, %.0fms) for %s: %s",
-            proc.returncode,
-            len(stdout),
-            dt_ms,
-            stream_url,
-            stderr_tail,
-        )
-        return None, detail
-    except TimeoutError:
-        cctv_log.warning("capture_frame timed out after %ds for %s", timeout_sec, stream_url)
-        if proc and proc.returncode is None:
-            proc.kill()
-            await proc.communicate()
-        return None, "timeout"
-    except FileNotFoundError:
-        cctv_log.error("ffmpeg binary not found in container PATH")
-        return None, "ffmpeg_not_found"
 
 
 async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[bytes | None, float, float, float, str]:

@@ -30,6 +30,7 @@ export const LOG_TYPES: LogTypeDescriptor[] = [
     category: "monitoring",
     description: "Monitoring container started for this facility.",
     important: true,
+    highVolume: false,
   },
   {
     type: "monitoring:stopped",
@@ -37,6 +38,7 @@ export const LOG_TYPES: LogTypeDescriptor[] = [
     category: "monitoring",
     description: "Monitoring container stopped for this facility.",
     important: true,
+    highVolume: false,
   },
   {
     type: "monitoring:heartbeat",
@@ -47,26 +49,20 @@ export const LOG_TYPES: LogTypeDescriptor[] = [
     highVolume: true,
   },
   {
-    type: "cctv:frame:ok",
-    label: "Frame OK",
-    category: "cctv",
-    description: "Frame analyzed with no anomalies detected.",
-    important: false,
-    highVolume: true,
-  },
-  {
     type: "cctv:anomaly",
     label: "Anomaly detected",
     category: "cctv",
     description: "CCTV detected an object class flagged as anomalous.",
     important: true,
+    highVolume: false,
   },
   {
     type: "cctv:segment:stored",
     label: "Recording stored",
     category: "cctv",
     description: "A CCTV segment was uploaded and stored.",
-    important: true,
+    important: false,
+    highVolume: true,
   },
   {
     type: "cctv:segment:analyzed",
@@ -74,6 +70,15 @@ export const LOG_TYPES: LogTypeDescriptor[] = [
     category: "cctv",
     description: "A stored CCTV segment was summarized and analyzed.",
     important: false,
+    highVolume: true,
+  },
+  {
+    type: "cctv:detection:alert",
+    label: "Detection alert",
+    category: "cctv",
+    description: "A detection plugin threshold was exceeded.",
+    important: true,
+    highVolume: false,
   },
   {
     type: "sensor:reading",
@@ -89,6 +94,7 @@ export const LOG_TYPES: LogTypeDescriptor[] = [
     category: "sensor",
     description: "Sensor reading crossed a configured threshold.",
     important: true,
+    highVolume: false,
   },
 ];
 

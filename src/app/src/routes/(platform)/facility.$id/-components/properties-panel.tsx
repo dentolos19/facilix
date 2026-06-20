@@ -9,15 +9,16 @@ import { ScrollArea } from "#/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Switch } from "#/components/ui/switch";
 import {
+  DEFAULT_COUNTING_OPERATOR,
+  DEFAULT_COUNTING_THRESHOLD,
   DEFAULT_PLUGIN_CONFIDENCE,
   type DevicePluginConfig,
   getPlugin,
   normalizePlugins,
-  type ObjectAnomalyDeviceConfig,
-  type ObjectCountingDeviceConfig,
   PLUGINS,
   type Plugin,
   type SegmentAnalysisDeviceConfig,
+  type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
 import type { SimulationStream } from "#/lib/simulation/cctv";
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
@@ -705,40 +706,36 @@ function removePlugin(configs: DevicePluginConfig[], pluginId: string): DevicePl
 
 function addPlugin(configs: DevicePluginConfig[], plugin: Plugin): DevicePluginConfig[] {
   if (configs.some((c) => c.pluginId === plugin.id)) return configs;
-  switch (plugin.kind) {
-    case "object-anomaly":
-      return [
-        ...configs,
-        {
-          pluginId: plugin.id,
-          enabled: true,
-          selectedAnomalies: [],
-          confidence: DEFAULT_PLUGIN_CONFIDENCE,
-        },
-      ];
-    case "object-counting":
-      return [
-        ...configs,
-        {
-          pluginId: plugin.id,
-          enabled: true,
-          selectedSignals: [],
-          confidence: DEFAULT_PLUGIN_CONFIDENCE,
-          threshold: 5,
-          operator: "gte",
-        },
-      ];
-    case "segment-understanding":
-      return [
-        ...configs,
-        {
-          pluginId: plugin.id,
-          enabled: true,
-          prompt: plugin.defaultPrompt ?? "Analyze this CCTV clip for anomalies.",
-          severity: "warn",
-        },
-      ];
+
+  if (plugin.kind === "segment-understanding") {
+    return [
+      ...configs,
+      {
+        pluginId: plugin.id,
+        enabled: true,
+        prompt: plugin.defaultPrompt ?? "Analyze this CCTV clip for anomalies.",
+        severity: "warn",
+      },
+    ];
   }
+
+  if (plugin.kind === "workflow-object-detection") {
+    return [
+      ...configs,
+      {
+        pluginId: plugin.id,
+        enabled: true,
+        threshold: DEFAULT_COUNTING_THRESHOLD,
+        operator: DEFAULT_COUNTING_OPERATOR,
+        thresholdMode: "max-per-frame",
+        minConfidence: DEFAULT_PLUGIN_CONFIDENCE,
+        alertSeverity: "warn",
+        cooldownSec: 300,
+      },
+    ];
+  }
+
+  return configs;
 }
 
 function CctvPluginsSection({
@@ -768,7 +765,8 @@ function CctvPluginsSection({
             No intelligence plugins installed
           </div>
           <p className="text-[10px] text-muted-foreground/70 leading-snug">
-            Plugins power CCTV analysis. Add one to start processing frames or segments.
+            Object detection runs automatically on every video segment. Add a Natural Language plugin for AI scene
+            understanding.
           </p>
         </div>
       )}
@@ -838,7 +836,6 @@ function PluginCard({
             <p className="truncate font-medium text-[11px] text-foreground/90">{plugin.name}</p>
           </div>
           <p className="mt-0.5 text-[10px] text-muted-foreground/70 leading-snug">{plugin.description}</p>
-          {plugin.modelId && <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">{plugin.modelId}</p>}
         </div>
         <div className="flex items-center gap-1">
           {!isReadOnly && (
@@ -870,24 +867,6 @@ function PluginCard({
         />
       </div>
 
-      {plugin.kind === "object-anomaly" && (
-        <ObjectAnomalyConfig
-          config={config as ObjectAnomalyDeviceConfig}
-          isReadOnly={isReadOnly}
-          onChange={onChange}
-          plugin={plugin}
-        />
-      )}
-
-      {plugin.kind === "object-counting" && (
-        <ObjectCountingConfig
-          config={config as ObjectCountingDeviceConfig}
-          isReadOnly={isReadOnly}
-          onChange={onChange}
-          plugin={plugin}
-        />
-      )}
-
       {plugin.kind === "segment-understanding" && (
         <SegmentAnalysisConfig
           config={config as SegmentAnalysisDeviceConfig}
@@ -895,186 +874,15 @@ function PluginCard({
           onChange={onChange}
         />
       )}
+
+      {plugin.kind === "workflow-object-detection" && (
+        <DetectionPluginConfig
+          config={config as WorkflowObjectDetectionDeviceConfig}
+          isReadOnly={isReadOnly}
+          onChange={onChange}
+        />
+      )}
     </div>
-  );
-}
-
-// ── Object-Anomaly Config Form ──────────────────────────────────────────
-
-function ObjectAnomalyConfig({
-  config,
-  isReadOnly,
-  onChange,
-  plugin,
-}: {
-  config: ObjectAnomalyDeviceConfig;
-  isReadOnly: boolean;
-  onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
-  plugin: Plugin;
-}) {
-  const selectedSet = new Set(config.selectedAnomalies);
-  const toggleAnomaly = (id: string, checked: boolean) => {
-    onChange((current) => {
-      const c = current as ObjectAnomalyDeviceConfig;
-      const set = new Set(c.selectedAnomalies);
-      if (checked) set.add(id);
-      else set.delete(id);
-      return { ...c, selectedAnomalies: Array.from(set) };
-    });
-  };
-
-  return (
-    <>
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Anomalies to detect</Label>
-        <div className="flex flex-col gap-1">
-          {plugin.options.map((opt) => {
-            const id = `intel-${plugin.id}-${opt.id}`;
-            return (
-              <label className="flex items-center gap-2 text-[11px] text-foreground/80" htmlFor={id} key={opt.id}>
-                <Checkbox
-                  checked={selectedSet.has(opt.id)}
-                  disabled={isReadOnly}
-                  id={id}
-                  onCheckedChange={(checked) => toggleAnomaly(opt.id, checked === true)}
-                />
-                <span>{opt.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Confidence threshold</Label>
-        <Input
-          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-          max={1}
-          min={0}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            onChange((c) => ({
-              ...(c as ObjectAnomalyDeviceConfig),
-              confidence: Number.isFinite(n) && n >= 0 && n <= 1 ? n : DEFAULT_PLUGIN_CONFIDENCE,
-            }));
-          }}
-          readOnly={isReadOnly}
-          step={0.05}
-          type="number"
-          value={String(config.confidence)}
-        />
-        <p className="text-[10px] text-muted-foreground/60">0–1 (lower = more sensitive).</p>
-      </div>
-    </>
-  );
-}
-
-// ── Object-Counting Config Form ────────────────────────────────────────
-
-function ObjectCountingConfig({
-  config,
-  isReadOnly,
-  onChange,
-  plugin,
-}: {
-  config: ObjectCountingDeviceConfig;
-  isReadOnly: boolean;
-  onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
-  plugin: Plugin;
-}) {
-  const selectedSet = new Set(config.selectedSignals);
-  const toggleSignal = (id: string, checked: boolean) => {
-    onChange((current) => {
-      const c = current as ObjectCountingDeviceConfig;
-      const set = new Set(c.selectedSignals);
-      if (checked) set.add(id);
-      else set.delete(id);
-      return { ...c, selectedSignals: Array.from(set) };
-    });
-  };
-
-  return (
-    <>
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Classes to count</Label>
-        <div className="flex flex-col gap-1">
-          {plugin.options.map((opt) => {
-            const id = `intel-${plugin.id}-${opt.id}`;
-            return (
-              <label className="flex items-center gap-2 text-[11px] text-foreground/80" htmlFor={id} key={opt.id}>
-                <Checkbox
-                  checked={selectedSet.has(opt.id)}
-                  disabled={isReadOnly}
-                  id={id}
-                  onCheckedChange={(checked) => toggleSignal(opt.id, checked === true)}
-                />
-                <span>{opt.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Confidence threshold</Label>
-        <Input
-          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-          max={1}
-          min={0}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            onChange((c) => ({
-              ...(c as ObjectCountingDeviceConfig),
-              confidence: Number.isFinite(n) && n >= 0 && n <= 1 ? n : DEFAULT_PLUGIN_CONFIDENCE,
-            }));
-          }}
-          readOnly={isReadOnly}
-          step={0.05}
-          type="number"
-          value={String(config.confidence)}
-        />
-        <p className="text-[10px] text-muted-foreground/60">0–1 (lower = more sensitive).</p>
-      </div>
-
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Threshold</Label>
-        <div className="flex items-center gap-2">
-          <select
-            className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
-            disabled={isReadOnly}
-            onChange={(e) =>
-              onChange((c) => ({
-                ...(c as ObjectCountingDeviceConfig),
-                operator: e.target.value as ObjectCountingDeviceConfig["operator"],
-              }))
-            }
-            value={config.operator}
-          >
-            <option value="gt">&gt;</option>
-            <option value="gte">&ge;</option>
-            <option value="lt">&lt;</option>
-            <option value="lte">&le;</option>
-            <option value="eq">=</option>
-          </select>
-          <Input
-            className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
-            max={10000}
-            min={0}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              onChange((c) => ({
-                ...(c as ObjectCountingDeviceConfig),
-                threshold: Number.isFinite(v) ? v : 5,
-              }));
-            }}
-            readOnly={isReadOnly}
-            type="number"
-            value={String(config.threshold)}
-          />
-        </div>
-        <p className="text-[10px] text-muted-foreground/60">Alert when count crosses this value.</p>
-      </div>
-    </>
   );
 }
 
@@ -1129,6 +937,155 @@ function SegmentAnalysisConfig({
           <option value="warn">Warning</option>
           <option value="error">Error</option>
         </select>
+      </div>
+    </>
+  );
+}
+
+// ── Workflow Object Detection Config Form ──────────────────────────────
+
+function DetectionPluginConfig({
+  config,
+  isReadOnly,
+  onChange,
+}: {
+  config: WorkflowObjectDetectionDeviceConfig;
+  isReadOnly: boolean;
+  onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
+}) {
+  return (
+    <>
+      {/* Threshold */}
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Alert threshold</Label>
+        <div className="flex items-center gap-2">
+          <select
+            className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+            disabled={isReadOnly}
+            onChange={(e) =>
+              onChange((c) => ({
+                ...(c as WorkflowObjectDetectionDeviceConfig),
+                operator: e.target.value as WorkflowObjectDetectionDeviceConfig["operator"],
+              }))
+            }
+            value={config.operator}
+          >
+            <option value="gt">&gt;</option>
+            <option value="gte">&ge;</option>
+            <option value="lt">&lt;</option>
+            <option value="lte">&le;</option>
+            <option value="eq">=</option>
+          </select>
+          <Input
+            className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
+            max={10000}
+            min={0}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onChange((c) => ({
+                ...(c as WorkflowObjectDetectionDeviceConfig),
+                threshold: Number.isFinite(v) ? v : DEFAULT_COUNTING_THRESHOLD,
+              }));
+            }}
+            readOnly={isReadOnly}
+            type="number"
+            value={String(config.threshold)}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground/60">Alert when detection count crosses this value.</p>
+      </div>
+
+      {/* Threshold Mode */}
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Counting mode</Label>
+        <select
+          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+          disabled={isReadOnly}
+          onChange={(e) =>
+            onChange((c) => ({
+              ...(c as WorkflowObjectDetectionDeviceConfig),
+              thresholdMode: e.target.value as WorkflowObjectDetectionDeviceConfig["thresholdMode"],
+            }))
+          }
+          value={config.thresholdMode}
+        >
+          <option value="max-per-frame">Max per frame</option>
+          <option value="total-detections">Total detections</option>
+          <option value="unique-tracks">Unique tracks</option>
+        </select>
+        <p className="text-[10px] text-muted-foreground/60">
+          {config.thresholdMode === "max-per-frame" && "Alert if any single frame exceeds the threshold."}
+          {config.thresholdMode === "total-detections" &&
+            "Alert if total detections in the segment exceeds the threshold."}
+          {config.thresholdMode === "unique-tracks" && "Alert if unique tracked objects exceeds the threshold."}
+        </p>
+      </div>
+
+      {/* Minimum Confidence */}
+      <div className="flex flex-col gap-1 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Minimum confidence</Label>
+        <Input
+          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+          max={1}
+          min={0}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            onChange((c) => ({
+              ...(c as WorkflowObjectDetectionDeviceConfig),
+              minConfidence: Number.isFinite(n) && n >= 0 && n <= 1 ? n : DEFAULT_PLUGIN_CONFIDENCE,
+            }));
+          }}
+          readOnly={isReadOnly}
+          step={0.05}
+          type="number"
+          value={String(config.minConfidence)}
+        />
+        <p className="text-[10px] text-muted-foreground/60">
+          0–1 (lower = more sensitive). Detections below this are ignored.
+        </p>
+      </div>
+
+      {/* Alert Severity */}
+      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Alert severity</Label>
+        <select
+          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+          disabled={isReadOnly}
+          onChange={(e) =>
+            onChange((c) => ({
+              ...(c as WorkflowObjectDetectionDeviceConfig),
+              alertSeverity: e.target.value as WorkflowObjectDetectionDeviceConfig["alertSeverity"],
+            }))
+          }
+          value={config.alertSeverity}
+        >
+          <option value="info">Info</option>
+          <option value="warn">Warning</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+
+      {/* Cooldown */}
+      <div className="flex flex-col gap-1 border-border border-t pt-2">
+        <Label className="font-medium text-[11px] text-muted-foreground">Cooldown (seconds)</Label>
+        <Input
+          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+          max={3600}
+          min={0}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            onChange((c) => ({
+              ...(c as WorkflowObjectDetectionDeviceConfig),
+              cooldownSec: Number.isFinite(v) && v >= 0 ? v : undefined,
+            }));
+          }}
+          readOnly={isReadOnly}
+          type="number"
+          value={String(config.cooldownSec ?? "")}
+        />
+        <p className="text-[10px] text-muted-foreground/60">
+          Minimum seconds between alerts for this plugin. Leave empty for no cooldown.
+        </p>
       </div>
     </>
   );

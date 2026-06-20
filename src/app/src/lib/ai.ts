@@ -126,27 +126,6 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
 }
 
 /**
- * Describe an image (e.g. a single CCTV frame) using the configured
- * OpenRouter vision model. Returns `null` if the model produced no
- * usable text so callers can fall back gracefully.
- */
-export async function summarizeImage(
-  imageBytes: Uint8Array | ArrayBuffer,
-  mimeType = "image/jpeg",
-  prompt: string,
-  options: { maxTokens?: number } = {},
-): Promise<string | null> {
-  const url = bytesToDataUrl(imageBytes, mimeType);
-  return chatCompletion(
-    [
-      { type: "text", text: prompt },
-      { type: "image_url", image_url: { url } },
-    ],
-    options,
-  );
-}
-
-/**
  * Describe a video clip (e.g. a CCTV segment) using the configured
  * OpenRouter multimodal model. Returns `null` if the model produced no
  * usable text. The model must support video input; if it doesn't,
@@ -178,7 +157,6 @@ export async function summarizeVideo(
  */
 export function createAI() {
   return {
-    summarizeImage,
     summarizeVideo,
   };
 }

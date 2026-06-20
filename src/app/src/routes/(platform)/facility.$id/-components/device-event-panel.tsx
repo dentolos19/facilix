@@ -38,8 +38,12 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
   const installed = configs
     .map((c) => ({ config: c, plugin: getPlugin(c.pluginId) }))
     .filter(
-      (entry): entry is { config: ReturnType<typeof normalizePlugins>[number]; plugin: NonNullable<ReturnType<typeof getPlugin>> } =>
-        entry.plugin !== undefined,
+      (
+        entry,
+      ): entry is {
+        config: ReturnType<typeof normalizePlugins>[number];
+        plugin: NonNullable<ReturnType<typeof getPlugin>>;
+      } => entry.plugin !== undefined,
     );
 
   if (installed.length === 0) return null;
@@ -51,38 +55,30 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
       </h4>
       <div className="flex flex-col gap-1.5">
         {installed.map(({ config, plugin }) => {
-          const kindLabels: string[] = [];
-          if (plugin.kind === "object-anomaly") {
-            const c = config as import("#/lib/monitoring/plugins").ObjectAnomalyDeviceConfig;
-            kindLabels.push(...plugin.options.filter((o) => c.selectedAnomalies.includes(o.id)).map((o) => o.label));
-          }
-          if (plugin.kind === "object-counting") {
-            const c = config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig;
-            kindLabels.push(...plugin.options.filter((o) => c.selectedSignals.includes(o.id)).map((o) => o.label));
-          }
+          const isDetection = plugin.kind === "workflow-object-detection";
+          const detConfig = isDetection
+            ? (config as import("#/lib/monitoring/plugins").WorkflowObjectDetectionDeviceConfig)
+            : null;
 
           return (
-            <div className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted/20 p-2" key={plugin.id}>
+            <div
+              className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted/20 p-2"
+              key={plugin.id}
+            >
               <div className="flex min-w-0 items-center gap-1.5">
                 <ShieldAlertIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground/60" />
                 <div className="min-w-0">
                   <p className="truncate font-medium text-[11px] text-foreground/80">{plugin.name}</p>
-                  {kindLabels.length > 0 && (
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      {kindLabels.map((label) => (
-                        <span className="rounded bg-primary/10 px-1 py-0.5 text-[9px] text-primary" key={label}>
-                          {label}
-                        </span>
-                      ))}
-                    </div>
+                  {isDetection && detConfig && (
+                    <p className="text-[9px] text-muted-foreground/60">
+                      Alert when {detConfig.operator} {detConfig.threshold}
+                    </p>
                   )}
                 </div>
               </div>
               <span
                 className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[9px] ${
-                  config.enabled
-                    ? "bg-green-500/10 text-green-600"
-                    : "bg-muted text-muted-foreground"
+                  config.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
                 }`}
               >
                 {config.enabled ? "On" : "Off"}

@@ -115,8 +115,7 @@ export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
     iconShape: "camera",
     plugins: [],
     capture: {
-      frames: { enabled: true, intervalSec: 5 },
-      segments: { enabled: true, intervalSec: 30, durationSec: 30 },
+      segments: { durationSec: 30 },
     },
   },
   Sensor: {

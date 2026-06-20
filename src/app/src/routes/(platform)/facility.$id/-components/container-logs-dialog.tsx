@@ -4,26 +4,24 @@ import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { ScrollArea } from "#/components/ui/scroll-area";
-import type { FacilityEvent } from "#/lib/monitoring/types";
+import type { FacilityEventRow } from "#/lib/functions/events";
 import type { LogEntry } from "../-helpers/types";
 import { LogLevelBadge } from "./monitoring-logs-panel";
 
-export interface ContainerLogsDialogProps {
+export interface LogsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** All raw events from the Observer WS connection. */
-  events: FacilityEvent[];
-  /** Callback to clear all container logs. */
+  /** All events from D1 facility_events table. */
+  events: FacilityEventRow[];
+  /** Callback to clear all events. */
   onClearLogs?: () => void;
 }
 
-const MONITORING_SOURCE_PREFIXES = ["monitoring:", "cctv:", "sensor:"];
-
 /**
- * Dialog that shows monitoring-container and system-level logs.
- * Filtered from the Observer event stream to show only container-related events.
+ * Dialog that shows all events for a facility.
+ * Shows every event regardless of type or source.
  */
-export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }: ContainerLogsDialogProps) {
+export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<LogEntry["level"] | "all">("all");
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
@@ -33,36 +31,11 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
     if (open) setConfirmDeleteAll(false);
   }, [open]);
 
-  const containerLogs = useMemo(() => {
-    return events.filter((ev) => {
-      // Keep events whose type starts with a known monitoring prefix
-      const matchesPrefix = MONITORING_SOURCE_PREFIXES.some((p) => ev.type.startsWith(p));
-      if (matchesPrefix) return true;
-
-      // Or events whose parsed data has source === "monitoring-container" or "monitoring-do"
-      try {
-        const parsed = JSON.parse(ev.data);
-        const source = parsed.source;
-        if (source === "monitoring-container" || source === "monitoring-do") return true;
-      } catch {
-        // not JSON
-      }
-      return false;
-    });
-  }, [events]);
-
   const filteredLogs = useMemo(() => {
-    let result = containerLogs;
+    let result = events;
 
     if (levelFilter !== "all") {
-      result = result.filter((ev) => {
-        try {
-          const parsed = JSON.parse(ev.data);
-          return parsed.level === levelFilter;
-        } catch {
-          return false;
-        }
-      });
+      result = result.filter((ev) => ev.severity === levelFilter);
     }
 
     if (searchQuery.trim()) {
@@ -70,153 +43,124 @@ export function ContainerLogsDialog({ open, onOpenChange, events, onClearLogs }:
       result = result.filter(
         (ev) =>
           ev.type.toLowerCase().includes(q) ||
-          ev.deviceId.toLowerCase().includes(q) ||
-          getEventMessage(ev).toLowerCase().includes(q),
+          (ev.deviceId ?? "").toLowerCase().includes(q) ||
+          ev.message.toLowerCase().includes(q),
       );
     }
 
     return result;
-  }, [containerLogs, levelFilter, searchQuery]);
+  }, [events, levelFilter, searchQuery]);
 
   const levelCounts = useMemo(() => {
-    const counts = { info: 0, warn: 0, error: 0, total: containerLogs.length };
-    for (const ev of containerLogs) {
-      try {
-        const parsed = JSON.parse(ev.data);
-        const level = parsed.level;
-        if (level === "warn") counts.warn++;
-        else if (level === "error") counts.error++;
-        else counts.info++;
-      } catch {
-        counts.info++;
-      }
+    const counts = { info: 0, warn: 0, error: 0, total: events.length };
+    for (const ev of events) {
+      if (ev.severity === "warn") counts.warn++;
+      else if (ev.severity === "error") counts.error++;
+      else counts.info++;
     }
     return counts;
-  }, [containerLogs]);
+  }, [events]);
 
   function handleDeleteAll() {
     if (!confirmDeleteAll) {
       setConfirmDeleteAll(true);
     } else {
-      setConfirmDeleteAll(false);
       onClearLogs?.();
+      setConfirmDeleteAll(false);
     }
   }
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="flex h-[80vh] max-w-5xl flex-col sm:max-w-5xl">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <TerminalIcon className="size-4 text-muted-foreground" />
-            <DialogTitle>Container Logs</DialogTitle>
-            <div className="ml-auto" />
-            <Button
-              className="mr-6 h-7 gap-1 px-2 text-[11px]"
-              onClick={handleDeleteAll}
-              size="sm"
-              variant="destructive"
-            >
-              <Trash2Icon className="size-3" />
-              {confirmDeleteAll ? "Confirm?" : "Clear"}
-            </Button>
-          </div>
-          <DialogDescription>Monitoring container events ({containerLogs.length} total)</DialogDescription>
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
+          <DialogTitle className="flex items-center gap-2">
+            <TerminalIcon className="size-4" />
+            Logs
+          </DialogTitle>
+          <DialogDescription>All events for this facility</DialogDescription>
         </DialogHeader>
 
-        {/* Filters */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-2 border-border border-b px-6 py-3">
+          <div className="relative min-w-0 flex-1">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
             <Input
+              aria-label="Search logs"
               className="h-8 pl-8 text-xs"
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search logs…"
               value={searchQuery}
             />
           </div>
+
+          {/* Level filter */}
           <div className="flex gap-1">
-            {(["all", "info", "warn", "error"] as const).map((lvl) => (
-              <Button
-                className="h-7 px-2 text-[11px]"
-                key={lvl}
-                onClick={() => setLevelFilter(lvl)}
-                size="sm"
-                variant={levelFilter === lvl ? "default" : "outline"}
+            {(["all", "info", "warn", "error"] as const).map((level) => (
+              <button
+                className={`rounded px-2 py-1 text-[10px] font-medium transition-colors ${
+                  levelFilter === level
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+                key={level}
+                onClick={() => setLevelFilter(level)}
+                type="button"
               >
-                {lvl === "all" ? `All (${levelCounts.total})` : `${lvl} (${levelCounts[lvl]})`}
-              </Button>
+                {level === "all"
+                  ? `All (${levelCounts.total})`
+                  : `${level.charAt(0).toUpperCase() + level.slice(1)} (${levelCounts[level]})`}
+              </button>
             ))}
           </div>
+
+          {onClearLogs && (
+            <Button
+              className="h-8 gap-1.5 text-muted-foreground/70 hover:text-destructive"
+              onClick={handleDeleteAll}
+              size="sm"
+              variant="ghost"
+            >
+              <Trash2Icon className="size-3" />
+              {confirmDeleteAll ? "Confirm?" : "Clear"}
+            </Button>
+          )}
         </div>
 
         {/* Log entries */}
-        <ScrollArea className="-mx-6 min-h-0 flex-1 px-6">
-          <table className="w-full">
-            <thead>
-              <tr className="border-border/50 border-b text-[11px] text-muted-foreground/50">
-                <th className="w-20 px-2 py-1.5 text-left font-medium">Time</th>
-                <th className="w-16 px-2 py-1.5 text-left font-medium">Level</th>
-                <th className="w-[120px] px-2 py-1.5 text-left font-medium">Type</th>
-                <th className="px-2 py-1.5 text-left font-medium">Message</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.length === 0 && (
-                <tr>
-                  <td className="py-8 text-center text-muted-foreground/50 text-xs" colSpan={4}>
-                    No matching logs
-                  </td>
-                </tr>
-              )}
-              {filteredLogs.map((ev) => {
-                const level = getEventLevel(ev);
-                return (
-                  <tr className="text-[11px] transition-colors hover:bg-muted/40" key={ev.id}>
-                    <td className="whitespace-nowrap px-2 py-1.5 align-top font-mono text-muted-foreground/50 tabular-nums">
-                      {new Date(ev.createdAt).toLocaleTimeString()}
-                    </td>
-                    <td className="px-2 py-1.5 align-top">
-                      <LogLevelBadge level={level} />
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 align-top font-medium text-muted-foreground/80">
-                      {ev.type}
-                    </td>
-                    <td className="break-words px-2 py-1.5 align-top text-muted-foreground/70">
-                      {getEventMessage(ev)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="divide-border/50 divide-y">
+            {filteredLogs.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-12">
+                <TerminalIcon className="size-6 text-muted-foreground/20" />
+                <p className="text-muted-foreground/40 text-xs">{searchQuery ? "No matching logs" : "No logs yet"}</p>
+              </div>
+            )}
+            {filteredLogs.map((ev) => {
+              const level = ev.severity as LogEntry["level"];
+              return (
+                <div className="flex items-start gap-3 px-6 py-2.5 text-xs" key={ev.id}>
+                  <LogLevelBadge level={level} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground/80">{ev.type}</span>
+                      {ev.deviceId && (
+                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground/60 text-[9px]">
+                          {ev.deviceId.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-muted-foreground/60 leading-snug">{ev.message}</p>
+                  </div>
+                  <span className="shrink-0 text-muted-foreground/40 text-[10px]">
+                    {new Date(ev.createdAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>
   );
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function getEventLevel(ev: FacilityEvent): LogEntry["level"] {
-  try {
-    const parsed = JSON.parse(ev.data);
-    if (typeof parsed.level === "string" && ["info", "warn", "error"].includes(parsed.level)) {
-      return parsed.level as LogEntry["level"];
-    }
-  } catch {
-    // fall through
-  }
-  return "info";
-}
-
-function getEventMessage(ev: FacilityEvent): string {
-  try {
-    const parsed = JSON.parse(ev.data);
-    if (typeof parsed.message === "string") return parsed.message;
-  } catch {
-    if (ev.data && ev.data !== "{}") return ev.data;
-  }
-  // Human-readable fallback
-  return ev.type.replace(/:/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }

@@ -1,46 +1,37 @@
 /**
- * CCTV plugin catalog and per-device configuration.
+ * CCTV intelligence plugin catalog and per-device configuration.
  *
- * A **plugin** is a user-configurable package that performs analysis on
- * CCTV frames or segments. Each plugin declares a **kind** which tells
- * the Processor how to dispatch it:
+ * Two plugin kinds exist:
  *
- * - `object-anomaly`      — Roboflow object detection → anomaly matching
- * - `object-counting`     — Roboflow object detection → counting → thresholds
- * - `segment-understanding` — OpenRouter video understanding → structured alert
+ * - `segment-understanding` — OpenRouter multimodal analysis for scene summaries.
+ * - `workflow-object-detection` — Roboflow Workflow for object detection with
+ *   configurable alert thresholds per plugin.
  *
- * Plugins are the single source of truth: if a CCTV has no enabled
- * plugins, no Roboflow calls are made and no events are raised.
+ * Object detection only runs for plugins that are explicitly enabled on each
+ * CCTV device. If no detection plugins are enabled, no Roboflow calls are made.
  *
  * Per-CCTV plugin configuration is stored on the device row's JSON
  * `data.plugins` field.
  */
 
-import type { Detection } from "./detection";
-
 // ─── Basic types ──────────────────────────────────────────────────────────
 
-/** Lower-case class id used for filtering and storage. */
-export type OptionId = string;
-
-/** Curated, user-selectable option for a plugin (e.g. a Roboflow class). */
-export interface PluginOption {
-  /** Stable, lower-case identifier (e.g. "no-safety-vest", "vehicle-count"). */
-  id: OptionId;
-  /** Human-readable label shown in the UI (e.g. "No Safety Vest"). */
-  label: string;
-  /** Roboflow class names (case-insensitive) that map to this option. */
-  classNames: string[];
-}
-
 /** Source that powers the plugin's inference. */
-export type PluginProvider = "roboflow" | "openrouter";
+export type PluginProvider = "openrouter" | "roboflow";
 
 /** How a plugin analyses media. */
-export type PluginKind = "object-anomaly" | "object-counting" | "segment-understanding";
+export type PluginKind = "segment-understanding" | "workflow-object-detection";
 
 /** Per-plugin trigger policy. */
-export type PluginTrigger = { mode: "frame" } | { mode: "segment"; intervalSec?: number };
+export type PluginTrigger = { mode: "segment"; intervalSec?: number };
+
+/** Workflow identity for Roboflow plugins. */
+export interface PluginWorkflowConfig {
+  workspaceName: string;
+  workflowId: string;
+  inputName: string;
+  dataOutputNames?: string[];
+}
 
 /** A curated plugin available in the catalog. */
 export interface Plugin {
@@ -49,12 +40,8 @@ export interface Plugin {
   description: string;
   kind: PluginKind;
   provider: PluginProvider;
-  /** Roboflow model id in the form `project/version` (only for roboflow plugins). */
-  modelId?: string;
-  /** User-selectable options (only for roboflow plugins). */
-  options: PluginOption[];
-  /** Env var key to read for model ID override (roboflow only). */
-  modelEnv?: string;
+  /** Roboflow workflow config (only for workflow-object-detection plugins). */
+  workflow?: PluginWorkflowConfig;
   /** Default prompt (segment-understanding only). */
   defaultPrompt?: string;
 }
@@ -69,47 +56,40 @@ interface DevicePluginConfigBase {
   cooldownSec?: number;
 }
 
-/** Config for `object-anomaly` plugins. */
-export interface ObjectAnomalyDeviceConfig extends DevicePluginConfigBase {
-  selectedAnomalies: OptionId[];
-  confidence: number;
-}
-
-/** Config for `object-counting` plugins. */
-export interface ObjectCountingDeviceConfig extends DevicePluginConfigBase {
-  selectedSignals: OptionId[];
-  confidence: number;
-  threshold: number;
-  operator: "gt" | "gte" | "lt" | "lte" | "eq";
-}
-
 /** Config for `segment-understanding` plugins. */
 export interface SegmentAnalysisDeviceConfig extends DevicePluginConfigBase {
   prompt: string;
   severity: "info" | "warn" | "error";
 }
 
+/** Config for `workflow-object-detection` plugins. */
+export interface WorkflowObjectDetectionDeviceConfig extends DevicePluginConfigBase {
+  /** Threshold value for alerting. */
+  threshold: number;
+  /** Comparison operator for threshold check. */
+  operator: "gt" | "gte" | "lt" | "lte" | "eq";
+  /** How to count detections for threshold evaluation. */
+  thresholdMode: "max-per-frame" | "total-detections" | "unique-tracks";
+  /** Minimum confidence for detections to be counted. */
+  minConfidence: number;
+  /** Severity level for threshold alert events. */
+  alertSeverity: "info" | "warn" | "error";
+}
+
 /** Union of all per-device configs. */
-export type DevicePluginConfig = ObjectAnomalyDeviceConfig | ObjectCountingDeviceConfig | SegmentAnalysisDeviceConfig;
+export type DevicePluginConfig = SegmentAnalysisDeviceConfig | WorkflowObjectDetectionDeviceConfig;
 
 /** Plugin + per-device config resolved for inference. */
 export interface ResolvedPlugin<T extends DevicePluginConfig = DevicePluginConfig> {
   plugin: Plugin;
   config: T;
-  classNames: Set<string>;
-}
-
-/** Per-detection plugin lookup result. */
-export interface AlertMatch {
-  plugin: Plugin;
-  option: PluginOption;
 }
 
 // ─── Defaults ──────────────────────────────────────────────────────────────
 
 export const DEFAULT_PLUGIN_CONFIDENCE = 0.4;
 export const DEFAULT_COUNTING_OPERATOR = "gte" as const;
-export const DEFAULT_COUNTING_THRESHOLD = 5;
+export const DEFAULT_COUNTING_THRESHOLD = 1;
 export const DEFAULT_SEGMENT_PROMPT =
   "Analyze this CCTV clip for anomalies, safety violations, or unusual activity. " +
   'Respond in JSON format: { "alert": boolean, "severity": "info"|"warn"|"error", ' +
@@ -119,53 +99,38 @@ export const DEFAULT_SEGMENT_PROMPT =
 
 export const PLUGINS: Plugin[] = [
   {
-    id: "ppe-compliance",
-    name: "PPE Compliance",
-    description: "Detects missing personal protective equipment (PPE) on workers in the frame.",
-    kind: "object-anomaly",
-    provider: "roboflow",
-    modelId: "ppes-kaxsi/8",
-    modelEnv: "ROBOFLOW_PPE_MODEL_ID",
-    options: [
-      { id: "no-safety-vest", label: "No Safety Vest", classNames: ["no-safety-vest", "no-safety vest", "no-vest"] },
-      { id: "no-mask", label: "No Mask", classNames: ["no-mask"] },
-      { id: "no-gloves", label: "No Gloves", classNames: ["no-gloves"] },
-      { id: "no-hardhat", label: "No Hardhat", classNames: ["no-hardhat", "no-hard-hat"] },
-      { id: "no-boots", label: "No Boots", classNames: ["no-boots"] },
-    ],
-  },
-  {
-    id: "vehicle-parking",
-    name: "Vehicle Parking",
-    description: "Counts vehicles in the frame and alerts when the count exceeds or drops below a threshold.",
-    kind: "object-counting",
-    provider: "roboflow",
-    modelId: "vehicles-q0x2v/1",
-    modelEnv: "ROBOFLOW_VEHICLE_MODEL_ID",
-    options: [
-      { id: "vehicle-count", label: "Total vehicle count", classNames: ["car", "truck", "bus", "motorcycle", "van"] },
-      { id: "cars", label: "Cars only", classNames: ["car"] },
-      { id: "trucks", label: "Trucks / vans / buses", classNames: ["truck", "van", "bus"] },
-    ],
-  },
-  {
-    id: "people-detection",
-    name: "People Detection",
-    description: "Counts people in the frame and alerts when the count crosses a configured threshold.",
-    kind: "object-counting",
-    provider: "roboflow",
-    modelId: "cctv-naxyo/1",
-    modelEnv: "ROBOFLOW_PEOPLE_MODEL_ID",
-    options: [{ id: "people-count", label: "Number of people", classNames: ["person"] }],
-  },
-  {
     id: "natural-language",
     name: "Natural Language",
     description: "Uses AI video understanding to watch for anomalies described in natural language.",
     kind: "segment-understanding",
     provider: "openrouter",
     defaultPrompt: DEFAULT_SEGMENT_PROMPT,
-    options: [],
+  },
+  {
+    id: "people-detection",
+    name: "People Detection",
+    description: "Detects people in the video segment and alerts when the count crosses a configured threshold.",
+    kind: "workflow-object-detection",
+    provider: "roboflow",
+    workflow: {
+      workspaceName: "dentolos19",
+      workflowId: "people-detection",
+      inputName: "image",
+      dataOutputNames: ["image", "predictions", "count"],
+    },
+  },
+  {
+    id: "vehicle-detection",
+    name: "Vehicle Detection",
+    description: "Detects vehicles in the video segment and alerts when the count crosses a configured threshold.",
+    kind: "workflow-object-detection",
+    provider: "roboflow",
+    workflow: {
+      workspaceName: "dentolos19",
+      workflowId: "vehicle-detection",
+      inputName: "image",
+      dataOutputNames: ["image", "predictions", "count"],
+    },
   },
 ];
 
@@ -189,40 +154,37 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
   const trigger = normalizeTrigger(r);
   const cooldownSec = normalizeCooldown(r);
 
-  switch (plugin.kind) {
-    case "object-anomaly": {
-      const confidence = normalizeConfidence(r.confidence);
-      const rawAnoms = Array.isArray(r.selectedAnomalies) ? r.selectedAnomalies : [];
-      const validIds = new Set(plugin.options.map((o) => o.id));
-      const selectedAnomalies = rawAnoms
-        .filter((a): a is string => typeof a === "string")
-        .filter((id) => validIds.has(id));
-      return { pluginId, enabled, selectedAnomalies, confidence, trigger, cooldownSec };
-    }
-    case "object-counting": {
-      const confidence = normalizeConfidence(r.confidence);
-      const rawSignals = Array.isArray(r.selectedSignals) ? r.selectedSignals : [];
-      const validSignalIds = new Set(plugin.options.map((o) => o.id));
-      const selectedSignals = rawSignals
-        .filter((a): a is string => typeof a === "string")
-        .filter((id) => validSignalIds.has(id));
-      const threshold = normalizeNumber(r.threshold, DEFAULT_COUNTING_THRESHOLD);
-      const operator = normalizeOperator(r.operator);
-      return { pluginId, enabled, selectedSignals, confidence, threshold, operator, trigger, cooldownSec };
-    }
-    case "segment-understanding": {
-      const prompt =
-        typeof r.prompt === "string" && r.prompt.length > 0
-          ? r.prompt
-          : (plugin.defaultPrompt ?? DEFAULT_SEGMENT_PROMPT);
-      const severity = (["info", "warn", "error"] as const).includes(r.severity as never)
-        ? (r.severity as SegmentAnalysisDeviceConfig["severity"])
-        : "warn";
-      return { pluginId, enabled, prompt, severity, trigger, cooldownSec };
-    }
-    default:
-      return null;
+  if (plugin.kind === "segment-understanding") {
+    const prompt =
+      typeof r.prompt === "string" && r.prompt.length > 0 ? r.prompt : (plugin.defaultPrompt ?? DEFAULT_SEGMENT_PROMPT);
+    const severity = (["info", "warn", "error"] as const).includes(r.severity as never)
+      ? (r.severity as SegmentAnalysisDeviceConfig["severity"])
+      : "warn";
+    return { pluginId, enabled, prompt, severity, trigger, cooldownSec };
   }
+
+  if (plugin.kind === "workflow-object-detection") {
+    const threshold = normalizeNumber(r.threshold, DEFAULT_COUNTING_THRESHOLD);
+    const operator = normalizeOperator(r.operator);
+    const thresholdMode = normalizeThresholdMode(r.thresholdMode);
+    const minConfidence = normalizeConfidence(r.minConfidence);
+    const alertSeverity = (["info", "warn", "error"] as const).includes(r.alertSeverity as never)
+      ? (r.alertSeverity as WorkflowObjectDetectionDeviceConfig["alertSeverity"])
+      : "warn";
+    return {
+      pluginId,
+      enabled,
+      threshold,
+      operator,
+      thresholdMode,
+      minConfidence,
+      alertSeverity,
+      trigger,
+      cooldownSec,
+    };
+  }
+
+  return null;
 }
 
 function normalizeConfidence(value: unknown): number {
@@ -244,9 +206,18 @@ function normalizeTrigger(r: Record<string, unknown>): PluginTrigger | undefined
   return undefined;
 }
 
-function normalizeOperator(value: unknown): ObjectCountingDeviceConfig["operator"] {
+function normalizeOperator(value: unknown): WorkflowObjectDetectionDeviceConfig["operator"] {
   const valid = ["gt", "gte", "lt", "lte", "eq"] as const;
-  return valid.includes(value as never) ? (value as ObjectCountingDeviceConfig["operator"]) : DEFAULT_COUNTING_OPERATOR;
+  return valid.includes(value as never)
+    ? (value as WorkflowObjectDetectionDeviceConfig["operator"])
+    : DEFAULT_COUNTING_OPERATOR;
+}
+
+function normalizeThresholdMode(value: unknown): WorkflowObjectDetectionDeviceConfig["thresholdMode"] {
+  const valid = ["max-per-frame", "total-detections", "unique-tracks"] as const;
+  return valid.includes(value as never)
+    ? (value as WorkflowObjectDetectionDeviceConfig["thresholdMode"])
+    : "max-per-frame";
 }
 
 function normalizeNumber(value: unknown, fallback: number): number {
@@ -274,84 +245,52 @@ export function resolveEnabledPlugins(configs: DevicePluginConfig[]): ResolvedPl
     if (!config.enabled) continue;
     const plugin = getPlugin(config.pluginId);
     if (!plugin) continue;
-
-    let classNames = new Set<string>();
-    if ("selectedAnomalies" in config && (config as ObjectAnomalyDeviceConfig).selectedAnomalies.length > 0) {
-      classNames = classNamesForOptions(plugin, (config as ObjectAnomalyDeviceConfig).selectedAnomalies);
-    } else if ("selectedSignals" in config && (config as ObjectCountingDeviceConfig).selectedSignals.length > 0) {
-      classNames = classNamesForOptions(plugin, (config as ObjectCountingDeviceConfig).selectedSignals);
-    } else if (plugin.kind === "segment-understanding") {
-      classNames = new Set();
-    }
-
-    if (classNames.size === 0 && plugin.kind !== "segment-understanding") continue;
-
-    out.push({ plugin, config: config as never, classNames });
+    out.push({ plugin, config: config as never });
   }
   return out;
 }
 
-function classNamesForOptions(plugin: Plugin, selectedIds: string[]): Set<string> {
-  const selectedSet = new Set(selectedIds);
-  const out = new Set<string>();
-  for (const opt of plugin.options) {
-    if (!selectedSet.has(opt.id)) continue;
-    for (const cls of opt.classNames) out.add(cls.toLowerCase());
-  }
-  return out;
-}
+// ─── Threshold evaluation ──────────────────────────────────────────────────
 
-// ─── Detection matching ────────────────────────────────────────────────────
+export type ThresholdResult = {
+  exceeded: boolean;
+  count: number;
+  threshold: number;
+  operator: string;
+  thresholdMode: string;
+};
 
-/** Find the matching plugin option for a detection label. */
-export function findAlertMatch(resolved: ResolvedPlugin[], detection: Detection): AlertMatch | null {
-  const label = (detection.label ?? "").toLowerCase();
-  if (!label) return null;
-  for (const r of resolved) {
-    if (r.plugin.kind !== "object-anomaly") continue;
-    if (!r.classNames.has(label)) continue;
-    for (const opt of r.plugin.options) {
-      if (opt.classNames.some((c) => c.toLowerCase() === label)) {
-        return { plugin: r.plugin, option: opt };
-      }
-    }
-  }
-  return null;
-}
-
-/** Aggregate detection counts per counting plugin. */
-export function countByClassGroup(
-  resolved: ResolvedPlugin[],
-  detections: Detection[],
-): Map<string, { plugin: ResolvedPlugin; count: number; config: ObjectCountingDeviceConfig }> {
-  const result = new Map<string, { plugin: ResolvedPlugin; count: number; config: ObjectCountingDeviceConfig }>();
-  for (const r of resolved) {
-    if (r.plugin.kind !== "object-counting") continue;
-    const config = r.config as ObjectCountingDeviceConfig;
-    let count = 0;
-    for (const d of detections) {
-      if (r.classNames.has(d.label.toLowerCase())) count++;
-    }
-    result.set(r.plugin.id, { plugin: r, count, config });
-  }
-  return result;
-}
-
-/** Check whether a count crosses the configured threshold. */
-export function thresholdExceeded(count: number, config: ObjectCountingDeviceConfig): boolean {
+/**
+ * Evaluate a threshold against detections from a single workflow.
+ * `countValue` is the pre-computed count from the processor.
+ */
+export function evaluateThreshold(countValue: number, config: WorkflowObjectDetectionDeviceConfig): ThresholdResult {
   const { threshold, operator } = config;
+  let exceeded = false;
   switch (operator) {
     case "gt":
-      return count > threshold;
+      exceeded = countValue > threshold;
+      break;
     case "gte":
-      return count >= threshold;
+      exceeded = countValue >= threshold;
+      break;
     case "lt":
-      return count < threshold;
+      exceeded = countValue < threshold;
+      break;
     case "lte":
-      return count <= threshold;
+      exceeded = countValue <= threshold;
+      break;
     case "eq":
-      return count === threshold;
+      exceeded = countValue === threshold;
+      break;
   }
+  return {
+    exceeded,
+    count: countValue,
+    threshold,
+    operator,
+    thresholdMode: config.thresholdMode,
+  };
 }
 
 // ─── Trigger helpers ──────────────────────────────────────────────────────
@@ -361,7 +300,6 @@ export function shouldRun(config: DevicePluginConfig, lastRunAt: Date | null, no
   if (!config.enabled) return false;
   const trigger = config.trigger;
   if (!trigger) return true;
-  if (trigger.mode === "frame") return true;
   if (trigger.mode === "segment") {
     if (!lastRunAt) return true;
     const interval = (trigger.intervalSec ?? 600) * 1000;

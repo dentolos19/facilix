@@ -120,16 +120,14 @@ function CctvLiveTab({
 }
 
 /**
- * Read-only card displaying the CCTV capture settings (frame + segment intervals).
+ * Read-only card displaying the CCTV capture settings (segment duration).
  */
 function CctvCaptureSettingsCard({ device }: { device: DeviceDetail }) {
   const raw = device.data.capture;
   const capture: {
-    frames?: { enabled?: boolean; intervalSec?: number };
-    segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
+    segments?: { durationSec?: number };
   } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
-  const frames = { enabled: true, intervalSec: 5, ...capture.frames };
-  const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
+  const segments = { durationSec: 30, ...capture.segments };
 
   return (
     <section className="rounded-none border border-border bg-muted/20 p-3">
@@ -137,39 +135,16 @@ function CctvCaptureSettingsCard({ device }: { device: DeviceDetail }) {
         Capture Settings
       </h2>
       <div className="flex flex-col gap-2">
-        {/* Frame capture */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="font-medium text-[11px] text-foreground/80">Frames</p>
-            <p className="text-[10px] text-muted-foreground/60 leading-snug">
-              {frames.enabled ? `Every ${frames.intervalSec ?? 5}s` : "Disabled"}
-            </p>
-          </div>
-          <span
-            className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[10px] ${
-              frames.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {frames.enabled ? "On" : "Off"}
-          </span>
-        </div>
-
         {/* Segment capture */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="font-medium text-[11px] text-foreground/80">Segments</p>
             <p className="text-[10px] text-muted-foreground/60 leading-snug">
-              {segments.enabled
-                ? `Every ${segments.intervalSec ?? 30}s, ${segments.durationSec ?? 30}s long`
-                : "Disabled"}
+              Continuous recording, {segments.durationSec ?? 30}s per segment
             </p>
           </div>
-          <span
-            className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[10px] ${
-              segments.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {segments.enabled ? "On" : "Off"}
+          <span className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 font-medium text-[10px] text-green-600">
+            On
           </span>
         </div>
       </div>
@@ -216,6 +191,9 @@ function CctvOptionsCard({
 /**
  * Read-only summary of the intelligence plugins installed on this CCTV.
  * Editing happens in the facility editor's properties panel.
+ *
+ * Note: Object detection runs only for enabled detection plugins.
+ * Scene understanding runs only for enabled segment-understanding plugins.
  */
 function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
   const configs = normalizePlugins(device.data.plugins);
@@ -240,26 +218,19 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
       {installed.length === 0 ? (
         <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70">
           <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
-          <p className="leading-snug">
-            No intelligence plugins installed. Configure them in the facility editor to start detecting anomalies.
-          </p>
+          <p className="leading-snug">No plugins installed. Add detection or language plugins to analyze segments.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
           {installed.map(({ config, plugin }) => {
-            // Read kind-specific display fields
-            const kindLabels: string[] = [];
-            if (plugin.kind === "object-anomaly") {
-              const c = config as import("#/lib/monitoring/plugins").ObjectAnomalyDeviceConfig;
-              const opts = plugin.options.filter((o) => c.selectedAnomalies.includes(o.id));
-              kindLabels.push(...opts.map((o) => o.label));
-            }
-            if (plugin.kind === "object-counting") {
-              const c = config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig;
-              const opts = plugin.options.filter((o) => c.selectedSignals.includes(o.id));
-              kindLabels.push(...opts.map((o) => o.label));
-            }
-            const confidence = "confidence" in config ? (config as { confidence: number }).confidence : undefined;
+            const isDetection = plugin.kind === "workflow-object-detection";
+            const detConfig = isDetection
+              ? (config as import("#/lib/monitoring/plugins").WorkflowObjectDetectionDeviceConfig)
+              : null;
+            const segConfig = !isDetection
+              ? (config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig)
+              : null;
+
             return (
               <div
                 className="flex flex-col gap-1 rounded-none border border-border bg-background/50 p-2"
@@ -277,37 +248,24 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                     {config.enabled ? "On" : "Off"}
                   </span>
                 </div>
-                {plugin.modelId && <p className="font-mono text-[10px] text-muted-foreground/60">{plugin.modelId}</p>}
-                {kindLabels.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {kindLabels.map((label) => (
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary" key={label}>
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                ) : plugin.kind === "segment-understanding" ? (
-                  <p className="text-[10px] text-muted-foreground/60 leading-snug">
-                    {(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.length > 60
-                      ? `"${(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt.slice(0, 60)}…"`
-                      : `"${(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).prompt}"`}
-                  </p>
-                ) : (
-                  <p className="text-[10px] text-muted-foreground/60">No signals selected</p>
+                {isDetection && detConfig && (
+                  <>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Alert when {detConfig.operator} {detConfig.threshold} ({detConfig.thresholdMode})
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Min confidence: {Math.round(detConfig.minConfidence * 100)}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">Severity: {detConfig.alertSeverity}</p>
+                  </>
                 )}
-                {confidence !== undefined && (
-                  <p className="text-[10px] text-muted-foreground/60">Confidence ≥ {(confidence * 100).toFixed(0)}%</p>
-                )}
-                {plugin.kind === "object-counting" && (
-                  <p className="text-[10px] text-muted-foreground/60">
-                    Alert when {(config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig).operator}{" "}
-                    {(config as import("#/lib/monitoring/plugins").ObjectCountingDeviceConfig).threshold}
-                  </p>
-                )}
-                {plugin.kind === "segment-understanding" && (
-                  <p className="text-[10px] text-muted-foreground/60">
-                    Severity: {(config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig).severity}
-                  </p>
+                {!isDetection && segConfig && (
+                  <>
+                    <p className="text-[10px] text-muted-foreground/60 leading-snug">
+                      {segConfig.prompt.length > 60 ? `"${segConfig.prompt.slice(0, 60)}…"` : `"${segConfig.prompt}"`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">Severity: {segConfig.severity}</p>
+                  </>
                 )}
               </div>
             );

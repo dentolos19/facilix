@@ -3,11 +3,61 @@ import { createServerFn } from "@tanstack/react-start";
 import { desc, eq } from "drizzle-orm";
 import { createDatabase, schema } from "#/lib/database";
 
+/** A detection from the Roboflow workflow. */
+export interface RecordingDetection {
+  label: string;
+  confidence: number;
+  box?: {
+    xmin: number;
+    ymin: number;
+    xmax: number;
+    ymax: number;
+  };
+  atSec?: number;
+  frameIndex?: number;
+  trackId?: string;
+  classId?: number;
+}
+
+/** An anomaly with timestamp for playback timeline. */
 export interface RecordingAnomaly {
   label: string;
   confidence: number;
   atSec: number;
-  assetId?: string;
+  box?: {
+    xmin: number;
+    ymin: number;
+    xmax: number;
+    ymax: number;
+  };
+}
+
+/** Per-plugin detection result stored in segment data. */
+export interface RecordingPluginResult {
+  pluginId: string;
+  pluginName: string;
+  workflowId: string;
+  detectionCounts?: Record<string, number>;
+  maxCount?: number;
+  thresholdAlert?: boolean;
+  threshold?: {
+    exceeded: boolean;
+    count: number;
+    threshold: number;
+    operator: string;
+    thresholdMode: string;
+  };
+}
+
+/** A threshold alert stored in segment data. */
+export interface RecordingAlert {
+  pluginId: string;
+  pluginName: string;
+  count: number;
+  threshold: number;
+  operator: string;
+  thresholdMode: string;
+  severity: string;
 }
 
 export interface RecordingRow {
@@ -19,14 +69,17 @@ export interface RecordingRow {
   startedAt: Date;
   endedAt: Date | null;
   createdAt: Date;
-  /** Aggregated Roboflow detections and OpenRouter scene summary. */
+  /** Roboflow workflow detections and optional OpenRouter scene summary. */
   data: {
+    source?: string;
+    analysisVersion?: number;
+    detections?: RecordingDetection[];
     detectionCounts?: Record<string, number>;
     anomalies?: RecordingAnomaly[];
-    frameSamples?: string[];
+    pluginResults?: RecordingPluginResult[];
+    alerts?: RecordingAlert[];
     sceneSummary?: string | null;
     analyzedAt?: string;
-    source?: string;
   } | null;
 }
 
@@ -42,19 +95,6 @@ function toRecording(row: typeof schema.videoSegment.$inferSelect): RecordingRow
     createdAt: row.createdAt,
     data: (row.data ?? null) as RecordingRow["data"],
   };
-}
-
-export interface FrameRow {
-  id: string;
-  assetId: string;
-  segmentId: string | null;
-  facilityId: string;
-  deviceId: string;
-  sequence: number;
-  capturedAt: Date;
-  createdAt: Date;
-  /** Per-frame analysis results from the processor. */
-  data: Record<string, unknown> | null;
 }
 
 /**

@@ -1,11 +1,10 @@
 import { eq } from "drizzle-orm";
-import { createDatabase } from "#/lib/database";
-import * as schema from "#/lib/database/schema";
+import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import { createStorage } from "#/lib/storage";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
-import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
-import { recordFacilityEvent, recordObservation, recordSensorReading, validateDevice } from "./utils";
+import { type FacilitySettings, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
+import { recordEvent, recordSensorReading, validateDevice } from "./utils";
 
 const log = createLogger("monitoring-api");
 
@@ -36,30 +35,19 @@ function resolveCctvStreamUrl(data: JsonObject, simulationRtspBase: string): str
  * Always returns safe defaults so the Python container doesn't need defaults.
  */
 function normalizeCaptureConfig(raw: unknown): {
-  frameCaptureEnabled: boolean;
-  frameIntervalSec: number;
-  segmentCaptureEnabled: boolean;
-  segmentIntervalSec: number;
   segmentDurationSec: number;
 } {
   const cfg = (raw ?? {}) as Record<string, unknown>;
-  const frames = (cfg.frames ?? {}) as Record<string, unknown>;
   const segments = (cfg.segments ?? {}) as Record<string, unknown>;
 
-  const frameIntervalSec = Number(frames.intervalSec ?? 5);
-  const segmentIntervalSec = Number(segments.intervalSec ?? 30);
   const segmentDurationSec = Number(segments.durationSec ?? 30);
 
   return {
-    frameCaptureEnabled: frames.enabled !== false,
-    frameIntervalSec: Number.isFinite(frameIntervalSec) && frameIntervalSec >= 1 ? frameIntervalSec : 5,
-    segmentCaptureEnabled: segments.enabled !== false,
-    segmentIntervalSec: Number.isFinite(segmentIntervalSec) && segmentIntervalSec >= 5 ? segmentIntervalSec : 30,
     segmentDurationSec: Number.isFinite(segmentDurationSec) && segmentDurationSec >= 5 ? segmentDurationSec : 30,
   };
 }
 
-export type MonitoringApiAction = "config" | "events" | "frames" | "segments";
+export type MonitoringApiAction = "config" | "events" | "segments";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -138,8 +126,6 @@ export async function handleMonitoringApiRequest(
       return handleConfig(request, env, facilityId);
     case "events":
       return handleEvent(request, env, facilityId);
-    case "frames":
-      return handleFrame(request, env, facilityId);
     case "segments":
       return handleSegment(request, env, facilityId);
   }
@@ -215,27 +201,14 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     return Response.json({ error: "Device not found for this facility" }, { status: 404 });
   }
 
-  const severity = body.severity as LogSeverity;
+  const severity = body.severity as "info" | "warn" | "error";
   const enrichedData = { ...body.data, source: "monitoring-container" };
   const observer = env.OBSERVER.getByName(facilityId);
 
-  // 1. Always write to DO observations for Container Logs
-  await recordObservation(observer, body.deviceId, body.type, severity, body.message, enrichedData);
+  // Record event (D1 + WebSocket broadcast)
+  await recordEvent(db, observer, facilityId, device?.id ?? null, body.type, severity, body.message, enrichedData);
 
-  // 2. Persist to D1 facility_events only when the log is important or the user
-  //    explicitly enabled this log type in facility settings.
-  const [facRow] = await db
-    .select({ settings: schema.facility.settings })
-    .from(schema.facility)
-    .where(eq(schema.facility.id, facilityId))
-    .limit(1);
-  const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
-  if (shouldShowInGlobalEvents(body.type, severity, settings)) {
-    // If the event is facility-level (deviceId === facilityId), store null for deviceId.
-    await recordFacilityEvent(db, facilityId, device?.id ?? null, body.type, severity, body.message, enrichedData);
-  }
-
-  // 3. Record structured sensor reading for sensor events (requires a real device)
+  // Record structured sensor reading for sensor events (requires a real device)
   if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data && device) {
     await recordSensorReading(db, facilityId, device.id, body.data).catch((err) =>
       log.error("recordSensorReading failed", { error: String(err), facilityId, deviceId: device.id }),
@@ -243,68 +216,6 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
   }
 
   return Response.json({ success: true, eventId: crypto.randomUUID() });
-}
-
-async function handleFrame(request: Request, env: Env, facilityId: string): Promise<Response> {
-  if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
-
-  const deviceId = request.headers.get("X-Device-Id");
-  if (!deviceId) return Response.json({ error: "Missing X-Device-Id header" }, { status: 400 });
-
-  // Idempotency key — skip duplicate frame submissions
-  const idempotencyKey = request.headers.get("Idempotency-Key");
-  if (idempotencyKey) {
-    const exists = await checkIdempotency(env, facilityId, deviceId, "frame", idempotencyKey);
-    if (exists) return Response.json({ success: true, deduplicated: true, previousResult: exists });
-  }
-
-  const db = createDatabase(env.DATABASE);
-  const device = await validateDevice(db, facilityId, deviceId);
-  if (!device) return Response.json({ error: "Device not found for this facility" }, { status: 404 });
-
-  const buffer = await request.arrayBuffer();
-  if (buffer.byteLength === 0) return Response.json({ error: "Empty frame" }, { status: 400 });
-
-  // Persist the frame to R2 so the workflow can read it durably.
-  const capturedAtHeader = request.headers.get("X-Captured-At");
-  const capturedAt = capturedAtHeader ? new Date(capturedAtHeader) : new Date();
-  if (Number.isNaN(capturedAt.getTime()))
-    return Response.json({ error: "Invalid X-Captured-At header" }, { status: 400 });
-
-  const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(capturedAt);
-  const sequenceHeader = request.headers.get("X-Sequence");
-  const sequence = sequenceHeader ? Number(sequenceHeader) : 0;
-  const fileName = `frames/${yyyy}${mm}${dd}/${deviceId}/${hh}${min}${ss}-${ms}.jpg`;
-  const contentType = request.headers.get("content-type") ?? "image/jpeg";
-
-  const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
-  const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
-
-  // Persist frame metadata to D1 so segment workflows can aggregate it durably.
-  const frameId = crypto.randomUUID();
-  await db.insert(schema.videoFrame).values({
-    id: frameId,
-    assetId: asset.id,
-    facilityId,
-    deviceId,
-    sequence,
-    capturedAt,
-  });
-
-  // Dispatch to the durable processor — AI inference + DB writes happen there.
-  await env.PROCESSOR.create({
-    params: {
-      kind: "frame",
-      facilityId,
-      deviceId,
-      frameId,
-      assetId: asset.id,
-      capturedAt: capturedAt.toISOString(),
-      sequence: Number.isFinite(sequence) ? sequence : 0,
-    },
-  });
-
-  return Response.json({ success: true, queued: true, assetId: asset.id, frameId, sizeBytes: buffer.byteLength });
 }
 
 async function handleSegment(request: Request, env: Env, facilityId: string): Promise<Response> {
@@ -356,13 +267,13 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     endedAt = durationSec ? new Date(startedAt.getTime() + durationSec * 1000) : startedAt;
   }
 
-  // Use date-prefixed key to avoid collision across days: YYYYMMDD/HHMMSS-ms.mp4
+  // Use date-prefixed key to avoid collision across days: segments/YYYYMMDD/{deviceId}/HHMMSS-ms.mp4
   const { yyyy, mm, dd, hh, min, ss, ms } = dateKeyParts(startedAt);
   const contentType = request.headers.get("content-type") ?? "video/mp4";
 
   const storage = createStorage({ bucket: env.BUCKET, db: env.DATABASE });
 
-  const fileName = `${yyyy}${mm}${dd}/${hh}${min}${ss}-${ms}.mp4`;
+  const fileName = `segments/${yyyy}${mm}${dd}/${deviceId}/${hh}${min}${ss}-${ms}.mp4`;
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
   const segmentId = crypto.randomUUID();
@@ -377,8 +288,10 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   });
 
   const observer = env.OBSERVER.getByName(facilityId);
-  await recordObservation(
+  await recordEvent(
+    db,
     observer,
+    facilityId,
     deviceId,
     "cctv:segment:stored",
     "info",
@@ -393,34 +306,8 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     },
   );
 
-  const [facRow] = await db
-    .select({ settings: schema.facility.settings })
-    .from(schema.facility)
-    .where(eq(schema.facility.id, facilityId))
-    .limit(1);
-  const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
-  if (shouldShowInGlobalEvents("cctv:segment:stored", "info", settings)) {
-    await recordFacilityEvent(
-      db,
-      facilityId,
-      deviceId,
-      "cctv:segment:stored",
-      "info",
-      `Video segment stored (${(buffer.byteLength / (1024 * 1024)).toFixed(1)} MB)`,
-      {
-        source: "monitoring-container",
-        assetId: asset.id,
-        segmentId,
-        durationSec,
-        contentType,
-        sizeBytes: buffer.byteLength,
-      },
-    );
-  }
-
-  // Dispatch the durable processor — aggregates frame detections in the
-  // [startedAt, endedAt] window, optionally calls a vision model, and
-  // writes the resulting summary onto video_segments.data.
+  // Dispatch the durable processor — runs Roboflow object detection on the
+  // video segment and writes the resulting detections onto video_segments.data.
   await env.PROCESSOR.create({
     params: {
       kind: "segment",

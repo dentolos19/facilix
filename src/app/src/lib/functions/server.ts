@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
+import { eq } from "drizzle-orm";
+import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
 
@@ -9,6 +11,10 @@ const log = createLogger("server-functions");
 const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
 const SIMULATION_SENSOR_API =
   (env as { SIMULATION_SENSOR_API?: string }).SIMULATION_SENSOR_API ?? "http://host.docker.internal:3002";
+
+/** Roboflow API configuration passed to the container for video processing. */
+const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
+const ROBOFLOW_API_BASE = (env as { ROBOFLOW_API_BASE?: string }).ROBOFLOW_API_BASE ?? "https://serverless.roboflow.com";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -85,6 +91,8 @@ export const startMonitoring = createServerFn({ method: "POST" })
             APP_ORIGIN: APP_ORIGIN,
             INGEST_TOKEN: env.INGEST_TOKEN ?? "",
             SIMULATION_SENSOR_API,
+            ROBOFLOW_API_KEY,
+            ROBOFLOW_API_BASE,
           },
         },
       });
@@ -115,8 +123,8 @@ export const stopMonitoring = createServerFn({ method: "POST" })
   });
 
 /**
- * Clear all container logs (Observer DO observations) for a facility.
- * Broadcasts an empty snapshot so all connected clients update immediately.
+ * Clear all events for a facility.
+ * Clears both D1 facility_events (persistent) and Observer DO (WebSocket broadcast).
  */
 export const clearContainerLogs = createServerFn({ method: "POST" })
   .validator((data: { facilityId: string }) => {
@@ -125,8 +133,14 @@ export const clearContainerLogs = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     try {
+      // Clear D1 facility_events
+      const db = createDatabase(env.DATABASE);
+      await db.delete(schema.facilityEvent).where(eq(schema.facilityEvent.facilityId, data.facilityId));
+
+      // Clear Observer DO and broadcast empty snapshot
       const stub = env.OBSERVER.getByName(data.facilityId);
       await stub.clearEvents();
+
       return { success: true } as const;
     } catch (err) {
       log.error("clearContainerLogs failed", { error: String(err), facilityId: data.facilityId });

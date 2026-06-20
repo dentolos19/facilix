@@ -74,9 +74,7 @@ export default createServerEntry({
     // Intercept monitoring container API calls before TanStack can fall through
     // to the frontend 404 page. These endpoints are called by the Python
     // container using APP_ORIGIN.
-    const monitoringMatch = url.pathname.match(
-      /^\/api\/facility\/([^/]+)\/monitoring\/(config|events|frames|segments)$/,
-    );
+    const monitoringMatch = url.pathname.match(/^\/api\/facility\/([^/]+)\/monitoring\/(config|events|segments)$/);
     if (monitoringMatch) {
       const [, facilityId, action] = monitoringMatch;
       return handleMonitoringApiRequest(request, env, facilityId, action as MonitoringApiAction);

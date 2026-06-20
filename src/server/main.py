@@ -14,9 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from api import post_event
 from config import (
@@ -30,6 +31,7 @@ from config import (
 )
 from monitoring import startup_monitoring
 from network import log_stream_rewrite_config
+from roboflow import process_video_workflow
 from utils import close_http_client, configure_logging, now_iso
 
 configure_logging()
@@ -107,6 +109,40 @@ async def root() -> dict[str, object]:
 async def ping() -> dict[str, str]:
     """Liveness check used by the Cloudflare Containers platform."""
     return {"status": "ok"}
+
+
+@app.post("/process-video")
+async def process_video(
+    request: "Request",
+    workspace_name: str,
+    workflow_id: str,
+    input_name: str = "image",
+    frame_interval: int = 30,
+    min_confidence: float = 0.4,
+) -> dict[str, Any]:
+    """Process a video segment through a Roboflow workflow.
+
+    Accepts video bytes as the request body (raw bytes with content-type video/mp4).
+    Called by the Worker processor to run object detection on CCTV segments.
+    """
+    video_bytes = await request.body()
+
+    if not video_bytes:
+        return {"error": "No video data provided", "detections": []}
+
+    try:
+        detections = await process_video_workflow(
+            video_bytes=video_bytes,
+            workspace_name=workspace_name,
+            workflow_id=workflow_id,
+            input_name=input_name,
+            frame_interval=frame_interval,
+            min_confidence=min_confidence,
+        )
+        return {"detections": detections, "count": len(detections)}
+    except Exception as exc:
+        log.exception("process-video error: %s", exc)
+        return {"error": str(exc), "detections": []}
 
 
 if __name__ == "__main__":

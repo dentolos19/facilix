@@ -1,4 +1,4 @@
-.PHONY: dev start simulate desimulate check
+.PHONY: dev start simulate desimulate resimulate check
 
 setup:
 	cd src/app && bun install
@@ -16,6 +16,8 @@ simulate:
 
 desimulate:
 	docker compose down
+
+resimulate: desimulate simulate
 
 check:
 	cd src/app && bun run check

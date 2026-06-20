@@ -18,36 +18,15 @@ export async function validateDevice(
 }
 
 /**
- * Record an event ONLY in the Observer DO's observations table.
- * This is for high-volume / low-importance events that should appear only
- * in Container Logs (heartbeats, frame-ok, sensor readings, etc.).
- */
-export async function recordObservation(
-  observer: DurableObjectStub<import("./observer").Observer>,
-  deviceId: string,
-  type: string,
-  severity: "info" | "warn" | "error",
-  message: string,
-  data: Record<string, unknown> = {},
-): Promise<boolean> {
-  try {
-    await observer.recordEvent(deviceId, type, JSON.stringify({ level: severity, message, ...data }));
-    return true;
-  } catch (err) {
-    log.error("Observer recordEvent failed", { error: String(err), deviceId, type });
-    return false;
-  }
-}
-
-/**
- * Record an event ONLY in the D1 facility_events table.
- * This is for important, persistent events (monitoring start/stop,
- * anomalies, alerts, errors, warnings, segment storage, etc.).
+ * Record an event to D1 (persistent storage) and broadcast via Observer DO WebSocket (real-time).
  *
- * @returns The event ID on success, or `null` if recording failed.
+ * This is the single unified function for all event recording. Every event:
+ * - Gets persisted to D1 `facility_events` table for querying and display
+ * - Gets broadcast to connected WebSocket clients for real-time updates
  */
-export async function recordFacilityEvent(
+export async function recordEvent(
   db: ReturnType<typeof createDatabase>,
+  observer: DurableObjectStub<import("./observer").Observer>,
   facilityId: string,
   deviceId: string | null,
   type: string,
@@ -58,6 +37,7 @@ export async function recordFacilityEvent(
   const id = crypto.randomUUID();
   const now = new Date();
 
+  // 1. Persist to D1
   try {
     await db.insert(schema.facilityEvent).values({
       id,
@@ -70,44 +50,77 @@ export async function recordFacilityEvent(
       createdAt: now,
       updatedAt: now,
     });
-    return id;
   } catch (err) {
     log.error("D1 facilityEvent insert failed", { error: String(err), facilityId, type });
     return null;
   }
+
+  // 2. Broadcast via Observer DO WebSocket for real-time updates
+  try {
+    await observer.recordEvent(deviceId ?? facilityId, type, JSON.stringify({ level: severity, message, ...data }));
+  } catch (err) {
+    log.error("Observer recordEvent failed", { error: String(err), deviceId, type });
+    // Don't return null - D1 write succeeded, broadcast is best-effort
+  }
+
+  return id;
 }
 
 /**
- * Record a structured sensor reading in the sensor_readings table.
- * Extracts reading fields from the event data payload.
+ * Validate that a sensor type is valid and return the device row.
+ */
+export async function validateSensorDevice(
+  db: ReturnType<typeof createDatabase>,
+  facilityId: string,
+  deviceId: string,
+): Promise<typeof schema.facilityDevice.$inferSelect | null> {
+  const device = await validateDevice(db, facilityId, deviceId);
+  return device?.type === "Sensor" ? device : null;
+}
+
+/**
+ * Record a sensor reading to the sensor_readings table.
  */
 export async function recordSensorReading(
   db: ReturnType<typeof createDatabase>,
   facilityId: string,
   deviceId: string,
-  eventData: Record<string, unknown>,
-): Promise<boolean> {
-  const value = eventData.value;
-  if (typeof value !== "number") return false;
+  data: Record<string, unknown>,
+): Promise<string | null> {
+  const id = crypto.randomUUID();
+  const now = new Date();
+
+  const sensorType = String(data.sensorType ?? "unknown");
+  const value = Number(data.value ?? 0);
+  const unit = String(data.unit ?? "");
+  const status = String(data.status ?? "ok");
+  const secondaryValue = typeof data.secondaryValue === "number" ? data.secondaryValue : null;
+  const secondaryUnit = typeof data.secondaryUnit === "string" ? data.secondaryUnit : null;
+  const batteryPct = typeof data.batteryPct === "number" ? data.batteryPct : null;
+  const signalRssiDbm = typeof data.signalRssiDbm === "number" ? data.signalRssiDbm : null;
+  const source = String(data.source ?? "simulation");
+  const timestamp = data.timestamp instanceof Date ? data.timestamp : now;
 
   try {
     await db.insert(schema.sensorReading).values({
+      id,
       facilityId,
       deviceId,
-      sensorType: String(eventData.sensorType ?? ""),
+      sensorType,
       value,
-      unit: String(eventData.unit ?? ""),
-      status: String(eventData.status ?? "ok"),
-      secondaryValue: typeof eventData.secondaryValue === "number" ? eventData.secondaryValue : null,
-      secondaryUnit: eventData.secondaryUnit ? String(eventData.secondaryUnit) : null,
-      batteryPct: typeof eventData.batteryPct === "number" ? eventData.batteryPct : null,
-      signalRssiDbm: typeof eventData.signalRssiDbm === "number" ? eventData.signalRssiDbm : null,
-      source: String(eventData.source ?? "simulation"),
-      timestamp: typeof eventData.timestamp === "number" ? new Date(eventData.timestamp) : new Date(),
+      unit,
+      status,
+      secondaryValue,
+      secondaryUnit,
+      batteryPct,
+      signalRssiDbm,
+      source,
+      timestamp,
+      createdAt: now,
     });
-    return true;
+    return id;
   } catch (err) {
-    log.error("sensor_readings insert failed", { error: String(err), facilityId, deviceId });
-    return false;
+    log.error("D1 sensorReading insert failed", { error: String(err), facilityId, deviceId });
+    return null;
   }
 }

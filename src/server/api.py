@@ -79,37 +79,6 @@ async def fetch_config() -> dict[str, Any] | None:
         return None
 
 
-async def upload_frame(device_id: str, frame_data: bytes, seq: int = 0, captured_at: float = 0) -> None:
-    """POST a sampled frame to the Worker frames endpoint."""
-    idem_key = f"{device_id}-frame-{seq}" if seq else f"{device_id}-frame-{int(time.time())}"
-    url = f"{API_BASE}/frames"
-    captured_iso = now_iso(captured_at) if captured_at else now_iso()
-
-    cctv_log.debug("upload_frame -> %s (idem=%s, %dB, seq=%d)", url, idem_key, len(frame_data), seq)
-    try:
-        client = get_http_client()
-        t0 = time.monotonic()
-        resp = await client.post(
-            url,
-            headers={
-                **AUTH_HEADER,
-                "X-Device-Id": device_id,
-                "Content-Type": "image/jpeg",
-                "Idempotency-Key": idem_key,
-                "X-Sequence": str(seq),
-                "X-Captured-At": captured_iso,
-            },
-            content=frame_data,
-        )
-        dt_ms = (time.monotonic() - t0) * 1000
-        if resp.status_code != 200:
-            cctv_log.warning("upload_frame HTTP %d in %.0fms: %s", resp.status_code, dt_ms, resp.text[:200])
-        else:
-            cctv_log.info("upload_frame ok in %.0fms — %s", dt_ms, resp.text[:200])
-    except Exception as exc:
-        cctv_log.exception("upload_frame error: %s", exc)
-
-
 async def upload_segment(
     device_id: str,
     segment_data: bytes,
@@ -119,7 +88,10 @@ async def upload_segment(
     ended_at: float = 0,
 ) -> None:
     """POST a video segment to the Worker segments endpoint."""
-    idem_key = f"{device_id}-segment-{seq}" if seq else f"{device_id}-segment-{int(time.time())}"
+    # Use started_at timestamp for idempotency to ensure each actual segment
+    # has a unique key, even if seq resets across container restarts.
+    ts = int(started_at) if started_at else int(time.time())
+    idem_key = f"{device_id}-segment-{ts}"
     url = f"{API_BASE}/segments"
     started_iso = now_iso(started_at) if started_at else now_iso()
     ended_iso = now_iso(ended_at) if ended_at else now_iso()

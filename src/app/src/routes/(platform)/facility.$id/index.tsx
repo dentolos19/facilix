@@ -40,15 +40,15 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/componen
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
-import { type FacilityEventRow, getFacilityEvents } from "#/lib/functions/events";
+import { type FacilityEventRow, getAllFacilityEvents, getFacilityEvents } from "#/lib/functions/events";
 import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
-import { type FacilitySettings, logTypesByCategory, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
-import type { FacilityEvent, MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
+import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
+import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
-import { ContainerLogsDialog } from "./-components/container-logs-dialog";
+import { LogsDialog } from "./-components/container-logs-dialog";
 import { DeviceEventPanel } from "./-components/device-event-panel";
 import { MonitoringLogsPanel } from "./-components/monitoring-logs-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
@@ -100,26 +100,6 @@ function d1EventToLogEntry(event: FacilityEventRow, deviceMap: Map<string, Place
   };
 }
 
-/** Parse a raw DO event's severity from its JSON payload. */
-function getEventLevel(ev: FacilityEvent): "info" | "warn" | "error" {
-  try {
-    const parsed = JSON.parse(ev.data);
-    if (parsed.level === "warn" || parsed.level === "error") return parsed.level;
-  } catch {
-    // fall through
-  }
-  return "info";
-}
-
-/**
- * Returns true if a raw DO event should be persisted to D1 / shown in Global
- * Events based on the facility's log settings.
- */
-function isGlobalEvent(ev: FacilityEvent, facilitySettings: FacilitySettings): boolean {
-  const level = getEventLevel(ev);
-  return shouldShowInGlobalEvents(ev.type, level, facilitySettings);
-}
-
 /** Human-readable label for a MonitoringStatus value. */
 function monitoringStatusLabel(status: MonitoringStatus): string {
   switch (status) {
@@ -152,30 +132,30 @@ function Page() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // ── Observer WebSocket events (Container Logs only) ────────────────────
-  const [observationEvents, setObservationEvents] = useState<FacilityEvent[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  // ── D1-backed facility events (Global Events + Device Event History) ─────
+  // ── D1-backed facility events (filtered by settings for global events panel) ─────
   const [facilityEvents, setFacilityEvents] = useState<FacilityEventRow[]>([]);
+
+  // ── D1-backed ALL events (unfiltered, for logs dialog) ─────
+  const [allEvents, setAllEvents] = useState<FacilityEventRow[]>([]);
 
   // ── Monitoring container status ────────────────────────────────────────
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("stopped");
   const [isMonitoringChanging, setIsMonitoringChanging] = useState(false);
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
-  const [containerLogsOpen, setContainerLogsOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   const handleClearContainerLogs = useCallback(async () => {
     try {
       const result = await clearContainerLogs({ data: { facilityId } });
       if (result.success) {
-        setObservationEvents([]);
-        toast.success("Container logs cleared");
+        setFacilityEvents([]);
+        setAllEvents([]);
+        toast.success("Events cleared");
       } else {
-        toast.error("Failed to clear container logs");
+        toast.error("Failed to clear events");
       }
     } catch {
-      toast.error("Failed to clear container logs");
+      toast.error("Failed to clear events");
     }
   }, [facilityId]);
 
@@ -242,16 +222,14 @@ function Page() {
           const msg: ObserverSocketMessage = JSON.parse(event.data);
           switch (msg.type) {
             case "snapshot":
-              setObservationEvents(msg.events);
-              break;
             case "event":
-              setObservationEvents((prev) => [msg.event, ...prev]);
-              // If the event should be visible in Global Events, refetch D1 facility events
-              if (isGlobalEvent(msg.event, settings)) {
-                getFacilityEvents({ data: { facilityId } })
-                  .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
-                  .catch(() => {});
-              }
+              // Refetch both filtered and unfiltered events from D1
+              getFacilityEvents({ data: { facilityId } })
+                .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+                .catch(() => {});
+              getAllFacilityEvents({ data: { facilityId } })
+                .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
+                .catch(() => {});
               break;
           }
         } catch {
@@ -278,7 +256,6 @@ function Page() {
       isDestroyed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
-      wsRef.current = null;
     };
   }, [facilityId]);
 
@@ -286,6 +263,9 @@ function Page() {
   useEffect(() => {
     getFacilityEvents({ data: { facilityId } })
       .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+      .catch(() => {});
+    getAllFacilityEvents({ data: { facilityId } })
+      .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
       .catch(() => {});
   }, [facilityId]);
 
@@ -713,12 +693,7 @@ function Page() {
           {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  aria-label="View logs"
-                  onClick={() => setContainerLogsOpen(true)}
-                  size="icon-sm"
-                  variant="ghost"
-                >
+                <Button aria-label="View logs" onClick={() => setLogsOpen(true)} size="icon-sm" variant="ghost">
                   <TerminalIcon className="size-4" />
                 </Button>
               </TooltipTrigger>
@@ -901,12 +876,12 @@ function Page() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Container Logs Dialog (DO observations only) ── */}
-      <ContainerLogsDialog
-        events={observationEvents}
+      {/* ── Logs Dialog (all events) ── */}
+      <LogsDialog
+        events={allEvents}
         onClearLogs={handleClearContainerLogs}
-        onOpenChange={setContainerLogsOpen}
-        open={containerLogsOpen}
+        onOpenChange={setLogsOpen}
+        open={logsOpen}
       />
 
       {/* ── Resizable Panels ── */}
