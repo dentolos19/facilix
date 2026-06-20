@@ -8,7 +8,6 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -18,10 +17,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
       setError(null);
       try {
         const rows = await getDeviceRecordings({ data: { facilityId: device.facilityId, deviceId: device.id } });
-        if (!cancelled) {
-          setRecordings(rows);
-          setSelectedId((prev) => prev ?? rows[0]?.id ?? null);
-        }
+        if (!cancelled) setRecordings(rows);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load recordings");
@@ -36,8 +32,6 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
       cancelled = true;
     };
   }, [device.facilityId, device.id]);
-
-  const selected = recordings.find((r) => r.id === selectedId) ?? recordings[0];
 
   if (loading) {
     return (
@@ -66,56 +60,8 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 lg:flex-row">
-      <div className="flex min-h-0 flex-1 flex-col">
-        {selected ? (
-          <PlaybackPlayer className="h-full" recording={selected} />
-        ) : (
-          <div className="flex h-full items-center justify-center rounded-none border border-border bg-muted/20">
-            <p className="text-[11px] text-muted-foreground/50">Select a recording to play</p>
-          </div>
-        )}
-      </div>
-
-      {/* Recording list */}
-      <div className="flex h-48 shrink-0 flex-col gap-2 lg:h-auto lg:w-72">
-        <h3 className="shrink-0 font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
-          Recordings
-        </h3>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-none border border-border bg-muted/20 p-2">
-          {recordings.map((r) => (
-            <button
-              className={`flex flex-col gap-1 rounded-none border p-2 text-left text-[10px] transition-colors ${
-                selected?.id === r.id
-                  ? "border-foreground/30 bg-background"
-                  : "border-border bg-muted/30 hover:bg-muted"
-              }`}
-              key={r.id}
-              onClick={() => setSelectedId(r.id)}
-              type="button"
-            >
-              <span className="font-medium text-foreground/80">{formatDate(r.createdAt)}</span>
-              <span className="text-muted-foreground/60">
-                {r.durationSec ? `${r.durationSec}s` : "Unknown duration"}
-                {r.data?.sceneSummary ? " · AI summary" : ""}
-              </span>
-              {(r.data?.anomalies?.length ?? 0) > 0 && (
-                <span className="mt-0.5 text-amber-600">{r.data?.anomalies?.length} anomalies</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <PlaybackPlayer className="h-full" recordings={recordings} />
     </div>
   );
-}
-
-function formatDate(date: Date) {
-  return new Date(date).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
