@@ -1,5 +1,5 @@
 services:
-  mediamtx:
+  media:
     image: bluenviron/mediamtx:latest
     container_name: facilix-media
     restart: unless-stopped
@@ -19,16 +19,16 @@ services:
     container_name: facilix-simulator
     restart: unless-stopped
     depends_on:
-      - mediamtx
+      - media
     ports:
-      - "3002:8000" # HTTP API (container port 8000)
+      - "3002:8000" # HTTP
     volumes:
       - ./samples:/samples:ro
     environment:
       SIMULATOR_VIDEOS_DIR: /samples
       SIMULATOR_SAMPLES_DIR: /samples
       SIMULATOR_VIDEOS_MANIFEST: /samples/videos.json
-      MEDIAMTX_HOST: mediamtx
+      MEDIAMTX_HOST: media
       MEDIAMTX_RTSP_PORT: "8554"
       MEDIAMTX_RTMP_PORT: "1935"
       SIMULATOR_LOG_LEVEL: info

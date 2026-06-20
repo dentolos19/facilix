@@ -15,7 +15,7 @@ export function PlaybackPlayer({ recording, className }: PlaybackPlayerProps) {
   const [state, setState] = useState<PlayerState>("idle");
   const [currentTime, setCurrentTime] = useState(0);
 
-  const src = useMemo(() => `/api/assets/${encodeURIComponent(recording.assetId)}`, [recording.assetId]);
+  const src = useMemo(() => `/assets/${encodeURIComponent(recording.assetId)}`, [recording.assetId]);
 
   const data = recording.data ?? {};
   const sceneSummary = data.sceneSummary ?? null;
@@ -30,7 +30,25 @@ export function PlaybackPlayer({ recording, className }: PlaybackPlayerProps) {
     const onTimeUpdate = () => setCurrentTime(video.currentTime);
     const onWaiting = () => setState("loading");
     const onPlaying = () => setState("playing");
-    const onError = () => setState("error");
+    const onError = () => {
+      const err = video.error;
+      const errorLabels: Record<number, string> = {
+        1: "MEDIA_ERR_ABORTED",
+        2: "MEDIA_ERR_NETWORK",
+        3: "MEDIA_ERR_DECODE",
+        4: "MEDIA_ERR_SRC_NOT_SUPPORTED",
+      };
+      const code = err?.code ?? -1;
+      const label = errorLabels[code] ?? `UNKNOWN(${code})`;
+      console.error("playback error", {
+        assetId: recording.assetId,
+        src,
+        code,
+        label,
+        message: err?.message ?? "no message",
+      });
+      setState("error");
+    };
     const onCanPlay = () => setState("playing");
 
     video.addEventListener("timeupdate", onTimeUpdate);

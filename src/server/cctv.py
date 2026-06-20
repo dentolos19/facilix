@@ -134,6 +134,25 @@ async def _segment_loop(
 # ── ffmpeg helpers ─────────────────────────────────────────────────────────
 
 
+MIN_SEGMENT_BYTES = 1024  # Segments smaller than 1 KB are almost certainly corrupt.
+
+
+def _validate_mp4_header(data: bytes) -> str | None:
+    """Return an error string if the MP4 data looks corrupt, else None.
+
+    Checks that the file starts with a valid ftyp box (required by all valid
+    MP4 files) and is large enough to contain at least one media fragment.
+    """
+    if len(data) < 8:
+        return "file_too_small"
+
+    # Valid MP4 files must start with an 'ftyp' box (bytes 4-7 == 'ftyp').
+    if data[4:8] != b"ftyp":
+        return "missing_ftyp"
+
+    return None
+
+
 async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[bytes | None, float, float, float, str]:
     """Use ffmpeg to capture a short video segment.
 
@@ -174,19 +193,47 @@ async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[byte
         ended_at = time.time()
         actual_duration = ended_at - started_at
         dt_ms = int(actual_duration * 1000)
-        if proc.returncode == 0:
-            data = await asyncio.to_thread(Path(tmp_path).read_bytes)
-            cctv_log.info("capture_segment ok %dB in %dms for %s", len(data), dt_ms, stream_url)
-            return data, actual_duration, started_at, ended_at, ""
         stderr_tail = (stderr or b"")[-500:].decode("utf-8", errors="replace").strip()
-        cctv_log.warning(
-            "capture_segment failed (rc=%s, %dms) for %s: %s",
-            proc.returncode,
-            dt_ms,
-            stream_url,
-            stderr_tail,
-        )
-        return None, 0.0, 0.0, 0.0, stderr_tail or f"ffmpeg_rc_{proc.returncode}"
+
+        if proc.returncode != 0:
+            cctv_log.warning(
+                "capture_segment failed (rc=%s, %dms) for %s: %s",
+                proc.returncode,
+                dt_ms,
+                stream_url,
+                stderr_tail,
+            )
+            return None, 0.0, 0.0, 0.0, stderr_tail or f"ffmpeg_rc_{proc.returncode}"
+
+        data = await asyncio.to_thread(Path(tmp_path).read_bytes)
+
+        # Always log stderr warnings even on RC=0 — ffmpeg may emit
+        # non-fatal warnings that indicate stream issues.
+        if stderr_tail:
+            cctv_log.warning("capture_segment rc=0 but stderr: %s", stderr_tail)
+
+        if len(data) < MIN_SEGMENT_BYTES:
+            cctv_log.warning(
+                "capture_segment produced undersized output (%d bytes, %dms) for %s",
+                len(data),
+                dt_ms,
+                stream_url,
+            )
+            return None, 0.0, 0.0, 0.0, "segment_too_small"
+
+        validation_error = _validate_mp4_header(data)
+        if validation_error:
+            cctv_log.warning(
+                "capture_segment produced invalid MP4 (%s, %d bytes, %dms) for %s",
+                validation_error,
+                len(data),
+                dt_ms,
+                stream_url,
+            )
+            return None, 0.0, 0.0, 0.0, validation_error
+
+        cctv_log.info("capture_segment ok %dB in %dms for %s", len(data), dt_ms, stream_url)
+        return data, actual_duration, started_at, ended_at, ""
     except TimeoutError:
         ended_at = time.time()
         cctv_log.warning("capture_segment timed out for %s", stream_url)

@@ -90,7 +90,9 @@ async def upload_segment(
     """POST a video segment to the Worker segments endpoint."""
     # Use started_at timestamp for idempotency to ensure each actual segment
     # has a unique key, even if seq resets across container restarts.
-    ts = int(started_at) if started_at else int(time.time())
+    # Millisecond precision avoids collisions when two segments start within
+    # the same wall-clock second (e.g. container restart).
+    ts = int(started_at * 1000) if started_at else int(time.time() * 1000)
     idem_key = f"{device_id}-segment-{ts}"
     url = f"{API_BASE}/segments"
     started_iso = now_iso(started_at) if started_at else now_iso()
