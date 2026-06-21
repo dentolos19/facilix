@@ -9,11 +9,11 @@ HTTPX_LOG_LEVEL = os.environ.get("HTTPX_LOG_LEVEL", "WARNING").upper()
 
 FACILITY_ID = os.environ.get("FACILITY_ID", "")
 APP_ORIGIN = os.environ.get("APP_ORIGIN", "http://localhost:3000")
-INGEST_TOKEN = os.environ.get("INGEST_TOKEN", "")
+SERVER_SECRET = os.environ.get("SERVER_SECRET", "")
 
 API_BASE = f"{APP_ORIGIN}/api/facility/{FACILITY_ID}/monitoring"
-AUTH_HEADER = {"Authorization": f"Bearer {INGEST_TOKEN}"}
-CONFIG_READY = bool(FACILITY_ID and INGEST_TOKEN)
+AUTH_HEADER = {"Authorization": f"Bearer {SERVER_SECRET}"}
+CONFIG_READY = bool(FACILITY_ID and SERVER_SECRET)
 
 # Tuning — these are fallback defaults only.
 # Per-CCTV capture settings from the frontend always take precedence.

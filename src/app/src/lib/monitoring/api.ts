@@ -116,7 +116,7 @@ export async function handleMonitoringApiRequest(
   facilityId: string,
   action: MonitoringApiAction,
 ): Promise<Response> {
-  const expected = env.INGEST_TOKEN;
+  const expected = env.SERVER_SECRET;
   const auth = request.headers.get("authorization");
   if (!expected || auth !== `Bearer ${expected}`) {
     return new Response("Unauthorized", { status: 401 });

@@ -24,7 +24,7 @@ from config import (
     APP_ORIGIN,
     CONFIG_READY,
     FACILITY_ID,
-    INGEST_TOKEN,
+    SERVER_SECRET,
     LOG_LEVEL,
     SIMULATION_HLS_BASE,
     SIMULATION_SENSOR_API,
@@ -46,8 +46,8 @@ def log_config_warnings() -> None:
         missing = []
         if not FACILITY_ID:
             missing.append("FACILITY_ID")
-        if not INGEST_TOKEN:
-            missing.append("INGEST_TOKEN")
+        if not SERVER_SECRET:
+            missing.append("SERVER_SECRET")
         log.warning("missing env vars: %s — monitoring will idle", ", ".join(missing))
 
     if APP_ORIGIN.startswith("http://localhost") or APP_ORIGIN.startswith("http://127.0.0.1"):

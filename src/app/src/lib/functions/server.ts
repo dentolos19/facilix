@@ -90,7 +90,7 @@ export const startMonitoring = createServerFn({ method: "POST" })
           envVars: {
             FACILITY_ID: data.facilityId,
             APP_ORIGIN: APP_ORIGIN,
-            INGEST_TOKEN: env.INGEST_TOKEN ?? "",
+            SERVER_SECRET: env.SERVER_SECRET ?? "",
             SIMULATION_SENSOR_API,
             ROBOFLOW_API_KEY,
             ROBOFLOW_API_BASE,

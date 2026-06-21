@@ -44,7 +44,7 @@ jobs:
         run: |
           # App
           echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put APP_ORIGIN
-          echo "${{ secrets.INGEST_TOKEN }}" | bun wrangler secret put INGEST_TOKEN
+          echo "${{ secrets.SERVER_SECRET }}" | bun wrangler secret put SERVER_SECRET
           echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
           echo "${{ secrets.OPENROUTER_API_KEY }}" | bun wrangler secret put OPENROUTER_API_KEY
