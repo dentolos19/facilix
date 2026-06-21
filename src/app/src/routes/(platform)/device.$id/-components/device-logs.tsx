@@ -1,5 +1,6 @@
 import { AlertTriangleIcon, FileTextIcon, InfoIcon, Loader2Icon, OctagonAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import { type FacilityEventRow, getDeviceEvents } from "#/lib/functions/events";
 import type { DeviceDetail } from "#/lib/functions/facility";
 
@@ -37,7 +38,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
+        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
       </div>
     );
   }
@@ -45,7 +46,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <FileTextIcon className="size-8 text-muted-foreground/30" />
+        <FileTextIcon className="text-muted-foreground/30 size-8" />
         <p className="text-muted-foreground/50 text-xs">{error}</p>
       </div>
     );
@@ -54,7 +55,7 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   if (events.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <FileTextIcon className="size-8 text-muted-foreground/30" />
+        <FileTextIcon className="text-muted-foreground/30 size-8" />
         <p className="text-muted-foreground/50 text-xs">No logs for this device yet.</p>
       </div>
     );
@@ -63,12 +64,12 @@ export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-heading font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+        <h3 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
           Recent events
         </h3>
-        <span className="text-[10px] text-muted-foreground/50">{events.length} shown</span>
+        <span className="text-muted-foreground/50 text-[10px]">{events.length} shown</span>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-none border border-border bg-muted/20 p-3">
+      <div className="border-border bg-muted/20 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-none border p-3">
         {events.map((event) => (
           <EventRow event={event} key={event.id} />
         ))}
@@ -82,20 +83,20 @@ function EventRow({ event }: { event: FacilityEventRow }) {
   const color = SEVERITY_COLORS[event.severity] ?? "text-muted-foreground";
 
   return (
-    <div className="flex gap-3 rounded-none border border-border bg-background p-2.5">
+    <div className="border-border bg-background flex gap-3 rounded-none border p-2.5">
       <div className="mt-0.5 shrink-0">
         <Icon className={`size-3.5 ${color}`} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-medium text-[11px] text-foreground/80">{event.type}</span>
-          <span className="shrink-0 text-[10px] text-muted-foreground/50 tabular-nums">
+          <span className="text-foreground/80 truncate text-[11px] font-medium">{event.type}</span>
+          <span className="text-muted-foreground/50 shrink-0 text-[10px] tabular-nums">
             {new Date(event.createdAt).toLocaleString()}
           </span>
         </div>
-        <p className="text-[11px] text-foreground/70">{event.message}</p>
+        <p className="text-foreground/70 text-[11px]">{event.message}</p>
         {event.data && event.data !== "{}" && (
-          <pre className="mt-1 overflow-x-auto rounded-none bg-muted/30 p-1.5 text-[10px] text-muted-foreground/70">
+          <pre className="bg-muted/30 text-muted-foreground/70 mt-1 overflow-x-auto rounded-none p-1.5 text-[10px]">
             {event.data}
           </pre>
         )}

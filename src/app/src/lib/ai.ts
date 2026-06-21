@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+
 import { createLogger } from "#/lib/logs";
 
 const log = createLogger("openrouter");

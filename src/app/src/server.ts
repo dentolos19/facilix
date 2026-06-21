@@ -1,5 +1,6 @@
-import { env } from "cloudflare:workers";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
+import { env } from "cloudflare:workers";
+
 import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/lib/monitoring/api";
 
 export { Observer } from "#/lib/bindings/observer";

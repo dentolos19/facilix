@@ -31,6 +31,7 @@ from typing import Any
 # Console formatter — clean human-readable output
 # ---------------------------------------------------------------------------
 
+
 class ConsoleFormatter(logging.Formatter):
     """Emit log records in a clean human-readable format.
 
@@ -67,6 +68,7 @@ class ConsoleFormatter(logging.Formatter):
 # ---------------------------------------------------------------------------
 # JSON formatter — compact single-line for log aggregation
 # ---------------------------------------------------------------------------
+
 
 class JsonFormatter(logging.Formatter):
     """Emit log records as single-line JSON matching the TypeScript logger.

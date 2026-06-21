@@ -1,11 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ExternalLinkIcon, ShieldAlertIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+
 import { ScrollArea } from "#/components/ui/scroll-area";
 import type { SensorReadingRow } from "#/lib/functions/sensors";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
 import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
+
 import type { LogEntry, PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
 import { LogLevelBadge } from "./monitoring-logs-panel";
@@ -22,7 +24,7 @@ function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[10px] uppercase ${style.bg}`}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
     >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
@@ -50,7 +52,7 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+      <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
         Intelligence Plugins
       </h4>
       <div className="flex flex-col gap-1.5">
@@ -62,22 +64,22 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
 
           return (
             <div
-              className="flex items-center justify-between gap-2 rounded-none border border-border bg-muted/20 p-2"
+              className="border-border bg-muted/20 flex items-center justify-between gap-2 rounded-none border p-2"
               key={plugin.id}
             >
               <div className="flex min-w-0 items-center gap-1.5">
-                <ShieldAlertIcon className="mt-0.5 size-3 shrink-0 text-muted-foreground/60" />
+                <ShieldAlertIcon className="text-muted-foreground/60 mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-[11px] text-foreground/80">{plugin.name}</p>
+                  <p className="text-foreground/80 truncate text-[11px] font-medium">{plugin.name}</p>
                   {isDetection && detConfig && (
-                    <p className="text-[9px] text-muted-foreground/60">
+                    <p className="text-muted-foreground/60 text-[9px]">
                       Alert when {detConfig.operator} {detConfig.threshold}
                     </p>
                   )}
                 </div>
               </div>
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 font-medium text-[9px] ${
+                className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${
                   config.enabled ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"
                 }`}
               >
@@ -97,12 +99,12 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
 function PropRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <dt className="shrink-0 text-muted-foreground/60 text-[10px]">{label}</dt>
+      <dt className="text-muted-foreground/60 shrink-0 text-[10px]">{label}</dt>
       <dd
         className={
           monospace
-            ? "break-all text-right font-mono text-foreground/70 text-[10px]"
-            : "break-words text-right text-foreground/70 text-[10px]"
+            ? "text-foreground/70 text-right font-mono text-[10px] break-all"
+            : "text-foreground/70 text-right text-[10px] break-words"
         }
       >
         {value}
@@ -126,18 +128,16 @@ function DevicePropertiesSection({ device }: { device: PlacedItem }) {
     const deviceId = String(props.deviceId ?? "");
     const raw = props.capture;
     const capture: {
-      frames?: { enabled?: boolean; intervalSec?: number };
       segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
     } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
-    const frames = { enabled: true, intervalSec: 5, ...capture.frames };
     const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
 
     return (
       <div className="flex flex-col gap-2">
-        <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
           Properties
         </h4>
-        <div className="rounded-none border border-border bg-muted/20 p-2">
+        <div className="border-border bg-muted/20 rounded-none border p-2">
           <dl className="flex flex-col gap-1.5">
             <PropRow label="Video Source" value={videoSource} />
             {streamName && videoSource === "simulation" && (
@@ -146,11 +146,7 @@ function DevicePropertiesSection({ device }: { device: PlacedItem }) {
             {streamUrl && videoSource !== "simulation" && <PropRow label="Stream URL" monospace value={streamUrl} />}
             {streamPath && <PropRow label="Stream Path" monospace value={streamPath} />}
             {deviceId && <PropRow label="Device ID" monospace value={deviceId} />}
-            <PropRow label="Frame Capture" value={frames.enabled ? `Every ${frames.intervalSec ?? 5}s` : "Off"} />
-            <PropRow
-              label="Segment Capture"
-              value={segments.enabled ? `Every ${segments.intervalSec ?? 30}s, ${segments.durationSec ?? 30}s` : "Off"}
-            />
+            <PropRow label="Segment Duration" value={segments.enabled ? `${segments.durationSec ?? 30}s` : "Off"} />
           </dl>
         </div>
       </div>
@@ -169,10 +165,10 @@ function DevicePropertiesSection({ device }: { device: PlacedItem }) {
 
     return (
       <div className="flex flex-col gap-2">
-        <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
           Properties
         </h4>
-        <div className="rounded-none border border-border bg-muted/20 p-2">
+        <div className="border-border bg-muted/20 rounded-none border p-2">
           <dl className="flex flex-col gap-1.5">
             <PropRow label="Sensor Type" value={sensorType} />
             <PropRow label="Data Source" value={sensorDataSource} />
@@ -255,7 +251,7 @@ export function DeviceEventPanel({
     return () => {
       cancelled = true;
     };
-  }, [isSensor, facilityId, selectedDevice?.id]);
+  }, [isSensor, facilityId, selectedDevice]);
 
   // Derive the real device status
   const deviceStatus = isSensor
@@ -278,13 +274,13 @@ export function DeviceEventPanel({
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-2 p-4">
-        <h3 className="shrink-0 font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
+        <h3 className="font-heading text-muted-foreground shrink-0 text-xs font-medium tracking-wider uppercase">
           Device Details
         </h3>
 
         {!selectedDeviceId && (
           <div className="flex flex-1 items-center justify-center px-2 text-center">
-            <span className="text-[11px] text-muted-foreground/50">
+            <span className="text-muted-foreground/50 text-[11px]">
               Click an IoT device on the map to view its events
             </span>
           </div>
@@ -292,22 +288,22 @@ export function DeviceEventPanel({
 
         {selectedDeviceId && deviceEvents.length === 0 && !selectedDevice && (
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-[11px] text-muted-foreground/50">No events for this device</span>
+            <span className="text-muted-foreground/50 text-[11px]">No events for this device</span>
           </div>
         )}
 
         {selectedDevice && (
           <div className="flex flex-col gap-2">
             {/* Device summary */}
-            <div className="rounded-none border border-border bg-muted/20 p-2">
+            <div className="border-border bg-muted/20 rounded-none border p-2">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-foreground text-xs">{selectedDevice.name}</p>
-                  <p className="text-[11px] text-muted-foreground/70">Type: {selectedDevice.type}</p>
+                  <p className="text-foreground text-xs font-medium">{selectedDevice.name}</p>
+                  <p className="text-muted-foreground/70 text-[11px]">Type: {selectedDevice.type}</p>
                   <div className="mt-1 flex items-center gap-1.5">
-                    <span className="text-[11px] text-muted-foreground/70">Status:</span>
+                    <span className="text-muted-foreground/70 text-[11px]">Status:</span>
                     {readingLoading ? (
-                      <span className="text-[10px] text-muted-foreground/50">Loading…</span>
+                      <span className="text-muted-foreground/50 text-[10px]">Loading…</span>
                     ) : (
                       <StatusBadge status={deviceStatus} />
                     )}
@@ -315,7 +311,7 @@ export function DeviceEventPanel({
                 </div>
                 <button
                   aria-label="View device details"
-                  className="flex size-6 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted/40 hover:text-foreground"
+                  className="text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground flex size-6 items-center justify-center rounded transition-colors"
                   onClick={() => navigate({ to: "/device/$id", params: { id: selectedDevice.id } })}
                 >
                   <ExternalLinkIcon className="size-3.5" />
@@ -332,7 +328,7 @@ export function DeviceEventPanel({
             {/* Video feed for CCTVs */}
             {isCCTV && (
               <div className="flex flex-col gap-2">
-                <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                   Live Feed
                 </h4>
                 <CctvPlayer
@@ -341,7 +337,7 @@ export function DeviceEventPanel({
                     selectedDevice.type === "CCTV" ? String(selectedDevice.props.simulationStream ?? "") : undefined
                   }
                 />
-                {cctvHlsUrl && <p className="break-all text-[10px] text-muted-foreground/50">{cctvHlsUrl}</p>}
+                {cctvHlsUrl && <p className="text-muted-foreground/50 text-[10px] break-all">{cctvHlsUrl}</p>}
               </div>
             )}
 
@@ -353,7 +349,7 @@ export function DeviceEventPanel({
             {/* Log entries (not applicable to zones) */}
             {selectedDevice.type !== "Zone" && (
               <div className="flex flex-col gap-2">
-                <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                   Event History
                 </h4>
                 {deviceEvents.length > 0 ? (
@@ -376,7 +372,7 @@ export function DeviceEventPanel({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground/50 leading-snug">
+                  <p className="text-muted-foreground/50 text-[11px] leading-snug">
                     No events recorded for this device yet. Events appear here when the sensor triggers alerts or state
                     changes.
                   </p>

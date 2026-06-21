@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
@@ -64,11 +65,11 @@ function AuthPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm pt-0">
-        <div className="flex border-border border-b">
+        <div className="border-border flex border-b">
           <button
-            className={`flex-1 px-4 py-3 text-center font-medium text-sm transition-colors ${
+            className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
               mode === "login"
-                ? "border-primary border-b-2 text-foreground"
+                ? "border-primary text-foreground border-b-2"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => navigate({ to: "/auth", search: { mode: "login" }, replace: true })}
@@ -76,9 +77,9 @@ function AuthPage() {
             Sign in
           </button>
           <button
-            className={`flex-1 px-4 py-3 text-center font-medium text-sm transition-colors ${
+            className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
               mode === "register"
-                ? "border-primary border-b-2 text-foreground"
+                ? "border-primary text-foreground border-b-2"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => navigate({ to: "/auth", search: { mode: "register" }, replace: true })}
@@ -129,7 +130,7 @@ function LoginForm() {
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="email">
+            <label className="text-sm font-medium" htmlFor="email">
               Email
             </label>
             <Input
@@ -143,7 +144,7 @@ function LoginForm() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="password">
+            <label className="text-sm font-medium" htmlFor="password">
               Password
             </label>
             <Input
@@ -156,11 +157,11 @@ function LoginForm() {
               value={password}
             />
           </div>
-          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>}
+          {error && <p className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">{error}</p>}
           <Button disabled={loading} type="submit">
             {loading ? modeConfig.login.loadingLabel : modeConfig.login.submitLabel}
           </Button>
-          <p className="text-center text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-center text-sm">
             Don&apos;t have an account?{" "}
             <Link className="underline underline-offset-2" search={{ mode: "register" }} to="/auth">
               Sign up
@@ -210,7 +211,7 @@ function RegisterForm() {
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <div className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="name">
+            <label className="text-sm font-medium" htmlFor="name">
               Name
             </label>
             <Input
@@ -224,7 +225,7 @@ function RegisterForm() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="email">
+            <label className="text-sm font-medium" htmlFor="email">
               Email
             </label>
             <Input
@@ -238,7 +239,7 @@ function RegisterForm() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="password">
+            <label className="text-sm font-medium" htmlFor="password">
               Password
             </label>
             <Input
@@ -251,11 +252,11 @@ function RegisterForm() {
               value={password}
             />
           </div>
-          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive text-sm">{error}</p>}
+          {error && <p className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">{error}</p>}
           <Button disabled={loading} type="submit">
             {loading ? modeConfig.register.loadingLabel : modeConfig.register.submitLabel}
           </Button>
-          <p className="text-center text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-center text-sm">
             Already have an account?{" "}
             <Link className="underline underline-offset-2" search={{ mode: "login" }} to="/auth">
               Sign in

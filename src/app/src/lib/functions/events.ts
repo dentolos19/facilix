@@ -1,8 +1,9 @@
-import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
+import { env } from "cloudflare:workers";
 import { and, desc, eq, lt } from "drizzle-orm";
+
 import { createDatabase, schema } from "#/lib/database";
-import { type FacilitySettings, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
+import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
+
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/components/ui/chart";
@@ -85,12 +86,6 @@ function formatChartTime(isoKey: string, range: AnalyticsTimeRange): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function truncateMiddle(text: string, maxLen: number): string {
-  if (text.length <= maxLen) return text;
-  const half = Math.floor((maxLen - 3) / 2);
-  return text.slice(0, half) + "..." + text.slice(text.length - half);
-}
-
 // ─── Severity Indicator ─────────────────────────────────────────────────────
 
 function SeverityDot({ severity, className }: { severity: string; className?: string }) {
@@ -152,14 +147,14 @@ function KpiCard({
     <Card>
       <CardHeader>
         <CardDescription className="flex items-center gap-1.5">
-          {Icon && <Icon className="size-3.5 text-muted-foreground/60" />}
+          {Icon && <Icon className="text-muted-foreground/60 size-3.5" />}
           {title}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex items-end justify-between gap-2">
         <div>
-          <p className="font-heading font-semibold text-2xl tabular-nums tracking-tight">{value}</p>
-          {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
+          <p className="font-heading text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
+          {subtitle && <p className="text-muted-foreground mt-0.5 text-[10px]">{subtitle}</p>}
         </div>
         {trend && (
           <span
@@ -189,7 +184,7 @@ function InsightCard({ insight }: { insight: FacilityAnalytics["insights"][numbe
   const Icon = iconMap[insight.severity] ?? InfoIcon;
 
   return (
-    <div className="flex gap-3 rounded-none border border-border bg-card p-3 text-xs">
+    <div className="border-border bg-card flex gap-3 rounded-none border p-3 text-xs">
       <Icon
         className={cn(
           "mt-0.5 size-4 shrink-0",
@@ -201,22 +196,22 @@ function InsightCard({ insight }: { insight: FacilityAnalytics["insights"][numbe
       />
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-foreground">{insight.title}</span>
+          <span className="text-foreground font-medium">{insight.title}</span>
           <SeverityBadge severity={insight.severity} />
         </div>
         <p className="text-muted-foreground">{insight.description}</p>
         {insight.evidence.length > 0 && (
           <ul className="mt-0.5 flex flex-col gap-0.5">
             {insight.evidence.map((item, i) => (
-              <li className="flex items-center gap-1.5 text-muted-foreground/80" key={i}>
-                <span className="size-1 rounded-full bg-muted-foreground/30" />
+              <li className="text-muted-foreground/80 flex items-center gap-1.5" key={i}>
+                <span className="bg-muted-foreground/30 size-1 rounded-full" />
                 {item}
               </li>
             ))}
           </ul>
         )}
         {insight.recommendedAction && (
-          <p className="mt-0.5 text-muted-foreground/70 italic">{insight.recommendedAction}</p>
+          <p className="text-muted-foreground/70 mt-0.5 italic">{insight.recommendedAction}</p>
         )}
       </div>
     </div>
@@ -315,7 +310,7 @@ function DeviceCompositionChart({ data }: { data: DeviceTypeCount[] }) {
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value, name) => <span className="font-medium font-mono tabular-nums">{String(value)}</span>}
+              formatter={(value, _name) => <span className="font-mono font-medium tabular-nums">{String(value)}</span>}
             />
           }
         />
@@ -396,8 +391,8 @@ function RecentAlertsTable({ alerts }: { alerts: RecentAlert[] }) {
               </span>
             </TableCell>
             <TableCell className="hidden truncate sm:table-cell">{alert.deviceName ?? "—"}</TableCell>
-            <TableCell className="hidden text-muted-foreground md:table-cell">{alert.type}</TableCell>
-            <TableCell className="text-right text-muted-foreground tabular-nums">
+            <TableCell className="text-muted-foreground hidden md:table-cell">{alert.type}</TableCell>
+            <TableCell className="text-muted-foreground text-right tabular-nums">
               {formatTimestamp(alert.createdAt)}
             </TableCell>
           </TableRow>
@@ -436,7 +431,7 @@ function DeviceHealthTable({ devices }: { devices: DeviceInfo[] }) {
             <TableCell>
               <StatusBadge status={device.status} />
             </TableCell>
-            <TableCell className="hidden text-muted-foreground sm:table-cell">{device.zoneName ?? "—"}</TableCell>
+            <TableCell className="text-muted-foreground hidden sm:table-cell">{device.zoneName ?? "—"}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -534,7 +529,7 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
             <TableCell className="hidden text-right tabular-nums md:table-cell">
               {m.batteryPct !== null ? `${Math.round(m.batteryPct)}%` : "—"}
             </TableCell>
-            <TableCell className="hidden text-right text-muted-foreground lg:table-cell">
+            <TableCell className="text-muted-foreground hidden text-right lg:table-cell">
               {formatTimestamp(m.timestamp)}
             </TableCell>
           </TableRow>
@@ -618,8 +613,8 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <AlertCircleIcon className="size-12 text-muted-foreground/30" />
-        <h2 className="font-heading font-medium text-lg">Failed to Load Analytics</h2>
+        <AlertCircleIcon className="text-muted-foreground/30 size-12" />
+        <h2 className="font-heading text-lg font-medium">Failed to Load Analytics</h2>
         <p className="text-muted-foreground text-sm">{message}</p>
         <Button onClick={onRetry} size="sm" variant="outline">
           <RefreshCwIcon data-icon="inline-start" />
@@ -807,7 +802,7 @@ function Page() {
               </Link>
             </Button>
             <div>
-              <h1 className="font-heading font-medium text-lg tracking-tight">{data?.facilityName ?? "Analytics"}</h1>
+              <h1 className="font-heading text-lg font-medium tracking-tight">{data?.facilityName ?? "Analytics"}</h1>
               <p className="text-muted-foreground text-xs">
                 Operational analytics and AI insights
                 {lastUpdated && <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>}
@@ -852,7 +847,7 @@ function Page() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <EyeIcon className="size-4 text-muted-foreground" />
+              <EyeIcon className="text-muted-foreground size-4" />
               AI Insights
             </CardTitle>
             <CardDescription>Deterministic operational insights generated from facility data</CardDescription>
@@ -871,7 +866,7 @@ function Page() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart3Icon className="size-4 text-muted-foreground" />
+              <BarChart3Icon className="text-muted-foreground size-4" />
               Event Trend
             </CardTitle>
             <CardDescription>Events over time by severity</CardDescription>
@@ -893,7 +888,7 @@ function Page() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <MonitorIcon className="size-4 text-muted-foreground" />
+              <MonitorIcon className="text-muted-foreground size-4" />
               Devices
             </CardTitle>
             <CardDescription>By type</CardDescription>
@@ -910,9 +905,9 @@ function Page() {
             </div>
             {/* Legend */}
             {data && data.devicesByType.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-border border-t pt-3">
+              <div className="border-border mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3">
                 {data.devicesByType.map((d, i) => (
-                  <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground" key={d.type}>
+                  <span className="text-muted-foreground flex items-center gap-1.5 text-[10px]" key={d.type}>
                     <span
                       className="inline-block size-2 rounded-none"
                       style={{
@@ -920,7 +915,7 @@ function Page() {
                       }}
                     />
                     {d.type}
-                    <span className="font-medium text-foreground tabular-nums">{d.count}</span>
+                    <span className="text-foreground font-medium tabular-nums">{d.count}</span>
                   </span>
                 ))}
               </div>
@@ -934,7 +929,7 @@ function Page() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertTriangleIcon className="size-4 text-muted-foreground" />
+              <AlertTriangleIcon className="text-muted-foreground size-4" />
               Events by Severity
             </CardTitle>
             <CardDescription>Count in selected period</CardDescription>
@@ -955,7 +950,7 @@ function Page() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ActivityIcon className="size-4 text-muted-foreground" />
+              <ActivityIcon className="text-muted-foreground size-4" />
               Sensor Metrics
             </CardTitle>
             <CardDescription>Latest readings per sensor device</CardDescription>
@@ -972,7 +967,7 @@ function Page() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertCircleIcon className="size-4 text-muted-foreground" />
+            <AlertCircleIcon className="text-muted-foreground size-4" />
             Recent Alerts
           </CardTitle>
           <CardDescription>Last 20 events across all devices</CardDescription>
@@ -988,7 +983,7 @@ function Page() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MonitorIcon className="size-4 text-muted-foreground" />
+            <MonitorIcon className="text-muted-foreground size-4" />
             Device Health
           </CardTitle>
           <CardDescription>{data?.totalDevices ?? 0} device(s) configured</CardDescription>

@@ -1,5 +1,6 @@
 import { Container } from "@cloudflare/containers";
 import { eq } from "drizzle-orm";
+
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
@@ -72,7 +73,7 @@ export class Server extends Container<Env> {
     // Startup event is recorded by the Python monitoring code with facility details
   }
 
-  async onStop(params: { exitCode?: number; reason?: string }): Promise<void> {
+  async onStop(_params: { exitCode?: number; reason?: string }): Promise<void> {
     // Stop event is recorded by the Python shutdown code with facility details
   }
 }

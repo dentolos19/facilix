@@ -1,7 +1,9 @@
 import { ActivityIcon, BatteryIcon, WifiIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
+
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
@@ -147,36 +149,36 @@ function SensorLiveTab({
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-4">
         {loading ? (
-          <div className="flex h-full items-center justify-center rounded-none border border-border bg-muted/20">
-            <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+          <div className="border-border bg-muted/20 flex h-full items-center justify-center rounded-none border">
+            <div className="border-muted-foreground/30 border-t-muted-foreground size-5 animate-spin rounded-full border-2" />
           </div>
         ) : (
           <>
-            <div className="min-h-0 flex-1 rounded-none border border-border bg-muted/20 p-4">
+            <div className="border-border bg-muted/20 min-h-0 flex-1 rounded-none border p-4">
               <div className="flex h-full flex-col justify-between gap-4">
                 <div className="flex items-baseline gap-2">
                   <span
-                    className={`font-light text-4xl tabular-nums ${
+                    className={`text-4xl font-light tabular-nums ${
                       isAboveThreshold ? "text-red-500" : "text-foreground"
                     }`}
                   >
                     {value.toFixed(1)}
                   </span>
-                  <span className="text-lg text-muted-foreground/60">{unit}</span>
+                  <span className="text-muted-foreground/60 text-lg">{unit}</span>
                 </div>
                 {reading?.secondaryValue != null && (
-                  <p className="mt-1 text-[11px] text-muted-foreground/50">
+                  <p className="text-muted-foreground/50 mt-1 text-[11px]">
                     {reading.secondaryValue.toFixed(1)} {reading.secondaryUnit ?? ""}
                   </p>
                 )}
                 {isAboveThreshold && (
-                  <p className="mt-2 font-medium text-[11px] text-red-500">
+                  <p className="mt-2 text-[11px] font-medium text-red-500">
                     Above threshold ({threshold}
                     {unit})
                   </p>
                 )}
                 {reading?.timestamp && (
-                  <p className="mt-2 text-[10px] text-muted-foreground/40">
+                  <p className="text-muted-foreground/40 mt-2 text-[10px]">
                     Last updated: {new Date(reading.timestamp).toLocaleString()}
                   </p>
                 )}
@@ -184,26 +186,26 @@ function SensorLiveTab({
             </div>
 
             <div className="grid shrink-0 grid-cols-3 gap-3">
-              <div className="rounded-none border border-border bg-muted/20 p-3">
-                <div className="flex items-center gap-1.5 text-muted-foreground/60">
+              <div className="border-border bg-muted/20 rounded-none border p-3">
+                <div className="text-muted-foreground/60 flex items-center gap-1.5">
                   <BatteryIcon className="size-3" />
-                  <span className="font-medium text-[10px] uppercase">Battery</span>
+                  <span className="text-[10px] font-medium uppercase">Battery</span>
                 </div>
-                <p className="mt-1 font-medium text-foreground/80 text-sm tabular-nums">{batteryPct.toFixed(0)}%</p>
+                <p className="text-foreground/80 mt-1 text-sm font-medium tabular-nums">{batteryPct.toFixed(0)}%</p>
               </div>
-              <div className="rounded-none border border-border bg-muted/20 p-3">
-                <div className="flex items-center gap-1.5 text-muted-foreground/60">
+              <div className="border-border bg-muted/20 rounded-none border p-3">
+                <div className="text-muted-foreground/60 flex items-center gap-1.5">
                   <WifiIcon className="size-3" />
-                  <span className="font-medium text-[10px] uppercase">Signal</span>
+                  <span className="text-[10px] font-medium uppercase">Signal</span>
                 </div>
-                <p className="mt-1 font-medium text-foreground/80 text-sm tabular-nums">{signalRssi} dBm</p>
+                <p className="text-foreground/80 mt-1 text-sm font-medium tabular-nums">{signalRssi} dBm</p>
               </div>
-              <div className="rounded-none border border-border bg-muted/20 p-3">
-                <div className="flex items-center gap-1.5 text-muted-foreground/60">
+              <div className="border-border bg-muted/20 rounded-none border p-3">
+                <div className="text-muted-foreground/60 flex items-center gap-1.5">
                   <ActivityIcon className="size-3" />
-                  <span className="font-medium text-[10px] uppercase">Status</span>
+                  <span className="text-[10px] font-medium uppercase">Status</span>
                 </div>
-                <p className="mt-1 font-medium text-foreground/80 text-sm">{reading?.status ?? "unknown"}</p>
+                <p className="text-foreground/80 mt-1 text-sm font-medium">{reading?.status ?? "unknown"}</p>
               </div>
             </div>
           </>

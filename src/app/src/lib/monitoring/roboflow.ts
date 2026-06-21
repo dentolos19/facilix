@@ -9,6 +9,7 @@
  */
 
 import { env } from "cloudflare:workers";
+
 import type { PluginWorkflowConfig } from "./plugins";
 
 /** A normalized object detection result from the workflow. */
@@ -155,9 +156,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
         ? [obj as Record<string, unknown>]
         : [obj];
 
-  const dataOutputNames = new Set(
-    pluginWorkflow.dataOutputNames ?? [pluginWorkflow.inputName, "predictions", "count"],
-  );
+  const dataOutputNames = new Set(pluginWorkflow.dataOutputNames ?? [pluginWorkflow.inputName, "predictions", "count"]);
 
   const detections: WorkflowDetection[] = [];
 

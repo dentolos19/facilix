@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2Icon, CircleCheckIcon, CircleXIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
@@ -111,7 +112,7 @@ function Page() {
           // Non-critical; statuses remain empty
         }
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to load facilities");
     } finally {
       setIsLoading(false);
@@ -139,7 +140,7 @@ function Page() {
         setNewFacilityName("");
         setIsSheetOpen(false);
         toast.success("Facility created successfully");
-      } catch (error) {
+      } catch {
         toast.error("Failed to create facility");
       } finally {
         setIsCreating(false);
@@ -152,7 +153,7 @@ function Page() {
     <div className="flex flex-1 flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading font-medium text-lg tracking-tight">Facilities</h1>
+          <h1 className="font-heading text-lg font-medium tracking-tight">Facilities</h1>
           <p className="text-muted-foreground text-xs">Manage your facilities and their devices</p>
         </div>
 
@@ -235,15 +236,15 @@ function Page() {
             const status = statuses[facility.id] ?? "stopped";
             return (
               <Link
-                className="focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
                 key={facility.id}
                 params={{ id: facility.id }}
                 to="/facility/$id"
               >
-                <Card className="transition-colors hover:bg-muted/50">
+                <Card className="hover:bg-muted/50 transition-colors">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Building2Icon className="size-4 text-muted-foreground" />
+                      <Building2Icon className="text-muted-foreground size-4" />
                       {facility.name}
                     </CardTitle>
                   </CardHeader>

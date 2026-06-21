@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
+
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import { createStorage } from "#/lib/storage";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
-import { type FacilitySettings, normalizeFacilitySettings, shouldShowInGlobalEvents } from "./logs";
+
 import { recordEvent, recordSensorReading, validateDevice } from "./utils";
 
 const log = createLogger("monitoring-api");

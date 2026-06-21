@@ -135,13 +135,16 @@ export function ObjectDetectionOverlay({ enabled, videoRef }: ObjectDetectionOve
 
     // ── Teardown ──────────────────────────────────────────────────────────
 
+    // Capture ref value before cleanup runs to avoid stale access warning
+    const canvas = canvasRef.current;
+
     init();
 
     return () => {
       active = false;
       if (rafId !== null) cancelAnimationFrame(rafId);
       if (detector) detector.close();
-      clearCanvas(canvasRef.current);
+      clearCanvas(canvas);
     };
   }, [enabled, videoRef]);
 
@@ -149,7 +152,7 @@ export function ObjectDetectionOverlay({ enabled, videoRef }: ObjectDetectionOve
 
   return (
     <>
-      <canvas className="pointer-events-none absolute inset-0 size-full z-10" ref={canvasRef} />
+      <canvas className="pointer-events-none absolute inset-0 z-10 size-full" ref={canvasRef} />
 
       {status === "loading" && (
         <div className="pointer-events-none absolute top-2 right-2 z-20 rounded bg-black/60 px-1.5 py-0.5">

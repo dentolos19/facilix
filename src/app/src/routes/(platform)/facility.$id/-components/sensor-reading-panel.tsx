@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+
 import { getLatestSensorReading } from "#/lib/functions/sensors";
+
 import type { PlacedItem } from "../-helpers/types";
 
 export interface SensorReadingPanelProps {
@@ -99,50 +101,50 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
 
   return (
     <div className="flex flex-col gap-2">
-      <h4 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+      <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
         Live Reading
       </h4>
 
       {dataSource === "simulation" && !facilityId && (
-        <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">Select a sensor device in edit mode</span>
+        <div className="border-border bg-muted/40 flex items-center justify-center rounded-none border px-3 py-4">
+          <span className="text-muted-foreground/50 text-[11px]">Select a sensor device in edit mode</span>
         </div>
       )}
 
       {(dataSource === "simulation" || dataSource === "http-pull") && facilityId && state === "loading" && (
-        <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
-          <span className="ml-2 text-[11px] text-muted-foreground/60">Connecting…</span>
+        <div className="border-border bg-muted/40 flex items-center justify-center rounded-none border px-3 py-4">
+          <div className="border-muted-foreground/30 border-t-muted-foreground size-4 animate-spin rounded-full border-2" />
+          <span className="text-muted-foreground/60 ml-2 text-[11px]">Connecting…</span>
         </div>
       )}
 
       {(dataSource === "simulation" || dataSource === "http-pull") && facilityId && state === "error" && (
-        <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">Monitoring data unavailable</span>
+        <div className="border-border bg-muted/40 flex items-center justify-center rounded-none border px-3 py-4">
+          <span className="text-muted-foreground/50 text-[11px]">Monitoring data unavailable</span>
         </div>
       )}
 
       {dataSource === "http-push" && (
-        <div className="flex items-center justify-center rounded-none border border-border bg-muted/40 px-3 py-4">
-          <span className="text-[11px] text-muted-foreground/50">Waiting for device to push data</span>
+        <div className="border-border bg-muted/40 flex items-center justify-center rounded-none border px-3 py-4">
+          <span className="text-muted-foreground/50 text-[11px]">Waiting for device to push data</span>
         </div>
       )}
 
       {reading && state === "ok" && (
-        <div className="rounded-none border border-border bg-muted/20 p-3">
+        <div className="border-border bg-muted/20 rounded-none border p-3">
           {/* Main value */}
           <div className="flex items-baseline gap-1.5">
-            <span className={`font-bold text-2xl tabular-nums ${isAlert ? "text-red-500" : "text-foreground"}`}>
+            <span className={`text-2xl font-bold tabular-nums ${isAlert ? "text-red-500" : "text-foreground"}`}>
               {reading.value.toFixed(1)}
             </span>
-            <span className="text-[11px] text-muted-foreground/70">{unit || reading.unit}</span>
+            <span className="text-muted-foreground/70 text-[11px]">{unit || reading.unit}</span>
           </div>
 
           {/* Status badge */}
           <div className="mt-2 flex items-center gap-2">
             <StatusBadge status={reading.status} />
             {isAlert && (
-              <span className="rounded bg-red-500/10 px-1.5 py-0.5 font-medium text-[10px] text-red-500">
+              <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-medium text-red-500">
                 Threshold exceeded
               </span>
             )}
@@ -150,21 +152,21 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
 
           {/* Secondary value */}
           {reading.secondaryValue != null && (
-            <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+            <p className="text-muted-foreground/60 mt-1.5 text-[11px]">
               Occupancy: <span className="text-foreground/80 tabular-nums">{reading.secondaryValue}</span>
               {reading.secondaryUnit ? ` ${reading.secondaryUnit}` : ""}
             </p>
           )}
 
           {/* Telemetry metadata */}
-          <div className="mt-2 flex gap-3 text-[10px] text-muted-foreground/50">
+          <div className="text-muted-foreground/50 mt-2 flex gap-3 text-[10px]">
             <span>Battery: {reading.batteryPct?.toFixed(0) ?? "—"}%</span>
             <span>Signal: {reading.signalRssiDbm ?? "—"} dBm</span>
           </div>
 
           {/* Timestamp */}
           {reading.timestamp && (
-            <p className="mt-1 text-[10px] text-muted-foreground/40">{new Date(reading.timestamp).toLocaleString()}</p>
+            <p className="text-muted-foreground/40 mt-1 text-[10px]">{new Date(reading.timestamp).toLocaleString()}</p>
           )}
         </div>
       )}
@@ -191,7 +193,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`rounded px-1.5 py-0.5 font-medium text-[10px] ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}
+      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${colorMap[status] ?? "bg-muted text-muted-foreground"}`}
     >
       {labelMap[status] ?? status}
     </span>

@@ -1,4 +1,5 @@
 import { BoxIcon, Grid3x3Icon, MapPinIcon, RadioIcon, WifiIcon } from "lucide-react";
+
 import type { PlacedItemType } from "./types";
 
 /** Visual dimensions and colours for each component type (fallback defaults). */

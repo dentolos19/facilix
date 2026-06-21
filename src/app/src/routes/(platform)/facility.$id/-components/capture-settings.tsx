@@ -1,5 +1,6 @@
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+
 import type { JsonValue } from "../-helpers/types";
 
 export interface CaptureConfig {
@@ -31,14 +32,14 @@ export function CaptureSettingsSection({ capture, isReadOnly, onChange }: Captur
       {/* ── Segment Duration ── */}
       <div className="flex flex-col gap-1.5">
         <div className="min-w-0">
-          <p className="font-medium text-[11px] text-foreground/80">Segment Duration</p>
-          <p className="text-[10px] text-muted-foreground/60">
+          <p className="text-foreground/80 text-[11px] font-medium">Segment Duration</p>
+          <p className="text-muted-foreground/60 text-[10px]">
             The CCTV stream is continuously recorded and split into segments of this duration.
           </p>
         </div>
 
-        <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-          <Label className="font-medium text-[11px] text-muted-foreground">Duration (seconds)</Label>
+        <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+          <Label className="text-muted-foreground text-[11px] font-medium">Duration (seconds)</Label>
           <Input
             className={isReadOnly ? "pointer-events-none opacity-60" : ""}
             max={300}
@@ -53,7 +54,7 @@ export function CaptureSettingsSection({ capture, isReadOnly, onChange }: Captur
             type="number"
             value={String(segments.durationSec ?? 30)}
           />
-          <p className="text-[10px] text-muted-foreground/60">Length of each recorded clip (5–300 s). Default: 30 s.</p>
+          <p className="text-muted-foreground/60 text-[10px]">Length of each recorded clip (5–300 s). Default: 30 s.</p>
         </div>
       </div>
     </div>

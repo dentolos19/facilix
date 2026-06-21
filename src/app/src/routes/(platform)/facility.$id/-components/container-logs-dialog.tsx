@@ -1,10 +1,12 @@
 import { SearchIcon, TerminalIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { Input } from "#/components/ui/input";
 import { ScrollArea } from "#/components/ui/scroll-area";
 import type { FacilityEventRow } from "#/lib/functions/events";
+
 import type { LogEntry } from "../-helpers/types";
 import { LogLevelBadge } from "./monitoring-logs-panel";
 
@@ -82,9 +84,9 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
         </DialogHeader>
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 border-border border-b px-6 py-3">
+        <div className="border-border flex flex-wrap items-center gap-2 border-b px-6 py-3">
           <div className="relative min-w-0 flex-1">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
+            <SearchIcon className="text-muted-foreground/50 pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
             <Input
               aria-label="Search logs"
               className="h-8 pl-8 text-xs"
@@ -116,7 +118,7 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
 
           {onClearLogs && (
             <Button
-              className="h-8 gap-1.5 text-muted-foreground/70 hover:text-destructive"
+              className="text-muted-foreground/70 hover:text-destructive h-8 gap-1.5"
               onClick={handleDeleteAll}
               size="sm"
               variant="ghost"
@@ -132,7 +134,7 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
           <div className="divide-border/50 divide-y">
             {filteredLogs.length === 0 && (
               <div className="flex flex-col items-center gap-2 py-12">
-                <TerminalIcon className="size-6 text-muted-foreground/20" />
+                <TerminalIcon className="text-muted-foreground/20 size-6" />
                 <p className="text-muted-foreground/40 text-xs">{searchQuery ? "No matching logs" : "No logs yet"}</p>
               </div>
             )}
@@ -143,16 +145,16 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
                   <LogLevelBadge level={level} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-foreground/80">{ev.type}</span>
+                      <span className="text-foreground/80 font-medium">{ev.type}</span>
                       {ev.deviceId && (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground/60 text-[9px]">
+                        <span className="bg-muted text-muted-foreground/60 shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px]">
                           {ev.deviceId.slice(0, 8)}
                         </span>
                       )}
                     </div>
-                    <p className="mt-0.5 text-muted-foreground/60 leading-snug">{ev.message}</p>
+                    <p className="text-muted-foreground/60 mt-0.5 leading-snug">{ev.message}</p>
                   </div>
-                  <span className="shrink-0 text-muted-foreground/40 text-[10px]">
+                  <span className="text-muted-foreground/40 shrink-0 text-[10px]">
                     {new Date(ev.createdAt).toLocaleTimeString()}
                   </span>
                 </div>

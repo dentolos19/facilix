@@ -1,10 +1,12 @@
 import { ShieldAlertIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+
 import { Switch } from "#/components/ui/switch";
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
+
 import { CctvPlaybackTab } from "./cctv-playback";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
@@ -77,7 +79,7 @@ function CctvLiveTab({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-2">
-        <h2 className="shrink-0 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        <h2 className="font-heading text-muted-foreground shrink-0 text-[11px] font-medium tracking-wider uppercase">
           Live Feed
         </h2>
         <div className="min-h-0 flex-1">
@@ -130,20 +132,20 @@ function CctvCaptureSettingsCard({ device }: { device: DeviceDetail }) {
   const segments = { durationSec: 30, ...capture.segments };
 
   return (
-    <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+    <section className="border-border bg-muted/20 rounded-none border p-3">
+      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
         Capture Settings
       </h2>
       <div className="flex flex-col gap-2">
         {/* Segment capture */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-medium text-[11px] text-foreground/80">Segments</p>
-            <p className="text-[10px] text-muted-foreground/60 leading-snug">
+            <p className="text-foreground/80 text-[11px] font-medium">Segments</p>
+            <p className="text-muted-foreground/60 text-[10px] leading-snug">
               Continuous recording, {segments.durationSec ?? 30}s per segment
             </p>
           </div>
-          <span className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 font-medium text-[10px] text-green-600">
+          <span className="shrink-0 rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600">
             On
           </span>
         </div>
@@ -162,14 +164,14 @@ function CctvOptionsCard({
   onObjectDetectionChange: (enabled: boolean) => void;
 }) {
   return (
-    <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+    <section className="border-border bg-muted/20 rounded-none border p-3">
+      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
         Options
       </h2>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-[11px] text-foreground/80">Live object detection</p>
-          <p className="mt-0.5 text-[10px] text-muted-foreground/60 leading-snug">
+          <p className="text-foreground/80 text-[11px] font-medium">Live object detection</p>
+          <p className="text-muted-foreground/60 mt-0.5 text-[10px] leading-snug">
             Draw MediaPipe labels and bounding boxes on the current HLS feed.
           </p>
         </div>
@@ -182,7 +184,7 @@ function CctvOptionsCard({
         />
       </div>
       {disabled && (
-        <p className="mt-2 text-[10px] text-muted-foreground/50">Connect a stream before enabling detection.</p>
+        <p className="text-muted-foreground/50 mt-2 text-[10px]">Connect a stream before enabling detection.</p>
       )}
     </section>
   );
@@ -205,18 +207,18 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
     );
 
   return (
-    <section className="rounded-none border border-border bg-muted/20 p-3">
+    <section className="border-border bg-muted/20 rounded-none border p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+        <h2 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
           Intelligence Plugins
         </h2>
-        <span className="text-[10px] text-muted-foreground/60">
+        <span className="text-muted-foreground/60 text-[10px]">
           {installed.length === 0 ? "None" : `${installed.length}`}
         </span>
       </div>
 
       {installed.length === 0 ? (
-        <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70">
+        <div className="text-muted-foreground/70 flex items-start gap-2 text-[11px]">
           <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
           <p className="leading-snug">No plugins installed. Add detection or language plugins to analyze segments.</p>
         </div>
@@ -233,16 +235,16 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
 
             return (
               <div
-                className="flex flex-col gap-1 rounded-none border border-border bg-background/50 p-2"
+                className="border-border bg-background/50 flex flex-col gap-1 rounded-none border p-2"
                 key={plugin.id}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-[11px] text-foreground/80">{plugin.name}</p>
+                  <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
                   <span
                     className={
                       config.enabled
-                        ? "rounded bg-green-500/10 px-1.5 py-0.5 font-medium text-[10px] text-green-600 uppercase"
-                        : "rounded bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground uppercase"
+                        ? "rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600 uppercase"
+                        : "bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
                     }
                   >
                     {config.enabled ? "On" : "Off"}
@@ -250,21 +252,21 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                 </div>
                 {isDetection && detConfig && (
                   <>
-                    <p className="text-[10px] text-muted-foreground/60">
+                    <p className="text-muted-foreground/60 text-[10px]">
                       Alert when {detConfig.operator} {detConfig.threshold} ({detConfig.thresholdMode})
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60">
+                    <p className="text-muted-foreground/60 text-[10px]">
                       Min confidence: {Math.round(detConfig.minConfidence * 100)}%
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60">Severity: {detConfig.alertSeverity}</p>
+                    <p className="text-muted-foreground/60 text-[10px]">Severity: {detConfig.alertSeverity}</p>
                   </>
                 )}
                 {!isDetection && segConfig && (
                   <>
-                    <p className="text-[10px] text-muted-foreground/60 leading-snug">
+                    <p className="text-muted-foreground/60 text-[10px] leading-snug">
                       {segConfig.prompt.length > 60 ? `"${segConfig.prompt.slice(0, 60)}…"` : `"${segConfig.prompt}"`}
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60">Severity: {segConfig.severity}</p>
+                    <p className="text-muted-foreground/60 text-[10px]">Severity: {segConfig.severity}</p>
                   </>
                 )}
               </div>

@@ -1,5 +1,6 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+
 import { summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
@@ -10,12 +11,7 @@ import {
   type SegmentAnalysisDeviceConfig,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
-import {
-  getRuntimeConfig,
-  runVideoObjectDetection,
-  type WorkflowDetection,
-  type WorkflowRuntimeConfig,
-} from "#/lib/monitoring/roboflow";
+import { getRuntimeConfig, runVideoObjectDetection, type WorkflowDetection } from "#/lib/monitoring/roboflow";
 import { recordEvent } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 

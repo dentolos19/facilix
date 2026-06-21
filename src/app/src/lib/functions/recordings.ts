@@ -1,6 +1,7 @@
-import { env } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
+import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
+
 import { createDatabase, schema } from "#/lib/database";
 
 /** A detection from the Roboflow workflow. */

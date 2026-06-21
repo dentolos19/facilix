@@ -10,7 +10,7 @@ interface DeviceTabsProps {
 
 export function DeviceTabs({ tabs, activeTab, onChange }: DeviceTabsProps) {
   return (
-    <div className="flex border-border border-b">
+    <div className="border-border flex border-b">
       {tabs.map((tab) => (
         <button
           className={cn(
@@ -22,7 +22,7 @@ export function DeviceTabs({ tabs, activeTab, onChange }: DeviceTabsProps) {
           type="button"
         >
           {tab.label}
-          {activeTab === tab.id && <span className="absolute right-0 bottom-0 left-0 h-px bg-foreground" />}
+          {activeTab === tab.id && <span className="bg-foreground absolute right-0 bottom-0 left-0 h-px" />}
         </button>
       ))}
     </div>

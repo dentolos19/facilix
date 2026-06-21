@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "#/components/ui/button";
 import {
   Dialog,
@@ -46,6 +47,7 @@ import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facil
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
+
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
 import { LogsDialog } from "./-components/container-logs-dialog";
@@ -80,7 +82,7 @@ function Field({
 }) {
   return (
     <div className={noGrow ? "flex flex-col gap-1" : "flex flex-col gap-1"}>
-      <Label className="font-medium text-[11px] text-muted-foreground">{label}</Label>
+      <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
       {children}
     </div>
   );
@@ -725,15 +727,15 @@ function Page() {
                 <DialogTitle>Facility Settings</DialogTitle>
                 <DialogDescription>Edit facility metadata and preferences.</DialogDescription>
               </DialogHeader>
-              <div className="flex border-border border-b">
+              <div className="border-border flex border-b">
                 {[
                   { id: "general", label: "General" },
                   { id: "events", label: "Events" },
                 ].map((tab) => (
                   <button
-                    className={`relative flex-1 px-4 py-3 text-center font-medium text-sm transition-colors ${
+                    className={`relative flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
                       settingsTab === tab.id
-                        ? "border-primary border-b-2 text-foreground"
+                        ? "border-primary text-foreground border-b-2"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                     key={tab.id}
@@ -747,15 +749,15 @@ function Page() {
               {settingsTab === "events" ? (
                 <div className="flex flex-col gap-4 p-4">
                   <div>
-                    <h4 className="font-heading font-medium text-sm">Global Events</h4>
-                    <p className="text-[11px] text-muted-foreground">
+                    <h4 className="font-heading text-sm font-medium">Global Events</h4>
+                    <p className="text-muted-foreground text-[11px]">
                       Important logs are always shown. Enable additional log types you want to see in the Global Events
                       panel.
                     </p>
                   </div>
                   {Object.entries(logTypesByCategory()).map(([category, types]) => (
                     <div className="flex flex-col gap-2" key={category}>
-                      <h5 className="font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+                      <h5 className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                         {category}
                       </h5>
                       <div className="flex flex-col gap-2">
@@ -764,10 +766,10 @@ function Page() {
                           return (
                             <div className="flex items-start justify-between gap-3" key={logType.type}>
                               <div className="flex flex-col">
-                                <Label className="font-medium text-xs" htmlFor={`log-${logType.type}`}>
+                                <Label className="text-xs font-medium" htmlFor={`log-${logType.type}`}>
                                   {logType.label}
                                   {logType.important && (
-                                    <span className="ml-1.5 text-[10px] text-muted-foreground">(always on)</span>
+                                    <span className="text-muted-foreground ml-1.5 text-[10px]">(always on)</span>
                                   )}
                                   {logType.highVolume && (
                                     <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400">
@@ -775,7 +777,7 @@ function Page() {
                                     </span>
                                   )}
                                 </Label>
-                                <span className="text-[11px] text-muted-foreground">{logType.description}</span>
+                                <span className="text-muted-foreground text-[11px]">{logType.description}</span>
                               </div>
                               <Switch
                                 checked={logType.important || enabled}
@@ -900,7 +902,7 @@ function Page() {
         </ResizablePanel>
 
         <ResizableHandle
-          className="w-1.5 transition-colors after:w-2 hover:bg-accent/50 data-[orientation=horizontal]:w-1.5"
+          className="hover:bg-accent/50 w-1.5 transition-colors after:w-2 data-[orientation=horizontal]:w-1.5"
           withHandle
         />
 
@@ -908,7 +910,7 @@ function Page() {
         <ResizablePanel defaultSize={56} minSize={30}>
           <div className="relative h-full w-full">
             {isLoading ? (
-              <div className="flex h-full w-full items-center justify-center bg-background">
+              <div className="bg-background flex h-full w-full items-center justify-center">
                 <span className="text-muted-foreground/50 text-xs">Loading facility…</span>
               </div>
             ) : (
@@ -925,7 +927,7 @@ function Page() {
         </ResizablePanel>
 
         <ResizableHandle
-          className="w-1.5 transition-colors after:w-2 hover:bg-accent/50 data-[orientation=horizontal]:w-1.5"
+          className="hover:bg-accent/50 w-1.5 transition-colors after:w-2 data-[orientation=horizontal]:w-1.5"
           withHandle
         />
 

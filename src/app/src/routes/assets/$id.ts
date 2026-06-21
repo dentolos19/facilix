@@ -1,5 +1,5 @@
-import { env } from "cloudflare:workers";
 import { createFileRoute } from "@tanstack/react-router";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";

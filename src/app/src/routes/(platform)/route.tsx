@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+
 import { Spinner } from "#/components/ui/spinner";
 import { useSession } from "#/lib/auth/client";
 import { requireSession } from "#/lib/auth/guard";

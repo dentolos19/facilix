@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Label } from "#/components/ui/label";
@@ -29,7 +30,7 @@ function Page() {
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="font-heading font-medium text-lg tracking-tight">Settings</h1>
+          <h1 className="font-heading text-lg font-medium tracking-tight">Settings</h1>
           <p className="text-muted-foreground text-xs">Manage your application preferences</p>
         </div>
         <Link to="/dashboard">

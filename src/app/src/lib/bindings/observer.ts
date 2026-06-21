@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+
 import { createLogger } from "#/lib/logs";
 import type { FacilityEvent, ObserverSocketMessage } from "#/lib/monitoring/types";
 
@@ -106,16 +107,16 @@ export class Observer extends DurableObject<Env> {
     });
   }
 
-  async webSocketMessage(ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {
+  async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {
     // Clients are read-only — we ignore incoming messages for now.
     // Future: could support subscription filters here.
   }
 
-  async webSocketClose(ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
+  async webSocketClose(_ws: WebSocket, _code: number, _reason: string, _wasClean: boolean): Promise<void> {
     // WebSocket cleanup is automatic — no manual bookkeeping needed.
   }
 
-  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+  async webSocketError(_ws: WebSocket, _error: unknown): Promise<void> {
     // Errors are automatically handled — no-op.
   }
 

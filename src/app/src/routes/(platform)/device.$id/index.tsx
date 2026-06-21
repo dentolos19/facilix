@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2Icon, VideoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getDevice } from "#/lib/functions/facility";
+
 import { CctvDeviceDetail } from "./-components/cctv-device";
 import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-detail-layout";
 import { SensorDeviceDetail } from "./-components/sensor-device";
@@ -45,7 +47,7 @@ function Page() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
+        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
       </div>
     );
   }
@@ -54,7 +56,7 @@ function Page() {
   if (error || !device) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <VideoIcon className="size-8 text-muted-foreground/30" />
+        <VideoIcon className="text-muted-foreground/30 size-8" />
         <p className="text-muted-foreground/50 text-xs">{error ?? "Device not found"}</p>
       </div>
     );
@@ -75,10 +77,10 @@ function Page() {
 function GenericDeviceDetail({ device }: { device: DeviceDetail }) {
   return (
     <DeviceDetailLayout device={device} sidebar={<DeviceDetailSidebar device={device} />}>
-      <div className="flex h-full items-center justify-center rounded-none border border-border bg-muted/20">
+      <div className="border-border bg-muted/20 flex h-full items-center justify-center rounded-none border">
         <div className="flex flex-col items-center gap-2">
-          <VideoIcon className="size-6 text-muted-foreground/30" />
-          <span className="text-[11px] text-muted-foreground/50">
+          <VideoIcon className="text-muted-foreground/30 size-6" />
+          <span className="text-muted-foreground/50 text-[11px]">
             No detail view available for {device.type} devices
           </span>
         </div>

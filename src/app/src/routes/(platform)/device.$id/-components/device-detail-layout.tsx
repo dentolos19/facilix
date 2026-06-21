@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
+
 import { Button } from "#/components/ui/button";
 import type { DeviceDetail } from "#/lib/functions/facility";
+
 import { DeviceTabs } from "./device-tabs";
 
 export interface DeviceInfoProperty {
@@ -37,15 +39,15 @@ export function DeviceDetailShell({
 }: DeviceDetailShellProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-border border-b px-4 py-3">
+      <div className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
         <Link params={{ id: device.facilityId }} to="/facility/$id">
           <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
             <ArrowLeftIcon className="size-4" />
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate font-heading font-medium text-foreground text-sm">{device.name}</h1>
-          <p className="truncate text-[11px] text-muted-foreground/60">
+          <h1 className="font-heading text-foreground truncate text-sm font-medium">{device.name}</h1>
+          <p className="text-muted-foreground/60 truncate text-[11px]">
             {subtitle ?? (
               <>
                 {device.facilityName} &middot; {device.type}
@@ -75,8 +77,8 @@ export function DeviceDetailLayout({ device, subtitle, children, sidebar, status
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="truncate font-heading font-medium text-foreground text-sm">{device.name}</h1>
-          <p className="truncate text-[11px] text-muted-foreground/60">
+          <h1 className="font-heading text-foreground truncate text-sm font-medium">{device.name}</h1>
+          <p className="text-muted-foreground/60 truncate text-[11px]">
             {subtitle ?? (
               <>
                 {device.facilityName} &middot; {device.type}
@@ -125,8 +127,8 @@ export function DeviceDetailSidebar({
 
 export function DeviceInformationCard({ device }: { device: DeviceDetail }) {
   return (
-    <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+    <section className="border-border bg-muted/20 rounded-none border p-3">
+      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
         Device Information
       </h2>
       <dl className="flex flex-col gap-2 text-[11px]">
@@ -149,8 +151,8 @@ export function DevicePropertiesCard({ properties = [] }: { properties?: DeviceI
   if (properties.length === 0) return null;
 
   return (
-    <section className="rounded-none border border-border bg-muted/20 p-3">
-      <h2 className="mb-2 font-heading font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
+    <section className="border-border bg-muted/20 rounded-none border p-3">
+      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
         Properties
       </h2>
       <dl className="flex flex-col gap-2 text-[11px]">
@@ -165,10 +167,10 @@ export function DevicePropertiesCard({ properties = [] }: { properties?: DeviceI
 function InfoRow({ label, value, monospace }: DeviceInfoProperty) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground/60">{label}</dt>
+      <dt className="text-muted-foreground/60 shrink-0">{label}</dt>
       <dd
         className={
-          monospace ? "break-all text-right font-mono text-foreground/80" : "break-words text-right text-foreground/80"
+          monospace ? "text-foreground/80 text-right font-mono break-all" : "text-foreground/80 text-right break-words"
         }
       >
         {value}
@@ -189,7 +191,7 @@ export function DeviceStatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[10px] uppercase ${style.bg}`}
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
     >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}

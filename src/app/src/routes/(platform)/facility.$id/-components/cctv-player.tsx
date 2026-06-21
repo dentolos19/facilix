@@ -1,9 +1,11 @@
 import Hls from "hls.js";
 import { MaximizeIcon, PauseIcon, PlayIcon, VideoIcon, Volume2Icon, VolumeXIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent } from "#/components/ui/dialog";
 import { cn } from "#/lib/utils";
+
 import { ObjectDetectionOverlay } from "./object-detection-overlay";
 
 export interface CctvPlayerProps {
@@ -138,17 +140,17 @@ function HlsVideoElement({
 
       {/* State overlays — use parent's nearest positioned ancestor */}
       {(state === "loading" || state === "error") && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80">
+        <div className="bg-muted/80 absolute inset-0 flex flex-col items-center justify-center gap-2">
           {state === "loading" && (
             <>
-              <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
-              <span className="text-[11px] text-muted-foreground/60">Connecting…</span>
+              <div className="border-muted-foreground/30 border-t-muted-foreground size-5 animate-spin rounded-full border-2" />
+              <span className="text-muted-foreground/60 text-[11px]">Connecting…</span>
             </>
           )}
           {state === "error" && (
             <>
-              <VideoIcon className="size-6 text-muted-foreground/40" />
-              <span className="text-[11px] text-muted-foreground/50">Stream unavailable</span>
+              <VideoIcon className="text-muted-foreground/40 size-6" />
+              <span className="text-muted-foreground/50 text-[11px]">Stream unavailable</span>
             </>
           )}
         </div>
@@ -246,7 +248,7 @@ export function CctvPlayer({
         {/* REC/LIVE indicator */}
         <div className="pointer-events-none absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5">
           <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
-          <span className="font-medium text-[9px] text-white/80 uppercase">LIVE</span>
+          <span className="text-[9px] font-medium text-white/80 uppercase">LIVE</span>
           {streamName && <span className="ml-1 text-[9px] text-white/60">{streamName}</span>}
         </div>
       </div>
@@ -554,7 +556,7 @@ function CctvExpandedDialog({
           >
             <div className="flex items-center gap-2">
               <span className="size-2 animate-pulse rounded-full bg-red-500" />
-              <span className="font-medium text-[11px] text-white/80 uppercase">LIVE</span>
+              <span className="text-[11px] font-medium text-white/80 uppercase">LIVE</span>
               {streamName && <span className="font-mono text-[11px] text-white/60">{streamName}</span>}
             </div>
             <Button
@@ -642,8 +644,8 @@ function Placeholder({
   return (
     <div className={cn("relative w-full overflow-hidden rounded-none border border-border bg-muted/40", className)}>
       <div className="flex h-full flex-col items-center justify-center gap-2">
-        <Icon className="size-6 text-muted-foreground/40" />
-        <span className="text-[11px] text-muted-foreground/50">{text}</span>
+        <Icon className="text-muted-foreground/40 size-6" />
+        <span className="text-muted-foreground/50 text-[11px]">{text}</span>
       </div>
     </div>
   );

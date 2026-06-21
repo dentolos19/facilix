@@ -1,7 +1,9 @@
 import { FilmIcon, Loader2Icon, VideoIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getDeviceRecordings, type RecordingRow } from "#/lib/functions/recordings";
+
 import { PlaybackPlayer } from "./playback-player";
 
 export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
@@ -36,7 +38,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
+        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
       </div>
     );
   }
@@ -44,7 +46,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <VideoIcon className="size-8 text-muted-foreground/30" />
+        <VideoIcon className="text-muted-foreground/30 size-8" />
         <p className="text-muted-foreground/50 text-xs">{error}</p>
       </div>
     );
@@ -53,7 +55,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   if (recordings.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <FilmIcon className="size-8 text-muted-foreground/30" />
+        <FilmIcon className="text-muted-foreground/30 size-8" />
         <p className="text-muted-foreground/50 text-xs">No recordings available for this device.</p>
       </div>
     );

@@ -1,8 +1,8 @@
 import { PlusIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
 import { Button } from "#/components/ui/button";
-import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { ScrollArea } from "#/components/ui/scroll-area";
@@ -23,6 +23,7 @@ import {
 import type { SimulationStream } from "#/lib/simulation/cctv";
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
 import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
+
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 import { CaptureSettingsSection } from "./capture-settings";
@@ -55,7 +56,7 @@ export function PropertiesPanel({
   }, []);
 
   // Only use streams fetched live from the simulator (no static fallbacks)
-  const allStreams = simulationEnabled ? fetchedStreams : [];
+  const allStreams = useMemo(() => (simulationEnabled ? fetchedStreams : []), [fetchedStreams]);
 
   // Auto-select first available stream if current selection is empty
   useEffect(() => {
@@ -66,14 +67,14 @@ export function PropertiesPanel({
         props: { simulationStream: allStreams[0].name },
       });
     }
-  }, [selected?.id, allStreams.length]);
+  }, [selected?.id, allStreams.length, isReadOnly, selected, onUpdateItem, allStreams]);
 
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col p-4">
         {/* ── Header with title and delete button ── */}
         <div className="mb-3 flex shrink-0 items-center justify-between">
-          <h3 className="font-heading font-medium text-muted-foreground text-xs uppercase tracking-wider">
+          <h3 className="font-heading text-muted-foreground text-xs font-medium tracking-wider uppercase">
             Properties
           </h3>
           {selected && editMode === "edit" && (
@@ -91,7 +92,7 @@ export function PropertiesPanel({
 
         {!selected && (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 text-center">
-            <span className="text-[11px] text-muted-foreground/50">
+            <span className="text-muted-foreground/50 text-[11px]">
               {editMode === "monitoring"
                 ? "Switch to Edit mode to select components"
                 : "Click a component on the canvas to view its properties"}
@@ -107,7 +108,7 @@ export function PropertiesPanel({
               <AccordionContent>
                 <div className="flex flex-col gap-2">
                   {isReadOnly && (
-                    <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+                    <p className="bg-muted text-muted-foreground rounded-none px-2 py-1 text-[11px]">
                       Read-only — switch to Edit to modify
                     </p>
                   )}
@@ -122,14 +123,14 @@ export function PropertiesPanel({
                   </Field>
 
                   <Field label="Type">
-                    <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-muted-foreground text-xs">
+                    <div className="border-input bg-muted/30 text-muted-foreground flex h-8 items-center rounded-none border px-2.5 text-xs">
                       {selected.type}
                     </div>
                   </Field>
 
                   {selected.type !== "Zone" && (
                     <Field label="Zone">
-                      <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-muted-foreground text-xs">
+                      <div className="border-input bg-muted/30 text-muted-foreground flex h-8 items-center rounded-none border px-2.5 text-xs">
                         {placedItems.find((i) => i.type === "Zone" && i.id === selected.zoneId)?.name ?? "Unassigned"}
                       </div>
                     </Field>
@@ -177,7 +178,7 @@ export function PropertiesPanel({
 
                   <Field label="Notes" noGrow>
                     <textarea
-                      className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
+                      className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-16 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
                       onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
                       readOnly={isReadOnly}
                       rows={3}
@@ -188,7 +189,7 @@ export function PropertiesPanel({
                   <Field label="Icon Color">
                     <div className="flex gap-2">
                       <input
-                        className="h-8 w-10 cursor-pointer rounded-none border border-input bg-transparent p-0.5 disabled:pointer-events-none disabled:opacity-60"
+                        className="border-input h-8 w-10 cursor-pointer rounded-none border bg-transparent p-0.5 disabled:pointer-events-none disabled:opacity-60"
                         disabled={isReadOnly}
                         onChange={(e) => onUpdateItem(selected.id, { props: { iconColor: e.target.value } })}
                         type="color"
@@ -370,7 +371,9 @@ export function PropertiesPanel({
                       <Select
                         disabled={isReadOnly}
                         onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorDataSource: value } })}
-                        value={String(selected.props.sensorDataSource ?? (simulationEnabled ? "simulation" : "http-pull"))}
+                        value={String(
+                          selected.props.sensorDataSource ?? (simulationEnabled ? "simulation" : "http-pull"),
+                        )}
                       >
                         <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
                           <SelectValue placeholder="Select data source" />
@@ -682,7 +685,7 @@ function Field({
 }) {
   return (
     <div className={noGrow ? "flex flex-col gap-1" : "flex flex-col gap-1"}>
-      <Label className="font-medium text-[11px] text-muted-foreground">{label}</Label>
+      <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
       {children}
     </div>
   );
@@ -756,18 +759,18 @@ function CctvPluginsSection({
   return (
     <div className="flex flex-col gap-3">
       {isReadOnly && (
-        <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+        <p className="bg-muted text-muted-foreground rounded-none px-2 py-1 text-[11px]">
           Read-only — switch to Edit to modify
         </p>
       )}
 
       {configs.length === 0 && (
-        <div className="flex flex-col items-start gap-1 rounded-none border border-border border-dashed bg-muted/20 p-3 text-[11px] text-muted-foreground">
-          <div className="flex items-center gap-1.5 font-medium text-foreground/70">
+        <div className="border-border bg-muted/20 text-muted-foreground flex flex-col items-start gap-1 rounded-none border border-dashed p-3 text-[11px]">
+          <div className="text-foreground/70 flex items-center gap-1.5 font-medium">
             <ShieldAlertIcon className="size-3.5" />
             No intelligence plugins installed
           </div>
-          <p className="text-[10px] text-muted-foreground/70 leading-snug">
+          <p className="text-muted-foreground/70 text-[10px] leading-snug">
             Object detection runs automatically on every video segment. Add a Natural Language plugin for AI scene
             understanding.
           </p>
@@ -792,8 +795,8 @@ function CctvPluginsSection({
       </div>
 
       {!isReadOnly && available.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-          <Label className="font-medium text-[11px] text-muted-foreground">Add Plugin</Label>
+        <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+          <Label className="text-muted-foreground text-[11px] font-medium">Add Plugin</Label>
           <div className="flex flex-col gap-1">
             {available.map((plugin) => (
               <Button
@@ -804,10 +807,10 @@ function CctvPluginsSection({
                 variant="outline"
               >
                 <span className="flex flex-col gap-0.5">
-                  <span className="font-medium text-[11px] text-foreground/80">{plugin.name}</span>
-                  <span className="font-normal text-[10px] text-muted-foreground/70">{plugin.description}</span>
+                  <span className="text-foreground/80 text-[11px] font-medium">{plugin.name}</span>
+                  <span className="text-muted-foreground/70 text-[10px] font-normal">{plugin.description}</span>
                 </span>
-                <PlusIcon className="size-3.5 text-muted-foreground" />
+                <PlusIcon className="text-muted-foreground size-3.5" />
               </Button>
             ))}
           </div>
@@ -831,14 +834,14 @@ function PluginCard({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-none border border-border bg-muted/10 p-2">
+    <div className="border-border bg-muted/10 flex flex-col gap-2 rounded-none border p-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <ShieldAlertIcon className="size-3.5 text-foreground/70" />
-            <p className="truncate font-medium text-[11px] text-foreground/90">{plugin.name}</p>
+            <ShieldAlertIcon className="text-foreground/70 size-3.5" />
+            <p className="text-foreground/90 truncate text-[11px] font-medium">{plugin.name}</p>
           </div>
-          <p className="mt-0.5 text-[10px] text-muted-foreground/70 leading-snug">{plugin.description}</p>
+          <p className="text-muted-foreground/70 mt-0.5 text-[10px] leading-snug">{plugin.description}</p>
         </div>
         <div className="flex items-center gap-1">
           {!isReadOnly && (
@@ -858,8 +861,8 @@ function PluginCard({
       {/* Enable switch */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-medium text-[11px] text-foreground/80">Enabled</p>
-          <p className="text-[10px] text-muted-foreground/60">Run analysis and raise alerts.</p>
+          <p className="text-foreground/80 text-[11px] font-medium">Enabled</p>
+          <p className="text-muted-foreground/60 text-[10px]">Run analysis and raise alerts.</p>
         </div>
         <Switch
           aria-label={`Enable ${plugin.name}`}
@@ -902,10 +905,10 @@ function SegmentAnalysisConfig({
 }) {
   return (
     <>
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Prompt</Label>
+      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Prompt</Label>
         <textarea
-          className={`h-20 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${
+          className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-20 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${
             isReadOnly ? "pointer-events-none opacity-60" : ""
           }`}
           disabled={isReadOnly}
@@ -918,15 +921,15 @@ function SegmentAnalysisConfig({
           placeholder="Describe what anomalies to look for in this CCTV feed..."
           value={config.prompt}
         />
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-muted-foreground/60 text-[10px]">
           Prompt is sent to AI video understanding on segment upload.
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Alert severity</Label>
+      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Alert severity</Label>
         <select
-          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((c) => ({
@@ -959,11 +962,11 @@ function DetectionPluginConfig({
   return (
     <>
       {/* Threshold */}
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Alert threshold</Label>
+      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Alert threshold</Label>
         <div className="flex items-center gap-2">
           <select
-            className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+            className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
             disabled={isReadOnly}
             onChange={(e) =>
               onChange((c) => ({
@@ -995,14 +998,14 @@ function DetectionPluginConfig({
             value={String(config.threshold)}
           />
         </div>
-        <p className="text-[10px] text-muted-foreground/60">Alert when detection count crosses this value.</p>
+        <p className="text-muted-foreground/60 text-[10px]">Alert when detection count crosses this value.</p>
       </div>
 
       {/* Threshold Mode */}
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Counting mode</Label>
+      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Counting mode</Label>
         <select
-          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((c) => ({
@@ -1016,7 +1019,7 @@ function DetectionPluginConfig({
           <option value="total-detections">Total detections</option>
           <option value="unique-tracks">Unique tracks</option>
         </select>
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-muted-foreground/60 text-[10px]">
           {config.thresholdMode === "max-per-frame" && "Alert if any single frame exceeds the threshold."}
           {config.thresholdMode === "total-detections" &&
             "Alert if total detections in the segment exceeds the threshold."}
@@ -1025,8 +1028,8 @@ function DetectionPluginConfig({
       </div>
 
       {/* Minimum Confidence */}
-      <div className="flex flex-col gap-1 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Minimum confidence</Label>
+      <div className="border-border flex flex-col gap-1 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Minimum confidence</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={1}
@@ -1043,16 +1046,16 @@ function DetectionPluginConfig({
           type="number"
           value={String(config.minConfidence)}
         />
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-muted-foreground/60 text-[10px]">
           0–1 (lower = more sensitive). Detections below this are ignored.
         </p>
       </div>
 
       {/* Alert Severity */}
-      <div className="flex flex-col gap-1.5 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Alert severity</Label>
+      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Alert severity</Label>
         <select
-          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-foreground/80 text-xs disabled:opacity-60"
+          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((c) => ({
@@ -1069,8 +1072,8 @@ function DetectionPluginConfig({
       </div>
 
       {/* Cooldown */}
-      <div className="flex flex-col gap-1 border-border border-t pt-2">
-        <Label className="font-medium text-[11px] text-muted-foreground">Cooldown (seconds)</Label>
+      <div className="border-border flex flex-col gap-1 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Cooldown (seconds)</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={3600}
@@ -1086,7 +1089,7 @@ function DetectionPluginConfig({
           type="number"
           value={String(config.cooldownSec ?? "")}
         />
-        <p className="text-[10px] text-muted-foreground/60">
+        <p className="text-muted-foreground/60 text-[10px]">
           Minimum seconds between alerts for this plugin. Leave empty for no cooldown.
         </p>
       </div>
