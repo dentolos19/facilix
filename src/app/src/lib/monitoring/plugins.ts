@@ -3,9 +3,10 @@
  *
  * Two plugin kinds exist:
  *
- * - `segment-understanding` — OpenRouter multimodal analysis for scene summaries.
+ * - `segment-understanding` — OpenRouter multimodal analysis for scene summaries
+ *   and natural-language scene alerts.
  * - `workflow-object-detection` — Roboflow Workflow for object detection with
- *   configurable alert thresholds per plugin.
+ *   configurable alert rules per plugin (count thresholds, enter/leave).
  *
  * Object detection only runs for plugins that are explicitly enabled on each
  * CCTV device. If no detection plugins are enabled, no Roboflow calls are made.
@@ -46,6 +47,67 @@ export interface Plugin {
   defaultPrompt?: string;
 }
 
+// ─── Alert rule types ─────────────────────────────────────────────────────
+
+/** Comparison operator for count-based rules. */
+export type ComparisonOperator = "gt" | "gte" | "lt" | "lte" | "eq";
+
+/** How to count detections for threshold evaluation. */
+export type ThresholdMode = "max-per-frame" | "total-detections" | "unique-tracks";
+
+/** Severity level for alert events. */
+export type AlertSeverity = "info" | "warn" | "error";
+
+/** Alert when detection count crosses a threshold. */
+export interface CountThresholdAlertRule {
+  kind: "count-threshold";
+  enabled: boolean;
+  /** Threshold value for alerting. */
+  threshold: number;
+  /** Comparison operator for threshold check. */
+  operator: ComparisonOperator;
+  /** How to count detections for threshold evaluation. */
+  thresholdMode: ThresholdMode;
+  /** Severity level for alert events. */
+  severity: AlertSeverity;
+}
+
+/** Alert when objects appear (count goes from 0 to >0). */
+export interface ObjectEntersAlertRule {
+  kind: "object-enters";
+  enabled: boolean;
+  /** Optional label filter — only trigger for these classes. If empty, any class. */
+  labels?: string[];
+  severity: AlertSeverity;
+}
+
+/** Alert when objects disappear (count goes from >0 to 0). */
+export interface ObjectLeavesAlertRule {
+  kind: "object-leaves";
+  enabled: boolean;
+  /** Optional label filter — only trigger for these classes. If empty, any class. */
+  labels?: string[];
+  severity: AlertSeverity;
+}
+
+/** Alert when a scene matches a natural-language description. */
+export interface SceneMatchAlertRule {
+  kind: "scene-match";
+  enabled: boolean;
+  /** Natural-language description of what to detect. */
+  description: string;
+  severity: AlertSeverity;
+}
+
+/** Union of all detection alert rule types. */
+export type DetectionAlertRule = CountThresholdAlertRule | ObjectEntersAlertRule | ObjectLeavesAlertRule;
+
+/** Union of all scene alert rule types. */
+export type SceneAlertRule = SceneMatchAlertRule;
+
+/** All alert rule types. */
+export type AlertRule = DetectionAlertRule | SceneAlertRule;
+
 // ─── Per-device config interfaces ──────────────────────────────────────────
 
 /** Shared fields for every plugin config. */
@@ -58,22 +120,30 @@ interface DevicePluginConfigBase {
 
 /** Config for `segment-understanding` plugins. */
 export interface SegmentAnalysisDeviceConfig extends DevicePluginConfigBase {
+  /** Legacy prompt (used when no alerts are configured, or as the base prompt). */
   prompt: string;
-  severity: "info" | "warn" | "error";
+  /** Legacy severity (used when no alerts are configured). */
+  severity: AlertSeverity;
+  /** Multiple scene alert rules. */
+  alerts: SceneAlertRule[];
 }
 
 /** Config for `workflow-object-detection` plugins. */
 export interface WorkflowObjectDetectionDeviceConfig extends DevicePluginConfigBase {
-  /** Threshold value for alerting. */
+  /** Legacy single threshold (backward compat — normalized into alerts[0]). */
   threshold: number;
-  /** Comparison operator for threshold check. */
-  operator: "gt" | "gte" | "lt" | "lte" | "eq";
-  /** How to count detections for threshold evaluation. */
-  thresholdMode: "max-per-frame" | "total-detections" | "unique-tracks";
+  /** Legacy single operator (backward compat). */
+  operator: ComparisonOperator;
+  /** Legacy threshold mode (backward compat). */
+  thresholdMode: ThresholdMode;
   /** Minimum confidence for detections to be counted. */
   minConfidence: number;
-  /** Severity level for threshold alert events. */
-  alertSeverity: "info" | "warn" | "error";
+  /** Legacy single alert severity (backward compat). */
+  alertSeverity: AlertSeverity;
+  /** Optional class filter — only detect these classes. If empty, detect all. */
+  classes?: string[];
+  /** Multiple detection alert rules. */
+  alerts: DetectionAlertRule[];
 }
 
 /** Union of all per-device configs. */
@@ -101,7 +171,8 @@ export const PLUGINS: Plugin[] = [
   {
     id: "natural-language",
     name: "Natural Language",
-    description: "Uses AI video understanding to watch for anomalies described in natural language.",
+    description:
+      "Uses AI vision to watch for scenes you describe in natural language. Add multiple alerts to monitor different scenarios.",
     kind: "segment-understanding",
     provider: "openrouter",
     defaultPrompt: DEFAULT_SEGMENT_PROMPT,
@@ -109,7 +180,7 @@ export const PLUGINS: Plugin[] = [
   {
     id: "people-detection",
     name: "People Detection",
-    description: "Detects people in the video segment and alerts when the count crosses a configured threshold.",
+    description: "Detects people and alerts when counts cross thresholds or people enter/leave the scene.",
     kind: "workflow-object-detection",
     provider: "roboflow",
     workflow: {
@@ -122,12 +193,25 @@ export const PLUGINS: Plugin[] = [
   {
     id: "vehicle-detection",
     name: "Vehicle Detection",
-    description: "Detects vehicles in the video segment and alerts when the count crosses a configured threshold.",
+    description: "Detects vehicles and alerts when counts cross thresholds or vehicles enter/leave the scene.",
     kind: "workflow-object-detection",
     provider: "roboflow",
     workflow: {
       workspaceName: "dentolos19",
       workflowId: "vehicle-detection",
+      inputName: "image",
+      dataOutputNames: ["image", "predictions", "count"],
+    },
+  },
+  {
+    id: "object-detection",
+    name: "Object Detection",
+    description: "Detects any object class (car, truck, person, dining table, etc.) with configurable class filters.",
+    kind: "workflow-object-detection",
+    provider: "roboflow",
+    workflow: {
+      workspaceName: "dentolos19",
+      workflowId: "object-detection",
       inputName: "image",
       dataOutputNames: ["image", "predictions", "count"],
     },
@@ -139,6 +223,66 @@ const PLUGIN_BY_ID: Map<string, Plugin> = new Map(PLUGINS.map((p) => [p.id, p]))
 /** Lookup a curated plugin by id. */
 export function getPlugin(id: string): Plugin | undefined {
   return PLUGIN_BY_ID.get(id);
+}
+
+// ─── Alert rule helpers ───────────────────────────────────────────────────
+
+function createDefaultSceneAlert(description: string): SceneMatchAlertRule {
+  return {
+    kind: "scene-match",
+    enabled: true,
+    description,
+    severity: "warn",
+  };
+}
+
+function normalizeAlertRule(raw: unknown): DetectionAlertRule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+
+  const kind = typeof r.kind === "string" ? r.kind : "count-threshold";
+  const enabled = r.enabled !== false;
+
+  if (kind === "object-enters") {
+    return {
+      kind: "object-enters",
+      enabled,
+      labels: Array.isArray(r.labels) ? r.labels.filter((l): l is string => typeof l === "string") : undefined,
+      severity: normalizeSeverity(r.severity),
+    };
+  }
+
+  if (kind === "object-leaves") {
+    return {
+      kind: "object-leaves",
+      enabled,
+      labels: Array.isArray(r.labels) ? r.labels.filter((l): l is string => typeof l === "string") : undefined,
+      severity: normalizeSeverity(r.severity),
+    };
+  }
+
+  // Default: count-threshold
+  return {
+    kind: "count-threshold",
+    enabled,
+    threshold: normalizeNumber(r.threshold, DEFAULT_COUNTING_THRESHOLD),
+    operator: normalizeOperator(r.operator),
+    thresholdMode: normalizeThresholdMode(r.thresholdMode),
+    severity: normalizeSeverity(r.severity),
+  };
+}
+
+function normalizeSceneAlertRule(raw: unknown): SceneMatchAlertRule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const description = typeof r.description === "string" && r.description.length > 0 ? r.description : "";
+  if (!description) return null;
+  return {
+    kind: "scene-match",
+    enabled: r.enabled !== false,
+    description,
+    severity: normalizeSeverity(r.severity),
+  };
 }
 
 // ─── Normalisation ────────────────────────────────────────────────────────
@@ -157,10 +301,19 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
   if (plugin.kind === "segment-understanding") {
     const prompt =
       typeof r.prompt === "string" && r.prompt.length > 0 ? r.prompt : (plugin.defaultPrompt ?? DEFAULT_SEGMENT_PROMPT);
-    const severity = (["info", "warn", "error"] as const).includes(r.severity as never)
-      ? (r.severity as SegmentAnalysisDeviceConfig["severity"])
-      : "warn";
-    return { pluginId, enabled, prompt, severity, trigger, cooldownSec };
+    const severity = normalizeSeverity(r.severity);
+
+    // Normalize alerts — migrate legacy single prompt into scene alerts
+    let alerts: SceneAlertRule[];
+    if (Array.isArray(r.alerts) && r.alerts.length > 0) {
+      alerts = r.alerts.map(normalizeSceneAlertRule).filter((a): a is SceneMatchAlertRule => a !== null);
+    }
+    // If no alerts but there's a non-default prompt, create one alert from it
+    if (!alerts || alerts.length === 0) {
+      alerts = [createDefaultSceneAlert(prompt)];
+    }
+
+    return { pluginId, enabled, prompt, severity, alerts, trigger, cooldownSec };
   }
 
   if (plugin.kind === "workflow-object-detection") {
@@ -168,9 +321,30 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
     const operator = normalizeOperator(r.operator);
     const thresholdMode = normalizeThresholdMode(r.thresholdMode);
     const minConfidence = normalizeConfidence(r.minConfidence);
-    const alertSeverity = (["info", "warn", "error"] as const).includes(r.alertSeverity as never)
-      ? (r.alertSeverity as WorkflowObjectDetectionDeviceConfig["alertSeverity"])
-      : "warn";
+    const alertSeverity = normalizeSeverity(r.alertSeverity);
+    const classes = Array.isArray(r.classes)
+      ? r.classes.filter((c): c is string => typeof c === "string" && c.length > 0)
+      : undefined;
+
+    // Normalize alerts — migrate legacy single threshold into alert rules
+    let alerts: DetectionAlertRule[];
+    if (Array.isArray(r.alerts) && r.alerts.length > 0) {
+      alerts = r.alerts.map(normalizeAlertRule).filter((a): a is DetectionAlertRule => a !== null);
+    }
+    // If no alerts, create a default count-threshold alert from legacy fields
+    if (!alerts || alerts.length === 0) {
+      alerts = [
+        {
+          kind: "count-threshold",
+          enabled: true,
+          threshold,
+          operator,
+          thresholdMode,
+          severity: alertSeverity,
+        },
+      ];
+    }
+
     return {
       pluginId,
       enabled,
@@ -179,6 +353,8 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
       thresholdMode,
       minConfidence,
       alertSeverity,
+      classes,
+      alerts,
       trigger,
       cooldownSec,
     };
@@ -206,18 +382,18 @@ function normalizeTrigger(r: Record<string, unknown>): PluginTrigger | undefined
   return undefined;
 }
 
-function normalizeOperator(value: unknown): WorkflowObjectDetectionDeviceConfig["operator"] {
-  const valid = ["gt", "gte", "lt", "lte", "eq"] as const;
-  return valid.includes(value as never)
-    ? (value as WorkflowObjectDetectionDeviceConfig["operator"])
-    : DEFAULT_COUNTING_OPERATOR;
+function normalizeSeverity(value: unknown): AlertSeverity {
+  return (["info", "warn", "error"] as const).includes(value as never) ? (value as AlertSeverity) : "warn";
 }
 
-function normalizeThresholdMode(value: unknown): WorkflowObjectDetectionDeviceConfig["thresholdMode"] {
+function normalizeOperator(value: unknown): ComparisonOperator {
+  const valid = ["gt", "gte", "lt", "lte", "eq"] as const;
+  return valid.includes(value as never) ? (value as ComparisonOperator) : DEFAULT_COUNTING_OPERATOR;
+}
+
+function normalizeThresholdMode(value: unknown): ThresholdMode {
   const valid = ["max-per-frame", "total-detections", "unique-tracks"] as const;
-  return valid.includes(value as never)
-    ? (value as WorkflowObjectDetectionDeviceConfig["thresholdMode"])
-    : "max-per-frame";
+  return valid.includes(value as never) ? (value as ThresholdMode) : "max-per-frame";
 }
 
 function normalizeNumber(value: unknown, fallback: number): number {
@@ -261,11 +437,11 @@ export type ThresholdResult = {
 };
 
 /**
- * Evaluate a threshold against detections from a single workflow.
+ * Evaluate a count-threshold alert rule against detections from a single workflow.
  * `countValue` is the pre-computed count from the processor.
  */
-export function evaluateThreshold(countValue: number, config: WorkflowObjectDetectionDeviceConfig): ThresholdResult {
-  const { threshold, operator } = config;
+export function evaluateCountThreshold(countValue: number, rule: CountThresholdAlertRule): ThresholdResult {
+  const { threshold, operator, thresholdMode } = rule;
   let exceeded = false;
   switch (operator) {
     case "gt":
@@ -284,13 +460,33 @@ export function evaluateThreshold(countValue: number, config: WorkflowObjectDete
       exceeded = countValue === threshold;
       break;
   }
-  return {
-    exceeded,
-    count: countValue,
-    threshold,
-    operator,
-    thresholdMode: config.thresholdMode,
-  };
+  return { exceeded, count: countValue, threshold, operator, thresholdMode };
+}
+
+/**
+ * Evaluate whether an enter/leave transition occurred.
+ * @param currentCount - Count of matching objects in the current segment.
+ * @param previousCount - Count of matching objects in the previous segment (null if unknown).
+ * @returns true if the transition condition is met.
+ */
+export function evaluateTransition(
+  currentCount: number,
+  previousCount: number | null,
+  kind: "object-enters" | "object-leaves",
+): boolean {
+  if (previousCount === null) return false;
+  if (kind === "object-enters") return previousCount === 0 && currentCount > 0;
+  if (kind === "object-leaves") return previousCount > 0 && currentCount === 0;
+  return false;
+}
+
+/**
+ * Count detections matching optional label filter.
+ */
+export function countByLabelFilter(detections: Array<{ label: string }>, labels?: string[]): number {
+  if (!labels || labels.length === 0) return detections.length;
+  const labelSet = new Set(labels.map((l) => l.toLowerCase()));
+  return detections.filter((d) => labelSet.has(d.label.toLowerCase())).length;
 }
 
 // ─── Trigger helpers ──────────────────────────────────────────────────────

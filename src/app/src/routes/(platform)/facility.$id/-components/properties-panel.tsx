@@ -12,12 +12,18 @@ import {
   DEFAULT_COUNTING_OPERATOR,
   DEFAULT_COUNTING_THRESHOLD,
   DEFAULT_PLUGIN_CONFIDENCE,
+  type ComparisonOperator,
+  type CountThresholdAlertRule,
+  type DetectionAlertRule,
   type DevicePluginConfig,
   getPlugin,
   normalizePlugins,
   PLUGINS,
   type Plugin,
+  type SceneAlertRule,
+  type SceneMatchAlertRule,
   type SegmentAnalysisDeviceConfig,
+  type ThresholdMode,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
 import type { SimulationStream } from "#/lib/simulation/cctv";
@@ -714,13 +720,22 @@ function addPlugin(configs: DevicePluginConfig[], plugin: Plugin): DevicePluginC
   if (configs.some((c) => c.pluginId === plugin.id)) return configs;
 
   if (plugin.kind === "segment-understanding") {
+    const defaultPrompt = plugin.defaultPrompt ?? "Analyze this CCTV clip for anomalies.";
     return [
       ...configs,
       {
         pluginId: plugin.id,
         enabled: true,
-        prompt: plugin.defaultPrompt ?? "Analyze this CCTV clip for anomalies.",
+        prompt: defaultPrompt,
         severity: "warn",
+        alerts: [
+          {
+            kind: "scene-match",
+            enabled: true,
+            description: defaultPrompt,
+            severity: "warn",
+          },
+        ],
       },
     ];
   }
@@ -737,6 +752,16 @@ function addPlugin(configs: DevicePluginConfig[], plugin: Plugin): DevicePluginC
         minConfidence: DEFAULT_PLUGIN_CONFIDENCE,
         alertSeverity: "warn",
         cooldownSec: 300,
+        alerts: [
+          {
+            kind: "count-threshold",
+            enabled: true,
+            threshold: DEFAULT_COUNTING_THRESHOLD,
+            operator: DEFAULT_COUNTING_OPERATOR,
+            thresholdMode: "max-per-frame",
+            severity: "warn",
+          },
+        ],
       },
     ];
   }
@@ -903,10 +928,41 @@ function SegmentAnalysisConfig({
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
 }) {
+  const alerts = config.alerts ?? [];
+
+  function updateAlert(index: number, patch: (alert: SceneAlertRule) => SceneAlertRule) {
+    onChange((c) => {
+      const curr = c as SegmentAnalysisDeviceConfig;
+      const newAlerts = curr.alerts.map((a, i) => (i === index ? patch(a) : a));
+      return { ...curr, alerts: newAlerts };
+    });
+  }
+
+  function removeAlert(index: number) {
+    onChange((c) => {
+      const curr = c as SegmentAnalysisDeviceConfig;
+      return { ...curr, alerts: curr.alerts.filter((_, i) => i !== index) };
+    });
+  }
+
+  function addAlert() {
+    onChange((c) => {
+      const curr = c as SegmentAnalysisDeviceConfig;
+      const newAlert: SceneMatchAlertRule = {
+        kind: "scene-match",
+        enabled: true,
+        description: "",
+        severity: "warn",
+      };
+      return { ...curr, alerts: [...curr.alerts, newAlert] };
+    });
+  }
+
   return (
     <>
+      {/* Legacy Prompt */}
       <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Prompt</Label>
+        <Label className="text-muted-foreground text-[11px] font-medium">Base prompt</Label>
         <textarea
           className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-20 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${
             isReadOnly ? "pointer-events-none opacity-60" : ""
@@ -922,12 +978,85 @@ function SegmentAnalysisConfig({
           value={config.prompt}
         />
         <p className="text-muted-foreground/60 text-[10px]">
-          Prompt is sent to AI video understanding on segment upload.
+          Base prompt sent to AI video understanding on segment upload.
         </p>
       </div>
 
+      {/* Scene Alert Rules */}
+      <div className="border-border flex flex-col gap-2 border-t pt-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-muted-foreground text-[11px] font-medium">Scene Alerts</Label>
+          {!isReadOnly && (
+            <Button className="h-5 px-1.5 text-[10px]" onClick={addAlert} size="sm" variant="outline">
+              <PlusIcon className="mr-0.5 size-2.5" />
+              Add Alert
+            </Button>
+          )}
+        </div>
+
+        {alerts.length === 0 && (
+          <p className="text-muted-foreground/60 text-[10px]">No scene alerts configured. Using base prompt only.</p>
+        )}
+
+        {alerts.map((alert, index) => (
+          <div className="bg-muted/20 flex flex-col gap-1.5 rounded-none border p-2" key={index}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  aria-label={`Enable scene alert ${index + 1}`}
+                  checked={alert.enabled}
+                  disabled={isReadOnly}
+                  onCheckedChange={(checked) => updateAlert(index, (a) => ({ ...a, enabled: checked }))}
+                  size="sm"
+                />
+                <span className="text-foreground/80 text-[10px] font-medium">Scene Match</span>
+              </div>
+              {!isReadOnly && (
+                <Button
+                  className="text-muted-foreground/70 hover:text-destructive"
+                  onClick={() => removeAlert(index)}
+                  size="icon-xs"
+                  variant="ghost"
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              )}
+            </div>
+
+            <textarea
+              className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-16 w-full min-w-0 resize-none rounded-none border bg-transparent px-2 py-1 text-[10px] transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 ${
+                isReadOnly ? "pointer-events-none opacity-60" : ""
+              }`}
+              disabled={isReadOnly}
+              onChange={(e) => updateAlert(index, (a) => ({ ...a, description: e.target.value }))}
+              placeholder="Describe what to detect, e.g. 'A person loitering near the entrance'..."
+              value={alert.kind === "scene-match" ? alert.description : ""}
+            />
+
+            <div className="flex items-center gap-2">
+              <select
+                className="border-input bg-muted/30 text-foreground/80 h-6 flex-1 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+                disabled={isReadOnly}
+                onChange={(e) =>
+                  updateAlert(index, (a) => ({
+                    ...a,
+                    severity: e.target.value as import("#/lib/monitoring/plugins").AlertSeverity,
+                  }))
+                }
+                value={alert.severity}
+              >
+                <option value="info">Info</option>
+                <option value="warn">Warning</option>
+                <option value="error">Error</option>
+              </select>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Legacy Severity */}
       <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Alert severity</Label>
+        <Label className="text-muted-foreground text-[11px] font-medium">Default severity</Label>
         <select
           className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
           disabled={isReadOnly}
@@ -959,74 +1088,47 @@ function DetectionPluginConfig({
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
 }) {
+  const alerts = config.alerts ?? [];
+
+  function updateAlert(index: number, patch: (alert: DetectionAlertRule) => DetectionAlertRule) {
+    onChange((c) => {
+      const curr = c as WorkflowObjectDetectionDeviceConfig;
+      const newAlerts = curr.alerts.map((a, i) => (i === index ? patch(a) : a));
+      return { ...curr, alerts: newAlerts };
+    });
+  }
+
+  function removeAlert(index: number) {
+    onChange((c) => {
+      const curr = c as WorkflowObjectDetectionDeviceConfig;
+      return { ...curr, alerts: curr.alerts.filter((_, i) => i !== index) };
+    });
+  }
+
+  function addAlert(kind: "count-threshold" | "object-enters" | "object-leaves") {
+    onChange((c) => {
+      const curr = c as WorkflowObjectDetectionDeviceConfig;
+      let newAlert: DetectionAlertRule;
+      if (kind === "count-threshold") {
+        newAlert = {
+          kind: "count-threshold",
+          enabled: true,
+          threshold: DEFAULT_COUNTING_THRESHOLD,
+          operator: DEFAULT_COUNTING_OPERATOR,
+          thresholdMode: "max-per-frame",
+          severity: "warn",
+        };
+      } else if (kind === "object-enters") {
+        newAlert = { kind: "object-enters", enabled: true, severity: "warn" };
+      } else {
+        newAlert = { kind: "object-leaves", enabled: true, severity: "warn" };
+      }
+      return { ...curr, alerts: [...curr.alerts, newAlert] };
+    });
+  }
+
   return (
     <>
-      {/* Threshold */}
-      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Alert threshold</Label>
-        <div className="flex items-center gap-2">
-          <select
-            className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
-            disabled={isReadOnly}
-            onChange={(e) =>
-              onChange((c) => ({
-                ...(c as WorkflowObjectDetectionDeviceConfig),
-                operator: e.target.value as WorkflowObjectDetectionDeviceConfig["operator"],
-              }))
-            }
-            value={config.operator}
-          >
-            <option value="gt">&gt;</option>
-            <option value="gte">&ge;</option>
-            <option value="lt">&lt;</option>
-            <option value="lte">&le;</option>
-            <option value="eq">=</option>
-          </select>
-          <Input
-            className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
-            max={10000}
-            min={0}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              onChange((c) => ({
-                ...(c as WorkflowObjectDetectionDeviceConfig),
-                threshold: Number.isFinite(v) ? v : DEFAULT_COUNTING_THRESHOLD,
-              }));
-            }}
-            readOnly={isReadOnly}
-            type="number"
-            value={String(config.threshold)}
-          />
-        </div>
-        <p className="text-muted-foreground/60 text-[10px]">Alert when detection count crosses this value.</p>
-      </div>
-
-      {/* Threshold Mode */}
-      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Counting mode</Label>
-        <select
-          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
-          disabled={isReadOnly}
-          onChange={(e) =>
-            onChange((c) => ({
-              ...(c as WorkflowObjectDetectionDeviceConfig),
-              thresholdMode: e.target.value as WorkflowObjectDetectionDeviceConfig["thresholdMode"],
-            }))
-          }
-          value={config.thresholdMode}
-        >
-          <option value="max-per-frame">Max per frame</option>
-          <option value="total-detections">Total detections</option>
-          <option value="unique-tracks">Unique tracks</option>
-        </select>
-        <p className="text-muted-foreground/60 text-[10px]">
-          {config.thresholdMode === "max-per-frame" && "Alert if any single frame exceeds the threshold."}
-          {config.thresholdMode === "total-detections" &&
-            "Alert if total detections in the segment exceeds the threshold."}
-          {config.thresholdMode === "unique-tracks" && "Alert if unique tracked objects exceeds the threshold."}
-        </p>
-      </div>
-
       {/* Minimum Confidence */}
       <div className="border-border flex flex-col gap-1 border-t pt-2">
         <Label className="text-muted-foreground text-[11px] font-medium">Minimum confidence</Label>
@@ -1047,28 +1149,123 @@ function DetectionPluginConfig({
           value={String(config.minConfidence)}
         />
         <p className="text-muted-foreground/60 text-[10px]">
-          0–1 (lower = more sensitive). Detections below this are ignored.
+          0-1 (lower = more sensitive). Detections below this are ignored.
         </p>
       </div>
 
-      {/* Alert Severity */}
-      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Alert severity</Label>
-        <select
-          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
-          disabled={isReadOnly}
-          onChange={(e) =>
+      {/* Class Filter */}
+      <div className="border-border flex flex-col gap-1 border-t pt-2">
+        <Label className="text-muted-foreground text-[11px] font-medium">Class filter (optional)</Label>
+        <Input
+          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+          onChange={(e) => {
+            const val = e.target.value.trim();
+            const classes =
+              val.length > 0
+                ? val
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean)
+                : undefined;
             onChange((c) => ({
               ...(c as WorkflowObjectDetectionDeviceConfig),
-              alertSeverity: e.target.value as WorkflowObjectDetectionDeviceConfig["alertSeverity"],
-            }))
-          }
-          value={config.alertSeverity}
-        >
-          <option value="info">Info</option>
-          <option value="warn">Warning</option>
-          <option value="error">Error</option>
-        </select>
+              classes,
+            }));
+          }}
+          readOnly={isReadOnly}
+          placeholder="e.g. car, truck, person (comma-separated)"
+          value={config.classes?.join(", ") ?? ""}
+        />
+        <p className="text-muted-foreground/60 text-[10px]">
+          Comma-separated class labels to detect. Leave empty for all classes.
+        </p>
+      </div>
+
+      {/* Alert Rules */}
+      <div className="border-border flex flex-col gap-2 border-t pt-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-muted-foreground text-[11px] font-medium">Alert Rules</Label>
+          {!isReadOnly && (
+            <div className="flex gap-1">
+              <Button
+                className="h-5 px-1.5 text-[10px]"
+                onClick={() => addAlert("count-threshold")}
+                size="sm"
+                variant="outline"
+              >
+                <PlusIcon className="mr-0.5 size-2.5" />
+                Count
+              </Button>
+              <Button
+                className="h-5 px-1.5 text-[10px]"
+                onClick={() => addAlert("object-enters")}
+                size="sm"
+                variant="outline"
+              >
+                <PlusIcon className="mr-0.5 size-2.5" />
+                Enters
+              </Button>
+              <Button
+                className="h-5 px-1.5 text-[10px]"
+                onClick={() => addAlert("object-leaves")}
+                size="sm"
+                variant="outline"
+              >
+                <PlusIcon className="mr-0.5 size-2.5" />
+                Leaves
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {alerts.length === 0 && <p className="text-muted-foreground/60 text-[10px]">No alert rules configured.</p>}
+
+        {alerts.map((alert, index) => (
+          <div className="bg-muted/20 flex flex-col gap-1.5 rounded-none border p-2" key={index}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Switch
+                  aria-label={`Enable alert ${index + 1}`}
+                  checked={alert.enabled}
+                  disabled={isReadOnly}
+                  onCheckedChange={(checked) => updateAlert(index, (a) => ({ ...a, enabled: checked }))}
+                  size="sm"
+                />
+                <span className="text-foreground/80 text-[10px] font-medium">
+                  {alert.kind === "count-threshold" && "Count Threshold"}
+                  {alert.kind === "object-enters" && "Object Enters"}
+                  {alert.kind === "object-leaves" && "Object Leaves"}
+                </span>
+              </div>
+              {!isReadOnly && (
+                <Button
+                  className="text-muted-foreground/70 hover:text-destructive"
+                  onClick={() => removeAlert(index)}
+                  size="icon-xs"
+                  variant="ghost"
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              )}
+            </div>
+
+            {alert.kind === "count-threshold" && (
+              <CountThresholdAlertFields
+                alert={alert}
+                isReadOnly={isReadOnly}
+                onChange={(patch) => updateAlert(index, (a) => patch(a as DetectionAlertRule))}
+              />
+            )}
+
+            {(alert.kind === "object-enters" || alert.kind === "object-leaves") && (
+              <TransitionAlertFields
+                alert={alert}
+                isReadOnly={isReadOnly}
+                onChange={(patch) => updateAlert(index, (a) => patch(a as DetectionAlertRule))}
+              />
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Cooldown */}
@@ -1094,5 +1291,136 @@ function DetectionPluginConfig({
         </p>
       </div>
     </>
+  );
+}
+
+function CountThresholdAlertFields({
+  alert,
+  isReadOnly,
+  onChange,
+}: {
+  alert: CountThresholdAlertRule;
+  isReadOnly: boolean;
+  onChange: (patch: (alert: DetectionAlertRule) => DetectionAlertRule) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <select
+          className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          disabled={isReadOnly}
+          onChange={(e) =>
+            onChange((a) => ({
+              ...a,
+              operator: e.target.value as ComparisonOperator,
+            }))
+          }
+          value={alert.operator}
+        >
+          <option value="gt">&gt;</option>
+          <option value="gte">&ge;</option>
+          <option value="lt">&lt;</option>
+          <option value="lte">&le;</option>
+          <option value="eq">=</option>
+        </select>
+        <Input
+          className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
+          max={10000}
+          min={0}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            onChange((a) => ({
+              ...a,
+              threshold: Number.isFinite(v) ? v : DEFAULT_COUNTING_THRESHOLD,
+            }));
+          }}
+          readOnly={isReadOnly}
+          type="number"
+          value={String(alert.threshold)}
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <select
+          className="border-input bg-muted/30 text-foreground/80 h-7 flex-1 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          disabled={isReadOnly}
+          onChange={(e) =>
+            onChange((a) => ({
+              ...a,
+              thresholdMode: e.target.value as ThresholdMode,
+            }))
+          }
+          value={alert.thresholdMode}
+        >
+          <option value="max-per-frame">Max per frame</option>
+          <option value="total-detections">Total detections</option>
+          <option value="unique-tracks">Unique tracks</option>
+        </select>
+        <select
+          className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          disabled={isReadOnly}
+          onChange={(e) =>
+            onChange((a) => ({
+              ...a,
+              severity: e.target.value as import("#/lib/monitoring/plugins").AlertSeverity,
+            }))
+          }
+          value={alert.severity}
+        >
+          <option value="info">Info</option>
+          <option value="warn">Warn</option>
+          <option value="error">Error</option>
+        </select>
+      </div>
+    </>
+  );
+}
+
+function TransitionAlertFields({
+  alert,
+  isReadOnly,
+  onChange,
+}: {
+  alert: DetectionAlertRule;
+  isReadOnly: boolean;
+  onChange: (patch: (alert: DetectionAlertRule) => DetectionAlertRule) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        className={isReadOnly ? "pointer-events-none flex-1 opacity-60" : "flex-1"}
+        onChange={(e) => {
+          const val = e.target.value.trim();
+          const labels =
+            val.length > 0
+              ? val
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              : undefined;
+          onChange((a) => ({
+            ...a,
+            labels,
+          }));
+        }}
+        readOnly={isReadOnly}
+        placeholder="Labels (optional, comma-separated)"
+        value={"labels" in alert && alert.labels ? alert.labels.join(", ") : ""}
+      />
+      <select
+        className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+        disabled={isReadOnly}
+        onChange={(e) =>
+          onChange((a) => ({
+            ...a,
+            severity: e.target.value as import("#/lib/monitoring/plugins").AlertSeverity,
+          }))
+        }
+        value={alert.severity}
+      >
+        <option value="info">Info</option>
+        <option value="warn">Warn</option>
+        <option value="error">Error</option>
+      </select>
+    </div>
   );
 }

@@ -73,7 +73,19 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
                   <p className="text-foreground/80 truncate text-[11px] font-medium">{plugin.name}</p>
                   {isDetection && detConfig && (
                     <p className="text-muted-foreground/60 text-[9px]">
-                      Alert when {detConfig.operator} {detConfig.threshold}
+                      {(detConfig.alerts?.length ?? 0) > 0
+                        ? `${detConfig.alerts.length} alert rule(s)`
+                        : "No alerts configured"}
+                    </p>
+                  )}
+                  {!isDetection && (
+                    <p className="text-muted-foreground/60 text-[9px]">
+                      {(() => {
+                        const segConfig = config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig;
+                        return (segConfig.alerts?.length ?? 0) > 0
+                          ? `${segConfig.alerts.length} scene alert(s)`
+                          : "Using base prompt";
+                      })()}
                     </p>
                   )}
                 </div>

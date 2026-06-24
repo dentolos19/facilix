@@ -8,8 +8,6 @@
  * entirely and call the serverless endpoint directly.
  */
 
-import { env } from "cloudflare:workers";
-
 import type { PluginWorkflowConfig } from "./plugins";
 
 /** A normalized object detection result from the workflow. */
@@ -70,6 +68,32 @@ export function getRuntimeConfig(): WorkflowRuntimeConfig {
   };
 }
 
+/** Options for running video object detection. */
+export interface RunVideoDetectionOptions {
+  /** The video segment bytes (MP4). */
+  segmentBytes: Uint8Array;
+  /** The workflow identity from the plugin catalog. */
+  pluginWorkflow: PluginWorkflowConfig;
+  /** The facility ID to get the container stub. */
+  facilityId: string;
+  /** Minimum confidence threshold for detections. */
+  minConfidence?: number;
+  /** If set, only these class labels are kept after detection. */
+  classFilter?: string[];
+  /** The Durable Object namespace for getting the container stub. */
+  serverNamespace: DurableObjectNamespace;
+}
+
+class NonRetryableRoboflowError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "NonRetryableRoboflowError";
+  }
+}
+
 /**
  * Run a specific Roboflow workflow on a video segment via the Python backend.
  *
@@ -77,57 +101,81 @@ export function getRuntimeConfig(): WorkflowRuntimeConfig {
  * OpenCV and calls the Roboflow REST API for each frame. This avoids the WebRTC
  * requirement that's unavailable in Cloudflare Workers.
  *
- * @param segmentBytes - The video segment bytes (MP4).
- * @param pluginWorkflow - The workflow identity from the plugin catalog.
- * @param facilityId - The facility ID to get the container stub.
- * @param runtimeConfig - Shared runtime settings (plan, region, timeout).
- * @returns Array of normalized detections.
+ * @returns Array of normalized detections, optionally filtered by confidence and class.
  */
-export async function runVideoObjectDetection(
-  segmentBytes: Uint8Array,
-  pluginWorkflow: PluginWorkflowConfig,
-  facilityId: string,
-  runtimeConfig?: WorkflowRuntimeConfig,
-): Promise<WorkflowDetection[]> {
-  const runtime = runtimeConfig ?? getRuntimeConfig();
+export async function runVideoObjectDetection(options: RunVideoDetectionOptions): Promise<WorkflowDetection[]> {
+  const {
+    segmentBytes,
+    pluginWorkflow,
+    facilityId,
+    minConfidence = 0.4,
+    classFilter,
+    serverNamespace,
+  } = options;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), runtime.processingTimeoutSec * 1000);
+  const containerStub = serverNamespace.getByName(facilityId);
 
-  try {
-    // Get the container stub for this facility
-    const containerStub = env.SERVER.getByName(facilityId);
+  // Build the URL with query parameters
+  const params = new URLSearchParams({
+    workspace_name: pluginWorkflow.workspaceName,
+    workflow_id: pluginWorkflow.workflowId,
+    input_name: pluginWorkflow.inputName,
+    frame_interval: "30",
+    min_confidence: String(minConfidence),
+  });
 
-    // Build the URL with query parameters
-    const params = new URLSearchParams({
-      workspace_name: pluginWorkflow.workspaceName,
-      workflow_id: pluginWorkflow.workflowId,
-      input_name: pluginWorkflow.inputName,
-      frame_interval: "30",
-      min_confidence: "0.4",
-    });
+  const url = `http://localhost:3001/process-video?${params.toString()}`;
+  const body = new ArrayBuffer(segmentBytes.byteLength);
+  new Uint8Array(body).set(segmentBytes);
 
-    const url = `http://localhost:3001/process-video?${params.toString()}`;
-    const body = new ArrayBuffer(segmentBytes.byteLength);
-    new Uint8Array(body).set(segmentBytes);
+  // Retry with exponential backoff (no AbortSignal — step timeout handles cancellation)
+  const maxRetries = 2;
+  let lastError: Error | null = null;
 
-    // Send the video bytes to the Python backend
-    const response = await containerStub.containerFetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "video/mp4" },
-      body,
-    });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await containerStub.containerFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "video/mp4" },
+        body,
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Python backend error (${response.status}): ${errorText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        const message = `Python backend error (${response.status}): ${errorText}`;
+        if (response.status >= 400 && response.status < 500) {
+          throw new NonRetryableRoboflowError(message, response.status);
+        }
+        throw new Error(message);
+      }
+
+      const result: unknown = await response.json();
+      let detections = parseWorkflowResponse(result, pluginWorkflow);
+
+      // Apply confidence filter
+      detections = detections.filter((d) => d.confidence >= minConfidence);
+
+      // Apply class filter
+      if (classFilter && classFilter.length > 0) {
+        const allowedLabels = new Set(classFilter.map((l) => l.toLowerCase()));
+        detections = detections.filter((d) => allowedLabels.has(d.label));
+      }
+
+      return detections;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (err instanceof NonRetryableRoboflowError) {
+        throw err;
+      }
+      if (attempt === maxRetries) {
+        throw lastError;
+      }
+      // Exponential backoff: 1s, 2s
+      await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
-
-    const result: unknown = await response.json();
-    return parseWorkflowResponse(result, pluginWorkflow);
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw lastError ?? new Error("Unknown error in runVideoObjectDetection");
 }
 
 // ── REST response parsing ──────────────────────────────────────────────────

@@ -150,7 +150,45 @@ The system should support:
 
 Since the factory has 2 loading bays, visibility and planning are important to prevent unnecessary delays.
 
-## 7. Dashboard and Operational Visibility
+## 7. CCTV Intelligence Plugins
+
+Facilix should support configurable intelligence plugins for CCTV video analysis. Each CCTV device can have multiple plugins enabled, each with multiple alert rules.
+
+### Plugin Types
+
+**People Detection** — Detects people using Roboflow computer vision workflows. Alerts when:
+- Detection count crosses a threshold (e.g., more than 5 people)
+- People enter the scene (count goes from 0 to >0)
+- People leave the scene (count goes from >0 to 0)
+
+**Vehicle Detection** — Detects vehicles using Roboflow computer vision workflows. Alerts when:
+- Detection count crosses a threshold
+- Vehicles enter or leave the scene
+- Specific vehicle types are detected (car, truck, etc.)
+
+**Object Detection** — Detects any configurable object class (car, truck, person, dining table, etc.) with optional class filtering.
+
+**Natural Language** — Uses AI vision models to analyze scenes based on natural-language descriptions. Alerts when:
+- The scene matches a user-described scenario (e.g., "a person loitering near the entrance")
+- Multiple scene descriptions can be configured per plugin
+- Evidence (bounding boxes) is provided for each match
+
+### Alert Rules
+
+Each plugin supports multiple alert rules:
+- **Count Threshold** — Alert when detection count crosses a value (configurable operator and counting mode)
+- **Object Enters** — Alert when objects appear in the scene
+- **Object Leaves** — Alert when objects disappear from the scene
+- **Scene Match** — Alert when a natural-language description matches the scene
+
+### Configuration
+
+- Minimum confidence threshold (0-1)
+- Class filtering (optional, comma-separated labels)
+- Alert severity (info, warning, error)
+- Cooldown between alerts
+
+## 8. Dashboard and Operational Visibility
 
 Facilix should provide a clear dashboard that gives staff a complete view of factory operations.
 

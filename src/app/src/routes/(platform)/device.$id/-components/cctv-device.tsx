@@ -252,21 +252,44 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                 </div>
                 {isDetection && detConfig && (
                   <>
-                    <p className="text-muted-foreground/60 text-[10px]">
-                      Alert when {detConfig.operator} {detConfig.threshold} ({detConfig.thresholdMode})
-                    </p>
+                    {detConfig.classes && detConfig.classes.length > 0 && (
+                      <p className="text-muted-foreground/60 text-[10px]">Classes: {detConfig.classes.join(", ")}</p>
+                    )}
                     <p className="text-muted-foreground/60 text-[10px]">
                       Min confidence: {Math.round(detConfig.minConfidence * 100)}%
                     </p>
-                    <p className="text-muted-foreground/60 text-[10px]">Severity: {detConfig.alertSeverity}</p>
+                    <div className="flex flex-col gap-0.5">
+                      {(detConfig.alerts ?? []).map((alert, i) => (
+                        <p className="text-muted-foreground/60 text-[10px]" key={i}>
+                          {alert.kind === "count-threshold" &&
+                            `Alert: count ${alert.operator} ${alert.threshold} (${alert.thresholdMode}) [${alert.severity}]`}
+                          {alert.kind === "object-enters" &&
+                            `Alert: object enters${alert.labels?.length ? ` (${alert.labels.join(", ")})` : ""} [${alert.severity}]`}
+                          {alert.kind === "object-leaves" &&
+                            `Alert: object leaves${alert.labels?.length ? ` (${alert.labels.join(", ")})` : ""} [${alert.severity}]`}
+                        </p>
+                      ))}
+                    </div>
                   </>
                 )}
                 {!isDetection && segConfig && (
                   <>
-                    <p className="text-muted-foreground/60 text-[10px] leading-snug">
-                      {segConfig.prompt.length > 60 ? `"${segConfig.prompt.slice(0, 60)}…"` : `"${segConfig.prompt}"`}
-                    </p>
-                    <p className="text-muted-foreground/60 text-[10px]">Severity: {segConfig.severity}</p>
+                    {(segConfig.alerts ?? []).length > 0 && (
+                      <div className="flex flex-col gap-0.5">
+                        {segConfig.alerts.map((alert, i) => (
+                          <p className="text-muted-foreground/60 text-[10px] leading-snug" key={i}>
+                            {alert.kind === "scene-match" && (
+                              <>
+                                {alert.description.length > 50
+                                  ? `"${alert.description.slice(0, 50)}…"`
+                                  : `"${alert.description}"`}{" "}
+                                [{alert.severity}]
+                              </>
+                            )}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
