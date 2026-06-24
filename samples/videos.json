@@ -1,18 +1,25 @@
 {
   "videos": [
     {
-      "id": "b0",
-      "file": "b0.mp4",
-      "label": "Bad Example #1",
+      "id": "factoryfloor",
+      "file": "factoryfloor.mp4",
+      "label": "Factory Floor",
       "description": "Sample CCTV Video for Testing.",
-      "tags": ["outdoor"]
+      "tags": ["indoor"]
     },
     {
-      "id": "g0",
-      "file": "g0.mp4",
-      "label": "Good Example #1",
+      "id": "factoryfloor2",
+      "file": "factoryfloor2.mp4",
+      "label": "Factory Floor 2",
       "description": "Sampe CCTV Video for Testing.",
       "tags": ["indoor"]
+    },
+    {
+      "id": "parkinglot",
+      "file": "parkinglot.mp4",
+      "label": "Parking Lot",
+      "description": "Sample CCTV Video for Testing.",
+      "tags": ["outdoor"]
     }
   ]
 }
