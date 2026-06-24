@@ -1,7 +1,7 @@
 /**
  * Roboflow Workflow video client.
  *
- * Uses the Roboflow REST API (`POST /infer/workflows/…`) to run workflow
+ * Uses the Roboflow REST API (`POST /{workspace}/workflows/{workflow}`) to run workflow
  * object detection on uploaded video segments. The SDK's built-in WebRTC
  * transport (`webrtc.useVideoFile`) requires browser-level RTCPeerConnection
  * globals that are unavailable in Cloudflare Workers, so we bypass the SDK
@@ -108,12 +108,14 @@ export async function runVideoObjectDetection(
     });
 
     const url = `http://localhost:3001/process-video?${params.toString()}`;
+    const body = new ArrayBuffer(segmentBytes.byteLength);
+    new Uint8Array(body).set(segmentBytes);
 
     // Send the video bytes to the Python backend
     const response = await containerStub.containerFetch(url, {
       method: "POST",
       headers: { "Content-Type": "video/mp4" },
-      body: segmentBytes,
+      body,
     });
 
     if (!response.ok) {

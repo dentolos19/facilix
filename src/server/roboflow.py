@@ -107,7 +107,7 @@ async def _process_frame(
     _, buffer = cv2.imencode(".jpg", frame)
     b64 = base64.b64encode(buffer).decode("utf-8")
 
-    url = f"{ROBOFLOW_API_BASE}/infer/workflows/{workspace_name}/{workflow_id}"
+    url = f"{ROBOFLOW_API_BASE}/{workspace_name}/workflows/{workflow_id}"
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:

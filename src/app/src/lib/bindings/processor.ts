@@ -141,6 +141,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         pluginId,
         pluginName: detectionPlugin.plugin.name,
         workflowId: pluginWorkflow.workflowId,
+        config,
         detections: filtered,
         detectionCounts: countByLabel(filtered),
         maxCount: countValue,
@@ -202,7 +203,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
 
       const data = {
         source: "facilix-processor",
-        analysisVersion: 4,
+        analysisVersion: 5,
         detections: allDetections.map((d) => ({
           label: d.label,
           confidence: d.confidence,
@@ -288,6 +289,7 @@ interface PluginDetectionResult {
   pluginId: string;
   pluginName: string;
   workflowId: string;
+  config: WorkflowObjectDetectionDeviceConfig;
   detections: WorkflowDetection[];
   detectionCounts: Record<string, number>;
   maxCount: number;
