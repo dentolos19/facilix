@@ -76,8 +76,8 @@ export function PropertiesPanel({
   }, [selected?.id, allStreams.length, isReadOnly, selected, onUpdateItem, allStreams]);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="flex flex-col p-4">
+    <ScrollArea className="h-full w-full">
+      <div className="flex min-h-full w-full flex-col p-4">
         {/* ── Header with title and delete button ── */}
         <div className="mb-3 flex shrink-0 items-center justify-between">
           <h3 className="font-heading text-muted-foreground text-xs font-medium tracking-wider uppercase">

@@ -31,6 +31,19 @@ export interface WorkflowDetection {
   trackId?: string;
   /** Roboflow class ID (if available). */
   classId?: number;
+  /** Raw Roboflow prediction geometry (center-based coordinates and detection ID). */
+  prediction?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    detectionId?: string;
+  };
+  /** Source image dimensions that the prediction coordinates are relative to. */
+  image?: {
+    width: number;
+    height: number;
+  };
 }
 
 /** Raw Roboflow workflow prediction shape. */
@@ -80,8 +93,46 @@ export interface RunVideoDetectionOptions {
   minConfidence?: number;
   /** If set, only these class labels are kept after detection. */
   classFilter?: string[];
+  /** Frame sampling interval (default 30 = about 1 FPS for 30 FPS video). */
+  frameInterval?: number;
   /** The Durable Object namespace for getting the container stub. */
   serverNamespace: DurableObjectNamespace;
+  /** Roboflow API key from the Worker environment, forwarded to the Python container. */
+  roboflowApiKey?: string;
+  /** Roboflow API base URL from the Worker environment, forwarded to the Python container. */
+  roboflowApiBase?: string;
+}
+
+/** Video metadata from the Python backend for playback alignment. */
+export interface DetectionVideoMeta {
+  fps: number;
+  frameCount: number;
+  frameInterval: number;
+  sampledFrameCount?: number;
+  failedFrameCount?: number;
+}
+
+/** A sampled frame's prediction output with before/after images. */
+export interface PredictionOutputFrame {
+  /** Frame index within the video. */
+  frameIndex: number;
+  /** Timestamp in seconds. */
+  atSec: number;
+  /** Base64-encoded JPEG of the raw sampled frame (before processing). */
+  beforeImage: string;
+  /** Base64-encoded JPEG of the annotated frame (after processing, with bounding boxes). */
+  afterImage: string;
+  /** Normalized predictions for this frame. */
+  predictions: WorkflowDetection[];
+  /** Source image dimensions that the predictions are relative to. */
+  image: { width: number; height: number };
+}
+
+/** Result of video object detection including metadata. */
+export interface VideoDetectionResult {
+  detections: WorkflowDetection[];
+  predictionOutputs: PredictionOutputFrame[];
+  video: DetectionVideoMeta | null;
 }
 
 class NonRetryableRoboflowError extends Error {
@@ -101,28 +152,39 @@ class NonRetryableRoboflowError extends Error {
  * OpenCV and calls the Roboflow REST API for each frame. This avoids the WebRTC
  * requirement that's unavailable in Cloudflare Workers.
  *
- * @returns Array of normalized detections, optionally filtered by confidence and class.
+ * @returns Detections plus video metadata for playback alignment.
  */
-export async function runVideoObjectDetection(options: RunVideoDetectionOptions): Promise<WorkflowDetection[]> {
+export async function runVideoObjectDetection(options: RunVideoDetectionOptions): Promise<VideoDetectionResult> {
   const {
     segmentBytes,
     pluginWorkflow,
     facilityId,
     minConfidence = 0.4,
     classFilter,
+    frameInterval = 30,
     serverNamespace,
+    roboflowApiKey,
+    roboflowApiBase,
   } = options;
 
-  const containerStub = serverNamespace.getByName(facilityId);
+  const containerStub = serverNamespace.getByName(facilityId) as ReturnType<DurableObjectNamespace["getByName"]> & {
+    containerFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+  };
 
   // Build the URL with query parameters
   const params = new URLSearchParams({
     workspace_name: pluginWorkflow.workspaceName,
     workflow_id: pluginWorkflow.workflowId,
     input_name: pluginWorkflow.inputName,
-    frame_interval: "30",
+    frame_interval: String(frameInterval),
     min_confidence: String(minConfidence),
   });
+  for (const outputName of pluginWorkflow.dataOutputNames ?? []) {
+    params.append("data_output_names", outputName);
+  }
+  for (const label of classFilter ?? []) {
+    params.append("class_filter", label);
+  }
 
   const url = `http://localhost:3001/process-video?${params.toString()}`;
   const body = new ArrayBuffer(segmentBytes.byteLength);
@@ -136,7 +198,11 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
     try {
       const response = await containerStub.containerFetch(url, {
         method: "POST",
-        headers: { "Content-Type": "video/mp4" },
+        headers: {
+          "Content-Type": "video/mp4",
+          ...(roboflowApiKey ? { "X-Roboflow-Api-Key": roboflowApiKey } : {}),
+          ...(roboflowApiBase ? { "X-Roboflow-Api-Base": roboflowApiBase } : {}),
+        },
         body,
       });
 
@@ -150,6 +216,9 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
       }
 
       const result: unknown = await response.json();
+      if (isRecord(result) && typeof result.error === "string") {
+        throw new Error(`Python backend error: ${result.error}`);
+      }
       let detections = parseWorkflowResponse(result, pluginWorkflow);
 
       // Apply confidence filter
@@ -161,7 +230,13 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
         detections = detections.filter((d) => allowedLabels.has(d.label));
       }
 
-      return detections;
+      // Extract prediction outputs (before/after images) from Python backend
+      const predictionOutputs = extractPredictionOutputs(result);
+
+      // Extract video metadata from Python backend response
+      const video = extractVideoMeta(result);
+
+      return { detections, predictionOutputs, video };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (err instanceof NonRetryableRoboflowError) {
@@ -180,6 +255,65 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
 
 // ── REST response parsing ──────────────────────────────────────────────────
 
+/** Extract video metadata from Python backend response. */
+function extractVideoMeta(result: unknown): DetectionVideoMeta | null {
+  if (!result || typeof result !== "object") return null;
+  const obj = result as Record<string, unknown>;
+  const v = obj.video;
+  if (!v || typeof v !== "object") return null;
+  const video = v as Record<string, unknown>;
+  if (
+    typeof video.fps !== "number" ||
+    typeof video.frameCount !== "number" ||
+    typeof video.frameInterval !== "number"
+  ) {
+    return null;
+  }
+  return {
+    fps: video.fps,
+    frameCount: video.frameCount,
+    frameInterval: video.frameInterval,
+    sampledFrameCount: typeof video.sampledFrameCount === "number" ? video.sampledFrameCount : undefined,
+    failedFrameCount: typeof video.failedFrameCount === "number" ? video.failedFrameCount : undefined,
+  };
+}
+
+/** Extract prediction outputs (before/after images) from Python backend response. */
+function extractPredictionOutputs(result: unknown): PredictionOutputFrame[] {
+  if (!result || typeof result !== "object") return [];
+  const obj = result as Record<string, unknown>;
+  const raw = obj.predictionOutputs;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .filter(isRecord)
+    .map((frame) => {
+      if (typeof frame.frameIndex !== "number" || typeof frame.atSec !== "number") return null;
+      if (typeof frame.beforeImage !== "string" || typeof frame.afterImage !== "string") return null;
+      if (!Array.isArray(frame.predictions)) return null;
+
+      const image =
+        isRecord(frame.image) && typeof frame.image.width === "number" && typeof frame.image.height === "number"
+          ? { width: frame.image.width, height: frame.image.height }
+          : { width: 0, height: 0 };
+
+      const predictions = frame.predictions
+        .filter(isRecord)
+        .map((d) => passthroughDetection(d))
+        .filter((d): d is WorkflowDetection => d !== null);
+
+      return {
+        frameIndex: frame.frameIndex,
+        atSec: frame.atSec,
+        beforeImage: frame.beforeImage,
+        afterImage: frame.afterImage,
+        predictions,
+        image,
+      };
+    })
+    .filter((f): f is PredictionOutputFrame => f !== null);
+}
+
 /** Normalise the various shapes the Roboflow REST API may return. */
 function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowConfig): WorkflowDetection[] {
   if (!result || typeof result !== "object") return [];
@@ -187,10 +321,12 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
   const obj = result as Record<string, unknown>;
 
   // Python backend returns: { detections: [...], count: N }
+  // The Python backend already returns the full normalized format including
+  // prediction/image fields, so pass them through directly.
   if (Array.isArray(obj.detections)) {
     return obj.detections
       .filter(isRecord)
-      .map((d) => toDetection(d, {}))
+      .map((d) => passthroughDetection(d))
       .filter((d): d is WorkflowDetection => d !== null);
   }
 
@@ -216,14 +352,42 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
       if (!dataOutputNames.has(name)) continue;
 
       const predictions = extractPredictions(value);
+      // Capture image metadata from the predictions output (same structure as Python parser)
+      let imageMeta: WorkflowDetection["image"] | undefined;
+      if (isRecord(value)) {
+        const img = value.image as Record<string, unknown> | undefined;
+        if (isRecord(img) && typeof img.width === "number" && typeof img.height === "number") {
+          imageMeta = { width: img.width, height: img.height };
+        }
+      }
+
       for (const prediction of predictions) {
-        const detection = toDetection(prediction, {});
+        const detection = toDetection(prediction, {}, imageMeta);
         if (detection) detections.push(detection);
       }
     }
   }
 
   return detections;
+}
+
+/**
+ * Pass-through for detections already normalized by the Python backend.
+ * Extracts the common fields and preserves prediction/image metadata.
+ */
+function passthroughDetection(d: Record<string, unknown>): WorkflowDetection | null {
+  if (typeof d.confidence !== "number") return null;
+  return {
+    label: String(d.label ?? "unknown"),
+    confidence: d.confidence,
+    box: d.box as WorkflowDetection["box"] | undefined,
+    atSec: typeof d.atSec === "number" ? d.atSec : undefined,
+    frameIndex: typeof d.frameIndex === "number" ? d.frameIndex : undefined,
+    trackId: typeof d.trackId === "string" ? d.trackId : undefined,
+    classId: typeof d.classId === "number" ? d.classId : undefined,
+    prediction: d.prediction as WorkflowDetection["prediction"] | undefined,
+    image: d.image as WorkflowDetection["image"] | undefined,
+  };
 }
 
 function extractPredictions(value: unknown): WorkflowPrediction[] {
@@ -246,10 +410,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
-/** Normalize a Roboflow workflow prediction into our shared detection shape. */
+/** Normalize a raw Roboflow workflow prediction into our shared detection shape. */
 function toDetection(
   p: WorkflowPrediction,
   fallback: { frameIndex?: number; atSec?: number },
+  imageMeta?: WorkflowDetection["image"],
 ): WorkflowDetection | null {
   if (typeof p.confidence !== "number") return null;
 
@@ -257,6 +422,7 @@ function toDetection(
   const confidence = p.confidence;
 
   let box: WorkflowDetection["box"] | undefined;
+  let prediction: WorkflowDetection["prediction"] | undefined;
   if (
     typeof p.x === "number" &&
     typeof p.y === "number" &&
@@ -268,6 +434,13 @@ function toDetection(
       ymin: p.y - p.height / 2,
       xmax: p.x + p.width / 2,
       ymax: p.y + p.height / 2,
+    };
+    prediction = {
+      x: p.x,
+      y: p.y,
+      width: p.width,
+      height: p.height,
+      detectionId: typeof p.detection_id === "string" ? p.detection_id : undefined,
     };
   }
 
@@ -284,5 +457,7 @@ function toDetection(
           : fallback.frameIndex,
     trackId: typeof p.tracker_id === "string" ? p.tracker_id : typeof p.track_id === "string" ? p.track_id : undefined,
     classId: typeof p.class_id === "number" ? p.class_id : undefined,
+    prediction,
+    image: imageMeta,
   };
 }

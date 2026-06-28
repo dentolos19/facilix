@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 import type { FacilitySettings } from "#/lib/monitoring/logs";
 import type { CanvasLayoutData, JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
@@ -252,6 +252,57 @@ export const idempotencyKey = sqliteTable("idempotency_keys", {
     .$default(() => new Date()),
 });
 
+/**
+ * Roboflow workflow prediction outputs stored per sampled frame.
+ * Each row stores the raw frame image (before) and annotated frame (after)
+ * with bounding boxes drawn, plus the predictions JSON.
+ */
+export const predictionOutput = sqliteTable(
+  "prediction_outputs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$default(() => crypto.randomUUID()),
+    beforeAssetId: text("before_asset_id")
+      .notNull()
+      .references(() => asset.id, { onDelete: "cascade" }),
+    afterAssetId: text("after_asset_id")
+      .notNull()
+      .references(() => asset.id, { onDelete: "cascade" }),
+    segmentId: text("segment_id")
+      .notNull()
+      .references(() => videoSegment.id, { onDelete: "cascade" }),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facility.id, { onDelete: "cascade" }),
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => facilityDevice.id, { onDelete: "cascade" }),
+    pluginId: text("plugin_id").notNull(),
+    workflowId: text("workflow_id").notNull(),
+    outputName: text("output_name").notNull(),
+    frameIndex: integer("frame_index").notNull(),
+    atSec: real("at_sec").notNull(),
+    predictions: text("predictions", { mode: "json" }).$type<Record<string, unknown>[]>().notNull(),
+    image: text("image", { mode: "json" }).$type<{ width: number; height: number }>().notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$default(() => new Date()),
+  },
+  (table) => [
+    index("prediction_outputs_segment_id_idx").on(table.segmentId),
+    index("prediction_outputs_facility_id_idx").on(table.facilityId),
+    index("prediction_outputs_device_id_idx").on(table.deviceId),
+    uniqueIndex("prediction_outputs_idempotency_idx").on(
+      table.segmentId,
+      table.pluginId,
+      table.workflowId,
+      table.outputName,
+      table.frameIndex,
+    ),
+  ],
+);
+
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
@@ -263,3 +314,4 @@ export type FacilityEvent = typeof facilityEvent.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;
+export type PredictionOutput = typeof predictionOutput.$inferSelect;

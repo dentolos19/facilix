@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 
 from api import post_event
 from config import (
@@ -117,32 +117,39 @@ async def process_video(
     workspace_name: str,
     workflow_id: str,
     input_name: str = "image",
-    frame_interval: int = 30,
-    min_confidence: float = 0.4,
+    data_output_names: Annotated[list[str] | None, Query()] = None,
+    class_filter: Annotated[list[str] | None, Query()] = None,
+    frame_interval: Annotated[int, Query(ge=1)] = 30,
+    min_confidence: Annotated[float, Query(ge=0, le=1)] = 0.4,
 ) -> dict[str, Any]:
     """Process a video segment through a Roboflow workflow.
 
     Accepts video bytes as the request body (raw bytes with content-type video/mp4).
     Called by the Worker processor to run object detection on CCTV segments.
+    Returns detections plus video metadata for playback alignment.
     """
     video_bytes = await request.body()
 
     if not video_bytes:
-        return {"error": "No video data provided", "detections": []}
+        raise HTTPException(status_code=400, detail="No video data provided")
 
     try:
-        detections = await process_video_workflow(
+        result = await process_video_workflow(
             video_bytes=video_bytes,
             workspace_name=workspace_name,
             workflow_id=workflow_id,
             input_name=input_name,
+            data_output_names=data_output_names,
+            class_filter=class_filter,
             frame_interval=frame_interval,
             min_confidence=min_confidence,
+            roboflow_api_key=request.headers.get("x-roboflow-api-key"),
+            roboflow_api_base=request.headers.get("x-roboflow-api-base"),
         )
-        return {"detections": detections, "count": len(detections)}
+        return result
     except Exception as exc:
         log.exception("process-video error: %s", exc)
-        return {"error": str(exc), "detections": []}
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":

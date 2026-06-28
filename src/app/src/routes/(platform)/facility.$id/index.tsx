@@ -812,22 +812,33 @@ function Page() {
                 </div>
               )}
               <Separator />
-              <DialogFooter className="p-4 pt-0">
+               <DialogFooter className="p-4 pt-0">
                 <div className="flex w-full items-center justify-between">
-                  <Button
-                    disabled={deleting}
-                    onClick={() => {
-                      if (!confirmDelete) {
-                        setConfirmDelete(true);
-                      } else {
-                        handleDelete();
-                      }
-                    }}
-                    size="sm"
-                    variant="destructive"
-                  >
-                    {deleting ? "Deleting…" : confirmDelete ? "Confirm?" : "Delete"}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        disabled={deleting || monitoringStatus === "running"}
+                        onClick={() => {
+                          if (!confirmDelete) {
+                            setConfirmDelete(true);
+                          } else {
+                            handleDelete();
+                          }
+                        }}
+                        size="sm"
+                        variant="destructive"
+                      >
+                        {deleting ? "Deleting…" : confirmDelete ? "Confirm?" : "Delete"}
+                      </Button>
+                    </TooltipTrigger>
+                    {(deleting || monitoringStatus === "running") && (
+                      <TooltipContent>
+                        {monitoringStatus === "running"
+                          ? "Stop the monitoring service before deleting this facility."
+                          : "Facility is being deleted."}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                   <div className="flex gap-2">
                     <Button
                       onClick={() => {

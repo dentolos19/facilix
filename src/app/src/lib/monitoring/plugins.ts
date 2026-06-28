@@ -304,7 +304,7 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
     const severity = normalizeSeverity(r.severity);
 
     // Normalize alerts — migrate legacy single prompt into scene alerts
-    let alerts: SceneAlertRule[];
+    let alerts: SceneAlertRule[] = [];
     if (Array.isArray(r.alerts) && r.alerts.length > 0) {
       alerts = r.alerts.map(normalizeSceneAlertRule).filter((a): a is SceneMatchAlertRule => a !== null);
     }
@@ -327,7 +327,7 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
       : undefined;
 
     // Normalize alerts — migrate legacy single threshold into alert rules
-    let alerts: DetectionAlertRule[];
+    let alerts: DetectionAlertRule[] = [];
     if (Array.isArray(r.alerts) && r.alerts.length > 0) {
       alerts = r.alerts.map(normalizeAlertRule).filter((a): a is DetectionAlertRule => a !== null);
     }

@@ -15,7 +15,12 @@ import {
   type SegmentAnalysisDeviceConfig,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
-import { runVideoObjectDetection, type WorkflowDetection } from "#/lib/monitoring/roboflow";
+import {
+  runVideoObjectDetection,
+  type DetectionVideoMeta,
+  type PredictionOutputFrame,
+  type WorkflowDetection,
+} from "#/lib/monitoring/roboflow";
 import { recordEvent } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
@@ -123,6 +128,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const allDetections: WorkflowDetection[] = [];
     const detectionCounts: Record<string, number> = {};
     const matchedAlerts: MatchedAlert[] = [];
+    let detectionVideo: DetectionVideoMeta | null = null;
 
     for (const detectionPlugin of detectionPlugins) {
       const pluginId = detectionPlugin.plugin.id;
@@ -136,7 +142,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       const config = detectionPlugin.config as WorkflowObjectDetectionDeviceConfig;
       const classFilter = config.classes && config.classes.length > 0 ? config.classes : undefined;
 
-      const filtered = await step.do<WorkflowDetection[]>(`detect-objects-${pluginId}`, STEP_RETRIES, async () => {
+      const result = await step.do(`detect-objects-${pluginId}`, STEP_RETRIES, async () => {
         const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
         this.#log.info("running Roboflow workflow", {
           pluginId,
@@ -146,15 +152,45 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           storedSegmentSize: segmentMetadata.size,
           classFilter: classFilter ?? "all",
         });
-        return runVideoObjectDetection({
+        const result = await runVideoObjectDetection({
           segmentBytes,
           pluginWorkflow,
           facilityId,
           minConfidence: config.minConfidence,
           classFilter,
           serverNamespace: this.env.SERVER,
+          roboflowApiKey: this.env.ROBOFLOW_API_KEY,
+          roboflowApiBase: "https://serverless.roboflow.com",
         });
+
+        if (result.predictionOutputs.length > 0) {
+          await persistPredictionOutputs({
+            database: this.env.DATABASE,
+            bucket: this.env.BUCKET,
+            segmentId,
+            facilityId,
+            deviceId,
+            pluginId,
+            workflowId: pluginWorkflow.workflowId,
+            frames: result.predictionOutputs,
+          });
+        }
+
+        // Never return base64 image payloads from a Workflow step. Workflows
+        // serializes step outputs and has a 32MiB serialized value limit.
+        return {
+          detections: result.detections,
+          predictionOutputs: [],
+          video: result.video,
+        };
       });
+
+      const filtered = result.detections;
+
+      // Capture video metadata from the first detection plugin
+      if (!detectionVideo && result.video) {
+        detectionVideo = result.video;
+      }
 
       // Count detections based on threshold mode
       const countValue = computeCount(filtered, config.thresholdMode);
@@ -291,7 +327,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
 
       const data = {
         source: "facilix-processor",
-        analysisVersion: 6,
+        analysisVersion: 8,
+        detectionVideo,
         detections: allDetections.map((d) => ({
           label: d.label,
           confidence: d.confidence,
@@ -300,6 +337,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           frameIndex: d.frameIndex,
           trackId: d.trackId,
           classId: d.classId,
+          prediction: d.prediction,
+          image: d.image,
         })),
         detectionCounts,
         anomalies,
@@ -553,12 +592,128 @@ async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint
   return object.bytes();
 }
 
+async function persistPredictionOutputs({
+  database,
+  bucket,
+  segmentId,
+  facilityId,
+  deviceId,
+  pluginId,
+  workflowId,
+  frames,
+}: {
+  database: D1Database;
+  bucket: R2Bucket;
+  segmentId: string;
+  facilityId: string;
+  deviceId: string;
+  pluginId: string;
+  workflowId: string;
+  frames: PredictionOutputFrame[];
+}): Promise<void> {
+  const db = createDatabase(database);
+  const outputName = "predictions";
+
+  for (const frame of frames) {
+    const frameIndex = frame.frameIndex;
+    const beforeKey = `prediction-outputs/${segmentId}/${pluginId}/${workflowId}/${frameIndex}/before.jpg`;
+    const afterKey = `prediction-outputs/${segmentId}/${pluginId}/${workflowId}/${frameIndex}/after.jpg`;
+    const beforeBytes = base64ToArrayBuffer(frame.beforeImage);
+    const afterBytes = base64ToArrayBuffer(frame.afterImage);
+    const beforeName = `${segmentId}-frame-${frameIndex}-before.jpg`;
+    const afterName = `${segmentId}-frame-${frameIndex}-after.jpg`;
+
+    await bucket.put(beforeKey, beforeBytes, {
+      httpMetadata: { contentType: "image/jpeg" },
+      customMetadata: { name: beforeName },
+    });
+    await db
+      .insert(schema.asset)
+      .values({
+        id: beforeKey,
+        name: beforeName,
+        type: "image/jpeg",
+        size: beforeBytes.byteLength,
+        hash: "",
+      })
+      .onConflictDoUpdate({
+        target: schema.asset.id,
+        set: {
+          size: beforeBytes.byteLength,
+          updatedAt: new Date(),
+        },
+      });
+
+    await bucket.put(afterKey, afterBytes, {
+      httpMetadata: { contentType: "image/jpeg" },
+      customMetadata: { name: afterName },
+    });
+    await db
+      .insert(schema.asset)
+      .values({
+        id: afterKey,
+        name: afterName,
+        type: "image/jpeg",
+        size: afterBytes.byteLength,
+        hash: "",
+      })
+      .onConflictDoUpdate({
+        target: schema.asset.id,
+        set: {
+          size: afterBytes.byteLength,
+          updatedAt: new Date(),
+        },
+      });
+
+    await db
+      .insert(schema.predictionOutput)
+      .values({
+        beforeAssetId: beforeKey,
+        afterAssetId: afterKey,
+        segmentId,
+        facilityId,
+        deviceId,
+        pluginId,
+        workflowId,
+        outputName,
+        frameIndex,
+        atSec: frame.atSec,
+        predictions: frame.predictions as unknown as Record<string, unknown>[],
+        image: frame.image,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.predictionOutput.segmentId,
+          schema.predictionOutput.pluginId,
+          schema.predictionOutput.workflowId,
+          schema.predictionOutput.outputName,
+          schema.predictionOutput.frameIndex,
+        ],
+        set: {
+          beforeAssetId: beforeKey,
+          afterAssetId: afterKey,
+          predictions: frame.predictions as unknown as Record<string, unknown>[],
+          image: frame.image,
+        },
+      });
+  }
+}
+
 function countByLabel(detections: WorkflowDetection[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const d of detections) {
     counts[d.label] = (counts[d.label] ?? 0) + 1;
   }
   return counts;
+}
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 function computeCount(detections: WorkflowDetection[], mode: string): number {

@@ -125,81 +125,6 @@ function PropRow({ label, value, monospace }: { label: string; value: string; mo
   );
 }
 
-/**
- * Renders the configuration properties for the selected device.
- */
-function DevicePropertiesSection({ device }: { device: PlacedItem }) {
-  const props = device.props;
-  if (!props) return null;
-
-  if (device.type === "CCTV") {
-    const videoSource = String(props.videoSource ?? "simulation");
-    const streamName = String(props.simulationStream ?? "");
-    const streamUrl = String(props.streamUrl ?? "");
-    const streamPath = String(props.streamPath ?? "");
-    const deviceId = String(props.deviceId ?? "");
-    const raw = props.capture;
-    const capture: {
-      segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
-    } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
-    const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
-
-    return (
-      <div className="flex flex-col gap-2">
-        <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
-          Properties
-        </h4>
-        <div className="border-border bg-muted/20 rounded-none border p-2">
-          <dl className="flex flex-col gap-1.5">
-            <PropRow label="Video Source" value={videoSource} />
-            {streamName && videoSource === "simulation" && (
-              <PropRow label="Simulation Stream" monospace value={streamName} />
-            )}
-            {streamUrl && videoSource !== "simulation" && <PropRow label="Stream URL" monospace value={streamUrl} />}
-            {streamPath && <PropRow label="Stream Path" monospace value={streamPath} />}
-            {deviceId && <PropRow label="Device ID" monospace value={deviceId} />}
-            <PropRow label="Segment Duration" value={segments.enabled ? `${segments.durationSec ?? 30}s` : "Off"} />
-          </dl>
-        </div>
-      </div>
-    );
-  }
-
-  if (device.type === "Sensor") {
-    const sensorDataSource = String(props.sensorDataSource ?? "simulation");
-    const sensorType = String(props.sensorType ?? "unknown");
-    const simulationDeviceId = String(props.simulationDeviceId ?? "");
-    const pullUrl = String(props.pullUrl ?? "");
-    const pollInterval = String(props.pollInterval ?? "");
-    const payloadFormat = String(props.payloadFormat ?? "facilix");
-    const unit = String(props.unit ?? "");
-    const threshold = String(props.threshold ?? "");
-
-    return (
-      <div className="flex flex-col gap-2">
-        <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
-          Properties
-        </h4>
-        <div className="border-border bg-muted/20 rounded-none border p-2">
-          <dl className="flex flex-col gap-1.5">
-            <PropRow label="Sensor Type" value={sensorType} />
-            <PropRow label="Data Source" value={sensorDataSource} />
-            {sensorDataSource === "simulation" && simulationDeviceId && (
-              <PropRow label="Simulation Device" monospace value={simulationDeviceId} />
-            )}
-            {sensorDataSource === "http-pull" && pullUrl && <PropRow label="Pull URL" monospace value={pullUrl} />}
-            {threshold && unit && <PropRow label="Threshold" value={`${threshold}${unit}`} />}
-            {pollInterval && <PropRow label="Poll Interval" value={`${pollInterval}s`} />}
-            <PropRow label="Payload Format" value={payloadFormat} />
-          </dl>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 /** Derive a device-level status string from a sensor reading. */
 function deriveSensorDeviceStatus(reading: SensorReadingRow | null): string | null {
   if (!reading) return null;
@@ -306,7 +231,7 @@ export function DeviceEventPanel({
 
         {selectedDevice && (
           <div className="flex flex-col gap-2">
-            {/* Device summary */}
+            {/* Device summary with properties */}
             <div className="border-border bg-muted/20 rounded-none border p-2">
               <div className="flex items-start justify-between">
                 <div>
@@ -329,10 +254,73 @@ export function DeviceEventPanel({
                   <ExternalLinkIcon className="size-3.5" />
                 </button>
               </div>
-            </div>
 
-            {/* Device properties */}
-            <DevicePropertiesSection device={selectedDevice} />
+              {/* Inline properties */}
+              {(() => {
+                const props = selectedDevice.props;
+                if (!props) return null;
+
+                if (selectedDevice.type === "CCTV") {
+                  const videoSource = String(props.videoSource ?? "simulation");
+                  const streamName = String(props.simulationStream ?? "");
+                  const streamUrl = String(props.streamUrl ?? "");
+                  const streamPath = String(props.streamPath ?? "");
+                  const deviceId = String(props.deviceId ?? "");
+                  const raw = props.capture;
+                  const capture: {
+                    segments?: { enabled?: boolean; intervalSec?: number; durationSec?: number };
+                  } = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as typeof capture) : {};
+                  const segments = { enabled: true, intervalSec: 30, durationSec: 30, ...capture.segments };
+
+                  return (
+                    <dl className="border-border/50 mt-2 flex flex-col gap-1.5 border-t pt-2">
+                      <PropRow label="Video Source" value={videoSource} />
+                      {streamName && videoSource === "simulation" && (
+                        <PropRow label="Simulation Stream" monospace value={streamName} />
+                      )}
+                      {streamUrl && videoSource !== "simulation" && (
+                        <PropRow label="Stream URL" monospace value={streamUrl} />
+                      )}
+                      {streamPath && <PropRow label="Stream Path" monospace value={streamPath} />}
+                      {deviceId && <PropRow label="Device ID" monospace value={deviceId} />}
+                      <PropRow
+                        label="Segment Duration"
+                        value={segments.enabled ? `${segments.durationSec ?? 30}s` : "Off"}
+                      />
+                    </dl>
+                  );
+                }
+
+                if (selectedDevice.type === "Sensor") {
+                  const sensorDataSource = String(props.sensorDataSource ?? "simulation");
+                  const sensorType = String(props.sensorType ?? "unknown");
+                  const simulationDeviceId = String(props.simulationDeviceId ?? "");
+                  const pullUrl = String(props.pullUrl ?? "");
+                  const pollInterval = String(props.pollInterval ?? "");
+                  const payloadFormat = String(props.payloadFormat ?? "facilix");
+                  const unit = String(props.unit ?? "");
+                  const threshold = String(props.threshold ?? "");
+
+                  return (
+                    <dl className="border-border/50 mt-2 flex flex-col gap-1.5 border-t pt-2">
+                      <PropRow label="Sensor Type" value={sensorType} />
+                      <PropRow label="Data Source" value={sensorDataSource} />
+                      {sensorDataSource === "simulation" && simulationDeviceId && (
+                        <PropRow label="Simulation Device" monospace value={simulationDeviceId} />
+                      )}
+                      {sensorDataSource === "http-pull" && pullUrl && (
+                        <PropRow label="Pull URL" monospace value={pullUrl} />
+                      )}
+                      {threshold && unit && <PropRow label="Threshold" value={`${threshold}${unit}`} />}
+                      {pollInterval && <PropRow label="Poll Interval" value={`${pollInterval}s`} />}
+                      <PropRow label="Payload Format" value={payloadFormat} />
+                    </dl>
+                  );
+                }
+
+                return null;
+              })()}
+            </div>
 
             {/* Intelligence plugins (CCTV only) */}
             {isCCTV && <CctvIntelligencePluginsSection device={selectedDevice} />}

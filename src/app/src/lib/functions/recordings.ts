@@ -18,6 +18,19 @@ export interface RecordingDetection {
   frameIndex?: number;
   trackId?: string;
   classId?: number;
+  /** Raw Roboflow prediction geometry (center-based coordinates and detection ID). */
+  prediction?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    detectionId?: string;
+  };
+  /** Source image dimensions that the prediction coordinates are relative to. */
+  image?: {
+    width: number;
+    height: number;
+  };
 }
 
 /** An anomaly with timestamp for playback timeline. */
@@ -74,6 +87,13 @@ export interface RecordingRow {
   data: {
     source?: string;
     analysisVersion?: number;
+    detectionVideo?: {
+      fps: number;
+      frameCount: number;
+      frameInterval: number;
+      sampledFrameCount?: number;
+      failedFrameCount?: number;
+    };
     detections?: RecordingDetection[];
     detectionCounts?: Record<string, number>;
     anomalies?: RecordingAnomaly[];

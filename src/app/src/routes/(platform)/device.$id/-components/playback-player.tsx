@@ -5,6 +5,7 @@ import {
   PlayIcon,
   SkipBackIcon,
   SkipForwardIcon,
+  SquareDashedBottomIcon,
   Volume2Icon,
   VolumeXIcon,
   VideoIcon,
@@ -12,6 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { RecordingDetection, RecordingRow } from "#/lib/functions/recordings";
+import { calculateObjectContainRect, getActiveDetections, projectDetectionBox } from "#/lib/monitoring/playback";
 import { cn } from "#/lib/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -72,6 +74,7 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
+  const [showDetections, setShowDetections] = useState(true);
 
   // ── Segment mapping ──────────────────────────────────────────────────────
 
@@ -305,6 +308,10 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
           e.preventDefault();
           toggleMute();
           break;
+        case "b":
+          e.preventDefault();
+          setShowDetections((v) => !v);
+          break;
       }
     };
     window.addEventListener("keydown", onKey);
@@ -343,34 +350,15 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
 
   // ── Derived overlay data ─────────────────────────────────────────────────
 
-  const activeAnomalies = useMemo(() => {
-    if (!currentSegment) return [];
-    const seg = currentSegment;
-    const offset = currentTime - seg.combinedStart;
-    const anomalies = seg.recording.data?.anomalies ?? [];
-    return anomalies.filter((a) => offset >= a.atSec && offset < a.atSec + 2);
-  }, [currentSegment, currentTime]);
-
   const activeDetections = useMemo(() => {
     if (!currentSegment) return [];
     const seg = currentSegment;
     const offset = currentTime - seg.combinedStart;
-    const detections = seg.recording.data?.detections ?? [];
-    return detections.filter((d) => {
-      if (d.atSec === undefined) return false;
-      return offset >= d.atSec && offset < d.atSec + 0.5;
-    });
-  }, [currentSegment, currentTime]);
+    const data = seg.recording.data ?? {};
+    const detections = data.detections ?? [];
 
-  // All anomalies across segments for the combined timeline
-  const allAnomalies = useMemo(() => {
-    return segments.flatMap((seg) =>
-      (seg.recording.data?.anomalies ?? []).map((a) => ({
-        ...a,
-        combinedTime: seg.combinedStart + a.atSec,
-      })),
-    );
-  }, [segments]);
+    return getActiveDetections(detections, offset, data.detectionVideo);
+  }, [currentSegment, currentTime]);
 
   const progressPct = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
@@ -442,30 +430,12 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
             </button>
           )}
 
-          {/* Active anomaly chips */}
-          {activeAnomalies.length > 0 && (
-            <div className="absolute top-2 left-2 z-10 flex max-w-[70%] flex-wrap gap-1">
-              {activeAnomalies.map((a, i) => (
-                <span
-                  className="inline-flex items-center gap-1 rounded-none border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-700"
-                  key={`${a.label}-${a.atSec}-${i}`}
-                >
-                  <PlayIcon className="size-2.5 fill-current" />
-                  {a.label} ({Math.round(a.confidence * 100)}%)
-                </span>
-              ))}
-            </div>
-          )}
-
           {/* Bounding box overlay */}
-          {activeDetections.length > 0 && <BoundingBoxOverlay detections={activeDetections} videoRef={videoRef} />}
-
-          {/* Segment badge */}
-          {currentSegment && (
-            <div className="border-border bg-background/80 text-foreground/60 absolute right-2 bottom-14 z-10 rounded-none border px-2 py-1 text-[9px] backdrop-blur-sm">
-              Segment {currentSegmentIdx + 1}/{segments.length}
-            </div>
+          {showDetections && activeDetections.length > 0 && (
+            <BoundingBoxOverlay detections={activeDetections} videoRef={videoRef} />
           )}
+
+
         </div>
 
         {/* Custom controls bar */}
@@ -486,19 +456,6 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
                     className="bg-foreground/20 absolute top-0 z-10 h-full w-px"
                     key={seg.recording.id}
                     style={{ left: `${pct}%` }}
-                  />
-                );
-              })}
-
-              {/* Anomaly markers */}
-              {allAnomalies.map((a, i) => {
-                const pct = (a.combinedTime / totalDuration) * 100;
-                return (
-                  <div
-                    className="absolute top-0 z-10 h-full w-1 rounded-full bg-amber-500/60"
-                    key={`anomaly-${i}`}
-                    style={{ left: `${pct}%` }}
-                    title={`${a.label} at ${formatTime(a.combinedTime)}`}
                   />
                 );
               })}
@@ -594,6 +551,21 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
             >
               {isFullscreen ? <MinimizeIcon className="size-3.5" /> : <MaximizeIcon className="size-3.5" />}
             </button>
+
+            {/* Toggle detections */}
+            <button
+              className={cn(
+                "flex size-7 items-center justify-center rounded-none transition-colors",
+                showDetections
+                  ? "text-lime-500 hover:bg-muted hover:text-lime-400"
+                  : "text-foreground/40 hover:bg-muted hover:text-foreground/70",
+              )}
+              onClick={() => setShowDetections((v) => !v)}
+              type="button"
+              title={showDetections ? "Hide detections (B)" : "Show detections (B)"}
+            >
+              <SquareDashedBottomIcon className="size-3.5" />
+            </button>
           </div>
         </div>
       </div>
@@ -601,7 +573,7 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
       {/* ─ Right: Analysis panels ──────────────────────────────────────── */}
       {currentSegment && (
         <div className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto">
-          <AnalysisPanel segment={currentSegment} currentTime={currentTime} />
+          <AnalysisPanel segment={currentSegment} />
         </div>
       )}
     </div>
@@ -610,75 +582,61 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
 
 // ─── Analysis Panel ─────────────────────────────────────────────────────────
 
-function AnalysisPanel({ segment, currentTime }: { segment: Segment; currentTime: number }) {
+function AnalysisPanel({ segment }: { segment: Segment }) {
   const data = segment.recording.data ?? {};
   const sceneSummary = data.sceneSummary ?? null;
-  const anomalies = data.anomalies ?? [];
   const detectionCounts = data.detectionCounts ?? {};
 
-  const offset = currentTime - segment.combinedStart;
+  const counts = Object.entries(detectionCounts)
+    .filter(([key]) => !key.startsWith("__"))
+    .sort(([, a], [, b]) => b - a);
 
   return (
     <div className="flex flex-col gap-3">
-      {sceneSummary && (
-        <div className="border-border bg-muted/20 rounded-none border p-3">
-          <h3 className="font-heading text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase">
-            Scene understanding
-          </h3>
-          <p className="text-foreground/80 text-[11px] leading-relaxed">{sceneSummary}</p>
-        </div>
-      )}
-
+      {/* Detection summary */}
       <div className="border-border bg-muted/20 rounded-none border p-3">
         <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
           Detections
         </h3>
-        {Object.keys(detectionCounts).length === 0 ? (
+        {counts.length === 0 ? (
           <p className="text-muted-foreground/50 text-[11px]">No detections for this segment.</p>
         ) : (
-          <ul className="flex flex-wrap gap-2">
-            {Object.entries(detectionCounts)
-              .filter(([key]) => !key.startsWith("__"))
-              .map(([label, count]) => (
-                <li
-                  className="border-border bg-background text-foreground/80 rounded-none border px-2 py-1 text-[10px]"
+          <div className="flex flex-col gap-1.5">
+            {counts.map(([label, count]) => {
+              const total = counts.reduce((sum, [, c]) => sum + c, 0);
+              const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+              return (
+                <div
+                  className="border-border bg-background flex items-center justify-between rounded-none border px-2.5 py-1.5"
                   key={label}
                 >
-                  {count}× {label}
-                </li>
-              ))}
-          </ul>
+                  <span className="text-foreground/80 text-[11px] font-medium capitalize">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-muted h-1 w-16 overflow-hidden rounded-full">
+                      <div className="bg-foreground/60 h-full rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-muted-foreground w-10 text-right font-mono text-[10px] tabular-nums">
+                      {count}×
+                    </span>
+                    <span className="text-muted-foreground/50 w-8 text-right font-mono text-[10px] tabular-nums">
+                      {pct}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* Anomaly timeline */}
-      {anomalies.length > 0 && (
-        <div className="border-border bg-muted/20 shrink-0 rounded-none border p-3">
-          <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
-            Anomaly timeline
-          </h3>
-          <div className="flex flex-col gap-1.5">
-            {anomalies.map((a, i) => (
-              <button
-                className={cn(
-                  "shrink-0 rounded-none border px-2 py-1 text-left text-[10px] transition-colors",
-                  offset >= a.atSec && offset < a.atSec + 2
-                    ? "border-amber-500/50 bg-amber-500/10 text-amber-700"
-                    : "border-border bg-background text-foreground/70 hover:bg-muted",
-                )}
-                key={`${a.label}-${a.atSec}-${i}`}
-                onClick={() => {
-                  // This would require a seek callback; skip for now
-                }}
-                type="button"
-              >
-                <span className="font-mono tabular-nums">{formatTime(a.atSec)}</span>
-                <span className="ml-1.5">{a.label}</span>
-                <span className="text-muted-foreground/60 ml-1">{Math.round(a.confidence * 100)}%</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Scene summary (collapsible, short) */}
+      {sceneSummary && (
+        <details className="border-border bg-muted/20 rounded-none border">
+          <summary className="text-muted-foreground hover:text-foreground/70 cursor-pointer p-3 text-[10px] font-medium tracking-wider uppercase select-none">
+            Scene context
+          </summary>
+          <p className="text-foreground/80 px-3 pb-3 text-[11px] leading-relaxed">{sceneSummary}</p>
+        </details>
       )}
     </div>
   );
@@ -707,7 +665,21 @@ function BoundingBoxOverlay({
       setContainerSize({ width: container.clientWidth, height: container.clientHeight });
     };
 
+    // Try immediately — if video metadata is already loaded this gets us going.
     updateSizes();
+
+    // If video dimensions are still 0, poll until they become available.
+    // This handles the race where the effect runs before loadedmetadata fires.
+    let pollTimer: ReturnType<typeof setInterval> | undefined;
+    if (video.videoWidth === 0) {
+      pollTimer = setInterval(() => {
+        updateSizes();
+        if (video.videoWidth > 0 && pollTimer) {
+          clearInterval(pollTimer);
+        }
+      }, 100);
+    }
+
     video.addEventListener("loadedmetadata", updateSizes);
     video.addEventListener("resize", updateSizes);
 
@@ -715,6 +687,7 @@ function BoundingBoxOverlay({
     resizeObserver.observe(container);
 
     return () => {
+      if (pollTimer) clearInterval(pollTimer);
       video.removeEventListener("loadedmetadata", updateSizes);
       video.removeEventListener("resize", updateSizes);
       resizeObserver.disconnect();
@@ -725,43 +698,27 @@ function BoundingBoxOverlay({
     return null;
   }
 
-  const videoAspect = videoSize.width / videoSize.height;
-  const containerAspect = containerSize.width / containerSize.height;
-
-  let displayWidth: number;
-  let displayHeight: number;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (videoAspect > containerAspect) {
-    displayWidth = containerSize.width;
-    displayHeight = containerSize.width / videoAspect;
-    offsetY = (containerSize.height - displayHeight) / 2;
-  } else {
-    displayHeight = containerSize.height;
-    displayWidth = containerSize.height * videoAspect;
-    offsetX = (containerSize.width - displayWidth) / 2;
-  }
-
-  const scaleX = displayWidth / videoSize.width;
-  const scaleY = displayHeight / videoSize.height;
+  const displayRect = calculateObjectContainRect(containerSize, videoSize);
+  if (!displayRect) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0" ref={containerRef}>
       {detections.map((d, i) => {
-        if (!d.box) return null;
-        const left = offsetX + d.box.xmin * scaleX;
-        const top = offsetY + d.box.ymin * scaleY;
-        const width = (d.box.xmax - d.box.xmin) * scaleX;
-        const height = (d.box.ymax - d.box.ymin) * scaleY;
+        const projected = projectDetectionBox(d, displayRect, videoSize);
+        if (!projected) return null;
 
         return (
           <div
-            className="absolute border-2 border-amber-500 bg-amber-500/10"
+            className="absolute border-2 border-lime-400 bg-lime-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.8)]"
             key={`${d.label}-${i}`}
-            style={{ left, top, width, height }}
+            style={{
+              left: projected.left,
+              top: projected.top,
+              width: projected.width,
+              height: projected.height,
+            }}
           >
-            <span className="absolute -top-5 left-0 rounded bg-amber-500 px-1 py-0.5 text-[9px] font-medium whitespace-nowrap text-white">
+            <span className="absolute -top-5 left-0 bg-lime-400 px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap text-black shadow-sm">
               {d.label} {Math.round(d.confidence * 100)}%
             </span>
           </div>

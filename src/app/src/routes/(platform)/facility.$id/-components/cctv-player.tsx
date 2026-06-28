@@ -163,7 +163,6 @@ function HlsVideoElement({
 
 export function CctvPlayer({
   hlsUrl,
-  streamName,
   onStatusChange,
   objectDetectionEnabled,
   showAdvancedControls = false,
@@ -249,13 +248,10 @@ export function CctvPlayer({
         <div className="pointer-events-none absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded bg-black/60 px-1.5 py-0.5">
           <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
           <span className="text-[9px] font-medium text-white/80 uppercase">LIVE</span>
-          {streamName && <span className="ml-1 text-[9px] text-white/60">{streamName}</span>}
         </div>
       </div>
 
-      {enableExpandedDialog && (
-        <CctvExpandedDialog hlsUrl={hlsUrl} onOpenChange={setExpanded} open={expanded} streamName={streamName} />
-      )}
+      {enableExpandedDialog && <CctvExpandedDialog hlsUrl={hlsUrl} onOpenChange={setExpanded} open={expanded} />}
     </>
   );
 }
@@ -407,12 +403,10 @@ function formatTime(t: number) {
 
 function CctvExpandedDialog({
   hlsUrl,
-  streamName,
   open,
   onOpenChange,
 }: {
   hlsUrl: string;
-  streamName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -557,7 +551,6 @@ function CctvExpandedDialog({
             <div className="flex items-center gap-2">
               <span className="size-2 animate-pulse rounded-full bg-red-500" />
               <span className="text-[11px] font-medium text-white/80 uppercase">LIVE</span>
-              {streamName && <span className="font-mono text-[11px] text-white/60">{streamName}</span>}
             </div>
             <Button
               className="text-white/70 hover:bg-white/10 hover:text-white"
