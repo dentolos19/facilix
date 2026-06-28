@@ -38,7 +38,7 @@ export function DeviceDetailShell({
   status,
 }: DeviceDetailShellProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
       <div className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
         <Link params={{ id: device.facilityId }} to="/facility/$id">
           <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
@@ -69,7 +69,7 @@ export function DeviceDetailShell({
 
 export function DeviceDetailLayout({ device, subtitle, children, sidebar, status }: DeviceDetailLayoutProps) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 p-6">
+    <div className="flex h-dvh min-h-0 flex-col gap-4 p-6">
       <div className="flex shrink-0 items-center gap-3">
         <Link params={{ id: device.facilityId }} to="/facility/$id">
           <Button aria-label="Back to facility" size="icon-sm" variant="ghost">

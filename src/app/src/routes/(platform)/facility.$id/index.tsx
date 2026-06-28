@@ -812,7 +812,7 @@ function Page() {
                 </div>
               )}
               <Separator />
-               <DialogFooter className="p-4 pt-0">
+              <DialogFooter className="p-4 pt-0">
                 <div className="flex w-full items-center justify-between">
                   <Tooltip>
                     <TooltipTrigger asChild>

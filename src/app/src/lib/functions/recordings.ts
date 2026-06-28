@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 
@@ -140,4 +140,65 @@ export const getDeviceRecordings = createServerFn({ method: "GET" })
       .limit(limit);
 
     return rows.map(toRecording);
+  });
+
+// ─── Prediction Outputs ─────────────────────────────────────────────────────
+
+export interface PredictionOutputRow {
+  id: string;
+  beforeAssetId: string;
+  afterAssetId: string;
+  segmentId: string;
+  pluginId: string;
+  workflowId: string;
+  outputName: string;
+  frameIndex: number;
+  atSec: number;
+  predictions: RecordingDetection[];
+  image: { width: number; height: number };
+  createdAt: Date;
+}
+
+/**
+ * Get Roboflow prediction outputs for a device, newest-first.
+ * Limited to `limit` rows (default 100, max 500).
+ */
+export const getDevicePredictions = createServerFn({ method: "GET" })
+  .validator((data: { facilityId: string; deviceId: string; limit?: number }) => {
+    if (!data.facilityId) throw new Error("Facility ID is required");
+    if (!data.deviceId) throw new Error("Device ID is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const db = createDatabase(env.DATABASE);
+    const limit = Math.min(Math.max(1, data.limit ?? 100), 500);
+
+    const rows = await db
+      .select()
+      .from(schema.predictionOutput)
+      .where(
+        and(
+          eq(schema.predictionOutput.facilityId, data.facilityId),
+          eq(schema.predictionOutput.deviceId, data.deviceId),
+        ),
+      )
+      .orderBy(desc(schema.predictionOutput.createdAt))
+      .limit(limit);
+
+    return rows.map(
+      (row): PredictionOutputRow => ({
+        id: row.id,
+        beforeAssetId: row.beforeAssetId,
+        afterAssetId: row.afterAssetId,
+        segmentId: row.segmentId,
+        pluginId: row.pluginId,
+        workflowId: row.workflowId,
+        outputName: row.outputName,
+        frameIndex: row.frameIndex,
+        atSec: row.atSec,
+        predictions: row.predictions as unknown as RecordingDetection[],
+        image: row.image,
+        createdAt: row.createdAt,
+      }),
+    );
   });

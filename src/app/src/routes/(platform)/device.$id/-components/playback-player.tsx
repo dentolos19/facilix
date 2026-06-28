@@ -5,21 +5,20 @@ import {
   PlayIcon,
   SkipBackIcon,
   SkipForwardIcon,
-  SquareDashedBottomIcon,
   Volume2Icon,
   VolumeXIcon,
   VideoIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { RecordingDetection, RecordingRow } from "#/lib/functions/recordings";
-import { calculateObjectContainRect, getActiveDetections, projectDetectionBox } from "#/lib/monitoring/playback";
+import type { PredictionOutputRow, RecordingRow } from "#/lib/functions/recordings";
 import { cn } from "#/lib/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface PlaybackPlayerProps {
   recordings: RecordingRow[];
+  predictions?: PredictionOutputRow[];
   className?: string;
 }
 
@@ -62,7 +61,7 @@ function formatTimestamp(date: Date) {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
+export function PlaybackPlayer({ recordings, predictions = [], className }: PlaybackPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
@@ -74,7 +73,6 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
   const [playbackRate, setPlaybackRate] = useState<number>(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
-  const [showDetections, setShowDetections] = useState(true);
 
   // ── Segment mapping ──────────────────────────────────────────────────────
 
@@ -308,10 +306,6 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
           e.preventDefault();
           toggleMute();
           break;
-        case "b":
-          e.preventDefault();
-          setShowDetections((v) => !v);
-          break;
       }
     };
     window.addEventListener("keydown", onKey);
@@ -347,18 +341,6 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
     },
     [handleSeekBarInteraction],
   );
-
-  // ── Derived overlay data ─────────────────────────────────────────────────
-
-  const activeDetections = useMemo(() => {
-    if (!currentSegment) return [];
-    const seg = currentSegment;
-    const offset = currentTime - seg.combinedStart;
-    const data = seg.recording.data ?? {};
-    const detections = data.detections ?? [];
-
-    return getActiveDetections(detections, offset, data.detectionVideo);
-  }, [currentSegment, currentTime]);
 
   const progressPct = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
@@ -429,13 +411,6 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
               <span className="text-muted-foreground/50 text-[11px]">Playback finished — click to replay</span>
             </button>
           )}
-
-          {/* Bounding box overlay */}
-          {showDetections && activeDetections.length > 0 && (
-            <BoundingBoxOverlay detections={activeDetections} videoRef={videoRef} />
-          )}
-
-
         </div>
 
         {/* Custom controls bar */}
@@ -551,29 +526,14 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
             >
               {isFullscreen ? <MinimizeIcon className="size-3.5" /> : <MaximizeIcon className="size-3.5" />}
             </button>
-
-            {/* Toggle detections */}
-            <button
-              className={cn(
-                "flex size-7 items-center justify-center rounded-none transition-colors",
-                showDetections
-                  ? "text-lime-500 hover:bg-muted hover:text-lime-400"
-                  : "text-foreground/40 hover:bg-muted hover:text-foreground/70",
-              )}
-              onClick={() => setShowDetections((v) => !v)}
-              type="button"
-              title={showDetections ? "Hide detections (B)" : "Show detections (B)"}
-            >
-              <SquareDashedBottomIcon className="size-3.5" />
-            </button>
           </div>
         </div>
       </div>
 
       {/* ─ Right: Analysis panels ──────────────────────────────────────── */}
       {currentSegment && (
-        <div className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto">
-          <AnalysisPanel segment={currentSegment} />
+        <div className="flex w-72 shrink-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+          <AnalysisPanel predictions={predictions} segment={currentSegment} />
         </div>
       )}
     </div>
@@ -582,7 +542,7 @@ export function PlaybackPlayer({ recordings, className }: PlaybackPlayerProps) {
 
 // ─── Analysis Panel ─────────────────────────────────────────────────────────
 
-function AnalysisPanel({ segment }: { segment: Segment }) {
+function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions: PredictionOutputRow[] }) {
   const data = segment.recording.data ?? {};
   const sceneSummary = data.sceneSummary ?? null;
   const detectionCounts = data.detectionCounts ?? {};
@@ -590,6 +550,12 @@ function AnalysisPanel({ segment }: { segment: Segment }) {
   const counts = Object.entries(detectionCounts)
     .filter(([key]) => !key.startsWith("__"))
     .sort(([, a], [, b]) => b - a);
+
+  // Filter predictions for this segment
+  const segmentPredictions = useMemo(
+    () => predictions.filter((p) => p.segmentId === segment.recording.id),
+    [predictions, segment.recording.id],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -629,6 +595,47 @@ function AnalysisPanel({ segment }: { segment: Segment }) {
         )}
       </div>
 
+      {/* Predicted frames */}
+      {segmentPredictions.length > 0 && (
+        <div className="border-border bg-muted/20 rounded-none border p-3">
+          <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
+            Predicted Frames
+          </h3>
+          <div className="flex flex-col gap-2">
+            {segmentPredictions.map((pred) => {
+              const labels = [...new Set(pred.predictions.map((p) => p.label).filter(Boolean))];
+              return (
+                <div className="border-border bg-background/50 rounded-none border" key={pred.id}>
+                  <div
+                    className="bg-muted flex items-center justify-center overflow-hidden"
+                    style={{ maxHeight: "120px" }}
+                  >
+                    <img
+                      alt={`Prediction frame ${pred.frameIndex}`}
+                      className="max-h-[120px] w-auto object-contain"
+                      src={`/assets/${encodeURIComponent(pred.afterAssetId)}`}
+                    />
+                  </div>
+                  <div className="border-border border-t px-2.5 py-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
+                        Frame {pred.frameIndex} &middot; {pred.atSec.toFixed(1)}s
+                      </span>
+                      <span className="text-muted-foreground/50 font-mono text-[9px]">
+                        {pred.predictions.length} {pred.predictions.length === 1 ? "detection" : "detections"}
+                      </span>
+                    </div>
+                    {labels.length > 0 && (
+                      <p className="text-muted-foreground/60 mt-0.5 truncate text-[9px]">{labels.join(", ")}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Scene summary (collapsible, short) */}
       {sceneSummary && (
         <details className="border-border bg-muted/20 rounded-none border">
@@ -638,92 +645,6 @@ function AnalysisPanel({ segment }: { segment: Segment }) {
           <p className="text-foreground/80 px-3 pb-3 text-[11px] leading-relaxed">{sceneSummary}</p>
         </details>
       )}
-    </div>
-  );
-}
-
-// ─── Bounding Box Overlay ───────────────────────────────────────────────────
-
-function BoundingBoxOverlay({
-  detections,
-  videoRef,
-}: {
-  detections: RecordingDetection[];
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-}) {
-  const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const container = containerRef.current?.parentElement;
-    if (!video || !container) return;
-
-    const updateSizes = () => {
-      setVideoSize({ width: video.videoWidth, height: video.videoHeight });
-      setContainerSize({ width: container.clientWidth, height: container.clientHeight });
-    };
-
-    // Try immediately — if video metadata is already loaded this gets us going.
-    updateSizes();
-
-    // If video dimensions are still 0, poll until they become available.
-    // This handles the race where the effect runs before loadedmetadata fires.
-    let pollTimer: ReturnType<typeof setInterval> | undefined;
-    if (video.videoWidth === 0) {
-      pollTimer = setInterval(() => {
-        updateSizes();
-        if (video.videoWidth > 0 && pollTimer) {
-          clearInterval(pollTimer);
-        }
-      }, 100);
-    }
-
-    video.addEventListener("loadedmetadata", updateSizes);
-    video.addEventListener("resize", updateSizes);
-
-    const resizeObserver = new ResizeObserver(updateSizes);
-    resizeObserver.observe(container);
-
-    return () => {
-      if (pollTimer) clearInterval(pollTimer);
-      video.removeEventListener("loadedmetadata", updateSizes);
-      video.removeEventListener("resize", updateSizes);
-      resizeObserver.disconnect();
-    };
-  }, [videoRef]);
-
-  if (videoSize.width === 0 || videoSize.height === 0 || containerSize.width === 0) {
-    return null;
-  }
-
-  const displayRect = calculateObjectContainRect(containerSize, videoSize);
-  if (!displayRect) return null;
-
-  return (
-    <div className="pointer-events-none absolute inset-0" ref={containerRef}>
-      {detections.map((d, i) => {
-        const projected = projectDetectionBox(d, displayRect, videoSize);
-        if (!projected) return null;
-
-        return (
-          <div
-            className="absolute border-2 border-lime-400 bg-lime-400/10 shadow-[0_0_0_1px_rgba(0,0,0,0.8)]"
-            key={`${d.label}-${i}`}
-            style={{
-              left: projected.left,
-              top: projected.top,
-              width: projected.width,
-              height: projected.height,
-            }}
-          >
-            <span className="absolute -top-5 left-0 bg-lime-400 px-1.5 py-0.5 text-[9px] font-semibold whitespace-nowrap text-black shadow-sm">
-              {d.label} {Math.round(d.confidence * 100)}%
-            </span>
-          </div>
-        );
-      })}
     </div>
   );
 }

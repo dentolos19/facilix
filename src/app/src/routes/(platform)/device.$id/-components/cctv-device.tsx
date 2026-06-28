@@ -7,7 +7,9 @@ import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 
+import { Route as DeviceRoute } from "../index";
 import { CctvPlaybackTab } from "./cctv-playback";
+import { CctvPredictionsTab } from "./cctv-predictions";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
@@ -15,6 +17,7 @@ const TABS = [
   { id: "live", label: "Live" },
   { id: "logs", label: "Logs" },
   { id: "playback", label: "Playback" },
+  { id: "predictions", label: "Predictions" },
 ];
 
 export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
@@ -29,7 +32,13 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
 
   const streamName = String(device.data.simulationStream ?? "");
   const [objectDetectionEnabled, setObjectDetectionEnabled] = useState(false);
-  const [activeTab, setActiveTab] = useState("live");
+  const { tab } = DeviceRoute.useSearch();
+  const navigate = DeviceRoute.useNavigate();
+  const activeTab = TABS.some((t) => t.id === tab) ? tab! : "live";
+
+  const setActiveTab = (id: string) => {
+    navigate({ search: { tab: id === "live" ? undefined : id }, replace: true });
+  };
 
   // Derive status: if an HLS URL is available the stream is configured → online
   const cctvStatus = hlsUrl ? "online" : "offline";
@@ -54,6 +63,7 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
       )}
       {activeTab === "logs" && <DeviceLogsTab device={device} />}
       {activeTab === "playback" && <CctvPlaybackTab device={device} />}
+      {activeTab === "predictions" && <CctvPredictionsTab device={device} />}
     </DeviceDetailShell>
   );
 }

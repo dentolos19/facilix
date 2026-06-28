@@ -11,6 +11,9 @@ import { SensorDeviceDetail } from "./-components/sensor-device";
 
 export const Route = createFileRoute("/(platform)/device/$id/")({
   component: Page,
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof search.tab === "string" ? search.tab : undefined,
+  }),
 });
 
 function Page() {

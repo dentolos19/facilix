@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { DeviceDetail } from "#/lib/functions/facility";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
 
+import { Route as DeviceRoute } from "../index";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
 import { DeviceLogsTab } from "./device-logs";
 
@@ -30,7 +31,13 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
     timestamp: Date | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("live");
+  const { tab } = DeviceRoute.useSearch();
+  const navigate = DeviceRoute.useNavigate();
+  const activeTab = TABS.some((t) => t.id === tab) ? tab! : "live";
+
+  const setActiveTab = (id: string) => {
+    navigate({ search: { tab: id === "live" ? undefined : id }, replace: true });
+  };
 
   // Fetch latest reading on mount and poll every 10s
   useEffect(() => {
