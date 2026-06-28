@@ -158,9 +158,26 @@ export const saveFacility = createServerFn({ method: "POST" })
     const db = createDatabase(env.DATABASE);
 
     // 1. Update the facility row (name + canvas layout metadata)
+    //    Preserve extra fields like analyticsFeedGrid in facility.data
+    const [existing] = await db
+      .select({ data: schema.facility.data })
+      .from(schema.facility)
+      .where(eq(schema.facility.id, data.facilityId))
+      .limit(1);
+
+    const preservedData = (existing?.data as unknown as Record<string, unknown>) ?? {};
+    const { analyticsFeedGrid } = preservedData;
+
+    const mergedData = {
+      ...data.canvasData,
+      ...(analyticsFeedGrid != null ? { analyticsFeedGrid } : {}),
+    } as Record<string, unknown>;
+
     await db
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update(schema.facility)
-      .set({ name: data.name, data: data.canvasData })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .set({ name: data.name, data: mergedData as any })
       .where(eq(schema.facility.id, data.facilityId));
 
     // ── Zones ────────────────────────────────────────────────────────────

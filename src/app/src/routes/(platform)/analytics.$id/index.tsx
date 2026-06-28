@@ -26,6 +26,7 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/components/ui/chart";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
+import { PlatformTabs } from "#/components/ui/platform-tabs";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
@@ -43,10 +44,15 @@ import type {
 import { getFacilityAnalytics } from "#/lib/functions/analytics";
 import { cn } from "#/lib/utils";
 
+import { FacilityFeedTab } from "./-components/feed-tab";
+
 // ─── Route ──────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute("/(platform)/analytics/$id/")({
   component: Page,
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof search.tab === "string" ? search.tab : undefined,
+  }),
 });
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -82,7 +88,7 @@ function formatChartTime(isoKey: string, range: AnalyticsTimeRange): string {
     return isoKey.slice(11, 16);
   }
   // "2024-01-15" → "Jan 15"
-  const d = new Date(isoKey + (range === "24h" ? "" : "T00:00:00Z"));
+  const d = new Date(isoKey + "T00:00:00Z");
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
@@ -543,66 +549,59 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      {/* Header skeleton */}
-      <div className="flex items-start justify-between">
-        <div className="flex flex-col gap-1">
-          <Skeleton className="h-5 w-48" />
-          <Skeleton className="h-3 w-64" />
+    <div className="min-h-0 flex-1 overflow-auto p-6">
+      <div className="flex flex-col gap-6">
+        {/* KPI skeleton */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-3 w-20" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-7 w-16" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        <Skeleton className="h-7 w-20" />
-      </div>
 
-      {/* KPI skeleton */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Card key={i}>
+        {/* Insight skeleton */}
+        <Skeleton className="h-24 w-full" />
+
+        {/* Charts skeleton */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card>
             <CardHeader>
-              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-32" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-7 w-16" />
+              <Skeleton className="h-56 w-full" />
             </CardContent>
           </Card>
-        ))}
-      </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-4 w-32" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-56 w-full" />
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Insight skeleton */}
-      <Skeleton className="h-24 w-full" />
-
-      {/* Charts skeleton */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Table skeleton */}
         <Card>
           <CardHeader>
-            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-24" />
           </CardHeader>
           <CardContent>
-            <Skeleton className="h-56 w-full" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-4 w-32" />
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-56 w-full" />
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton className="h-6 w-full" key={i} />
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Table skeleton */}
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-4 w-24" />
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton className="h-6 w-full" key={i} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -655,8 +654,20 @@ function EmptyState() {
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
+const TABS = [
+  { id: "analytics", label: "Analytics" },
+  { id: "feed", label: "Feed" },
+];
+
 function Page() {
   const { id: facilityId } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const activeTab = TABS.some((t) => t.id === tab) ? tab! : "analytics";
+
+  const setActiveTab = (id: string) => {
+    navigate({ search: { tab: id === "analytics" ? undefined : id }, replace: true });
+  };
 
   const [data, setData] = useState<FacilityAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -664,6 +675,7 @@ function Page() {
   const [range, setRange] = useState<AnalyticsTimeRange>("24h");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [feedKey, setFeedKey] = useState(0);
 
   const fetchAnalytics = useCallback(
     async (currentRange: AnalyticsTimeRange, silent = false) => {
@@ -695,8 +707,13 @@ function Page() {
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    fetchAnalytics(range, true);
-  }, [range, fetchAnalytics]);
+    if (activeTab === "feed") {
+      setFeedKey((k) => k + 1);
+      setIsRefreshing(false);
+    } else {
+      fetchAnalytics(range, true);
+    }
+  }, [range, fetchAnalytics, activeTab]);
 
   const handleRangeChange = useCallback((value: string) => {
     if (value === "24h" || value === "7d" || value === "30d") {
@@ -704,28 +721,124 @@ function Page() {
     }
   }, []);
 
-  // ── Loading ─────────────────────────────────────────────────────────
-  if (isLoading && !data) {
-    return <LoadingSkeleton />;
+  // ── Loading (analytics tab only) ──────────────────────────────────────
+  if (activeTab === "analytics" && isLoading && !data) {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <AnalyticsHeaderShell
+          facilityId={facilityId}
+          facilityName={undefined}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <LoadingSkeleton />
+      </div>
+    );
   }
 
-  // ── Error ───────────────────────────────────────────────────────────
-  if (error && !data) {
-    return <ErrorState message={error} onRetry={() => fetchAnalytics(range)} />;
+  // ── Error (analytics tab only) ────────────────────────────────────────
+  if (activeTab === "analytics" && error && !data) {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <AnalyticsHeaderShell
+          facilityId={facilityId}
+          facilityName={undefined}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <ErrorState message={error} onRetry={() => fetchAnalytics(range)} />
+      </div>
+    );
   }
 
-  // ── Empty ───────────────────────────────────────────────────────────
+  // ── Empty state for analytics tab ─────────────────────────────────────
+  if (activeTab === "analytics" && !data) {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <AnalyticsHeaderShell
+          facilityId={facilityId}
+          facilityName={undefined}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <EmptyState />
+      </div>
+    );
+  }
+
+  // ── Feed tab (no analytics data needed) ───────────────────────────────
+  if (activeTab === "feed") {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <AnalyticsHeaderShell
+          facilityId={facilityId}
+          facilityName={data?.facilityName}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <FacilityFeedTab facilityId={facilityId} key={feedKey} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Analytics tab content ─────────────────────────────────────────────
+  // Still show content even if some data is present
   if (!data || (data.totalDevices === 0 && data.totalEventsInRange === 0)) {
     if (!isLoading) {
       if (data && data.totalDevices === 0) {
-        return <EmptyState />;
+        return (
+          <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+            <AnalyticsHeaderShell
+              facilityId={facilityId}
+              facilityName={data.facilityName}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              isRefreshing={isRefreshing}
+              lastUpdated={lastUpdated}
+              range={range}
+              onRangeChange={handleRangeChange}
+              onRefresh={handleRefresh}
+            />
+            <EmptyState />
+          </div>
+        );
       }
     }
-    // Still show content even if some data is present
   }
 
   // ── Content ─────────────────────────────────────────────────────────
-  const kpiItems = data
+  type KpiItem = {
+    title: string;
+    value: string | number;
+    subtitle?: string;
+    icon?: React.ComponentType<{ className?: string }>;
+    trend?: string;
+    trendDirection?: "up" | "down";
+  };
+
+  const kpiItems: KpiItem[] = data
     ? [
         {
           title: "Health Score",
@@ -737,8 +850,6 @@ function Page() {
                 ? "Needs attention"
                 : "Critical",
           icon: HeartPulseIcon,
-          trend: undefined as string | undefined,
-          trendDirection: undefined as "up" | "down" | undefined,
         },
         {
           title: "Devices Online",
@@ -746,18 +857,13 @@ function Page() {
           subtitle: `${data.totalDevices - data.onlineDevices} offline`,
           icon: MonitorIcon,
           trend: data.totalDevices > 0 ? `${Math.round((data.onlineDevices / data.totalDevices) * 100)}%` : undefined,
-          trendDirection:
-            data.totalDevices > 0 && data.onlineDevices / data.totalDevices >= 0.8
-              ? ("up" as const)
-              : ("down" as const),
+          trendDirection: data.totalDevices > 0 && data.onlineDevices / data.totalDevices >= 0.8 ? "up" : "down",
         },
         {
           title: "Active Alerts",
           value: data.totalEventsInRange.toLocaleString(),
           subtitle: `${data.eventCounts.find((e) => e.severity === "error")?.count ?? 0} errors`,
           icon: AlertTriangleIcon,
-          trend: undefined,
-          trendDirection: undefined,
         },
         {
           title: "Sensor Warnings",
@@ -767,8 +873,6 @@ function Page() {
           ).toString(),
           subtitle: `${data.sensorMetrics.length} sensors reporting`,
           icon: ActivityIcon,
-          trend: undefined,
-          trendDirection: undefined,
         },
         {
           title: "CCTV Anomalies",
@@ -783,50 +887,243 @@ function Page() {
           value: data.recordingCount.toLocaleString(),
           subtitle: formatDuration(data.totalRecordingDurationSec),
           icon: VideoIcon,
-          trend: undefined,
-          trendDirection: undefined,
         },
       ]
     : [];
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <Button asChild size="sm" variant="outline">
-              <Link params={{ id: facilityId }} to="/facility/$id">
-                <ArrowLeftIcon data-icon="inline-start" />
-                Back
-              </Link>
-            </Button>
-            <div>
-              <h1 className="font-heading text-lg font-medium tracking-tight">{data?.facilityName ?? "Analytics"}</h1>
-              <p className="text-muted-foreground text-xs">
-                Operational analytics and AI insights
-                {lastUpdated && <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>}
-              </p>
-            </div>
+    <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+      <AnalyticsHeaderShell
+        facilityId={facilityId}
+        facilityName={data?.facilityName}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isRefreshing={isRefreshing}
+        lastUpdated={lastUpdated}
+        range={range}
+        onRangeChange={handleRangeChange}
+        onRefresh={handleRefresh}
+      />
+
+      <div className="min-h-0 flex-1 overflow-auto p-6">
+        <div className="flex flex-col gap-6">
+          {/* ── KPI Cards ──────────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+            {kpiItems.map((kpi, i) => (
+              <KpiCard key={i} {...kpi} />
+            ))}
           </div>
+
+          {/* ── AI Insights ────────────────────────────────────────────── */}
+          {data && data.insights.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <EyeIcon className="text-muted-foreground size-4" />
+                  AI Insights
+                </CardTitle>
+                <CardDescription>Deterministic operational insights generated from facility data</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                {data.insights.map((insight) => (
+                  <InsightCard insight={insight} key={insight.id} />
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Charts Section ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Event Trend */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3Icon className="text-muted-foreground size-4" />
+                  Event Trend
+                </CardTitle>
+                <CardDescription>Events over time by severity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  {data ? (
+                    <EventTrendChart data={data.eventBuckets} range={range} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Spinner className="size-6" />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Device Composition / Severity */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MonitorIcon className="text-muted-foreground size-4" />
+                  Devices
+                </CardTitle>
+                <CardDescription>By type</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {data ? (
+                    <DeviceCompositionChart data={data.devicesByType} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Spinner className="size-6" />
+                    </div>
+                  )}
+                </div>
+                {/* Legend */}
+                {data && data.devicesByType.length > 0 && (
+                  <div className="border-border mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3">
+                    {data.devicesByType.map((d, i) => (
+                      <span className="text-muted-foreground flex items-center gap-1.5 text-[10px]" key={d.type}>
+                        <span
+                          className="inline-block size-2 rounded-none"
+                          style={{
+                            backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                          }}
+                        />
+                        {d.type}
+                        <span className="text-foreground font-medium tabular-nums">{d.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Severity Bar Chart + Sensor Metrics row */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangleIcon className="text-muted-foreground size-4" />
+                  Events by Severity
+                </CardTitle>
+                <CardDescription>Count in selected period</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-48">
+                  {data ? (
+                    <SeverityBarChart data={data.eventCounts} />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Spinner className="size-6" />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ActivityIcon className="text-muted-foreground size-4" />
+                  Sensor Metrics
+                </CardTitle>
+                <CardDescription>Latest readings per sensor device</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <SensorMetricsTable metrics={data?.sensorMetrics ?? []} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ── Recent Alerts ──────────────────────────────────────────── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircleIcon className="text-muted-foreground size-4" />
+                Recent Alerts
+              </CardTitle>
+              <CardDescription>Last 20 events across all devices</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <RecentAlertsTable alerts={data?.recentAlerts ?? []} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Device Health ──────────────────────────────────────────── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MonitorIcon className="text-muted-foreground size-4" />
+                Device Health
+              </CardTitle>
+              <CardDescription>{data?.totalDevices ?? 0} device(s) configured</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <DeviceHealthTable devices={data?.devices ?? []} />
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="flex items-center gap-2">
-          <ToggleGroup onValueChange={(v) => v && handleRangeChange(v)} size="sm" type="single" value={range}>
-            <ToggleGroupItem value="24h">24h</ToggleGroupItem>
-            <ToggleGroupItem value="7d">7d</ToggleGroupItem>
-            <ToggleGroupItem value="30d">30d</ToggleGroupItem>
-          </ToggleGroup>
+// ─── Analytics Header Shell ─────────────────────────────────────────────────
 
+function AnalyticsHeaderShell({
+  facilityId,
+  facilityName,
+  activeTab,
+  onTabChange,
+  isRefreshing,
+  lastUpdated,
+  range,
+  onRangeChange,
+  onRefresh,
+}: {
+  facilityId: string;
+  facilityName?: string;
+  activeTab: string;
+  onTabChange: (id: string) => void;
+  isRefreshing: boolean;
+  lastUpdated: Date | null;
+  range: AnalyticsTimeRange;
+  onRangeChange: (value: string) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 flex-col">
+      {/* Header */}
+      <div className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
+        <Link params={{ id: facilityId }} to="/facility/$id">
+          <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
+            <ArrowLeftIcon className="size-4" />
+          </Button>
+        </Link>
+        <div className="min-w-0">
+          <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Analytics"}</h1>
+          <p className="text-muted-foreground/60 truncate text-[11px]">
+            {activeTab === "analytics" ? "Operational analytics and AI insights" : "Live facility feeds"}
+            {activeTab === "analytics" && lastUpdated && (
+              <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>
+            )}
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {activeTab === "analytics" && (
+            <ToggleGroup onValueChange={(v) => v && onRangeChange(v)} size="sm" type="single" value={range}>
+              <ToggleGroupItem value="24h">24h</ToggleGroupItem>
+              <ToggleGroupItem value="7d">7d</ToggleGroupItem>
+              <ToggleGroupItem value="30d">30d</ToggleGroupItem>
+            </ToggleGroup>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                aria-label="Refresh analytics"
-                disabled={isRefreshing}
-                onClick={handleRefresh}
-                size="icon-sm"
-                variant="outline"
-              >
+              <Button aria-label="Refresh" disabled={isRefreshing} onClick={onRefresh} size="icon-sm" variant="outline">
                 <RefreshCwIcon className={cn("size-4", isRefreshing && "animate-spin")} />
               </Button>
             </TooltipTrigger>
@@ -835,165 +1132,8 @@ function Page() {
         </div>
       </div>
 
-      {/* ── KPI Cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        {kpiItems.map((kpi, i) => (
-          <KpiCard key={i} {...kpi} />
-        ))}
-      </div>
-
-      {/* ── AI Insights ────────────────────────────────────────────── */}
-      {data && data.insights.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <EyeIcon className="text-muted-foreground size-4" />
-              AI Insights
-            </CardTitle>
-            <CardDescription>Deterministic operational insights generated from facility data</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {data.insights.map((insight) => (
-              <InsightCard insight={insight} key={insight.id} />
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Charts Section ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Event Trend */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3Icon className="text-muted-foreground size-4" />
-              Event Trend
-            </CardTitle>
-            <CardDescription>Events over time by severity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              {data ? (
-                <EventTrendChart data={data.eventBuckets} range={range} />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <Spinner className="size-6" />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Device Composition / Severity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MonitorIcon className="text-muted-foreground size-4" />
-              Devices
-            </CardTitle>
-            <CardDescription>By type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-48">
-              {data ? (
-                <DeviceCompositionChart data={data.devicesByType} />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <Spinner className="size-6" />
-                </div>
-              )}
-            </div>
-            {/* Legend */}
-            {data && data.devicesByType.length > 0 && (
-              <div className="border-border mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3">
-                {data.devicesByType.map((d, i) => (
-                  <span className="text-muted-foreground flex items-center gap-1.5 text-[10px]" key={d.type}>
-                    <span
-                      className="inline-block size-2 rounded-none"
-                      style={{
-                        backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
-                      }}
-                    />
-                    {d.type}
-                    <span className="text-foreground font-medium tabular-nums">{d.count}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Severity Bar Chart + Sensor Metrics row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangleIcon className="text-muted-foreground size-4" />
-              Events by Severity
-            </CardTitle>
-            <CardDescription>Count in selected period</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-48">
-              {data ? (
-                <SeverityBarChart data={data.eventCounts} />
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <Spinner className="size-6" />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ActivityIcon className="text-muted-foreground size-4" />
-              Sensor Metrics
-            </CardTitle>
-            <CardDescription>Latest readings per sensor device</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <SensorMetricsTable metrics={data?.sensorMetrics ?? []} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Recent Alerts ──────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircleIcon className="text-muted-foreground size-4" />
-            Recent Alerts
-          </CardTitle>
-          <CardDescription>Last 20 events across all devices</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <RecentAlertsTable alerts={data?.recentAlerts ?? []} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Device Health ──────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MonitorIcon className="text-muted-foreground size-4" />
-            Device Health
-          </CardTitle>
-          <CardDescription>{data?.totalDevices ?? 0} device(s) configured</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <DeviceHealthTable devices={data?.devices ?? []} />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tabs */}
+      <PlatformTabs activeTab={activeTab} onChange={onTabChange} tabs={TABS} />
     </div>
   );
 }
