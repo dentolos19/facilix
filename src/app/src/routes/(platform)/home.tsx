@@ -1,15 +1,9 @@
+// Testing ground for sidebar to render
+
 "use client";
 
 import { createFileRoute } from '@tanstack/react-router'
-import { Button } from "#/components/ui/button";
-import { SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "#/components/ui/sidebar"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarHeader,
-} from "#/components/ui/sidebar"
+import {SidebarProvider} from "#/components/ui/sidebar"
 import { AppSidebar } from '#/components/app-sidebar';
 
 export const Route = createFileRoute('/(platform)/home')({
