@@ -3,7 +3,7 @@
 "use client";
 
 import { createFileRoute } from '@tanstack/react-router'
-import {SidebarProvider} from "#/components/ui/sidebar"
+import {SidebarProvider, SidebarInset} from "#/components/ui/sidebar"
 import { AppSidebar } from '#/components/app-sidebar';
 import { ChartLineDefault } from '#/components/chart-line-default';
 import {
@@ -25,6 +25,7 @@ function RouteComponent() {
   return (
     <SidebarProvider>
       <AppSidebar />
+      <SidebarInset>
       <div className="flex-1 p-8">
         <h1 className="text-3xl font-bold mb-6">Overview</h1>
         <h2 className="text-xl font-semibold mb-4">General</h2>
@@ -67,6 +68,7 @@ function RouteComponent() {
           </Card>
         </div>
       </div>
+      </SidebarInset>
     </SidebarProvider>
   )
 }
