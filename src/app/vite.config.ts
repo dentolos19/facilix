@@ -26,7 +26,11 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
     tailwindcss(),
-    devtools(),
+    devtools({
+      injectSource: {
+        enabled: false,
+      },
+    }),
   ],
 });
 

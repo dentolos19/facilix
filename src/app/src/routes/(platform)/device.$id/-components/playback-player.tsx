@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { ScrollArea } from "#/components/ui/scroll-area";
 import type { PredictionOutputRow, RecordingRow } from "#/lib/functions/recordings";
 import { cn } from "#/lib/utils";
 
@@ -532,9 +533,9 @@ export function PlaybackPlayer({ recordings, predictions = [], className }: Play
 
       {/* ─ Right: Analysis panels ──────────────────────────────────────── */}
       {currentSegment && (
-        <div className="flex w-72 shrink-0 flex-col gap-3 overflow-x-hidden overflow-y-auto">
+        <aside className="flex min-h-0 w-72 shrink-0 flex-col overflow-hidden">
           <AnalysisPanel predictions={predictions} segment={currentSegment} />
-        </div>
+        </aside>
       )}
     </div>
   );
@@ -558,9 +559,9 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
       {/* Detection summary */}
-      <div className="border-border bg-muted/20 rounded-none border p-3">
+      <div className="border-border bg-muted/20 shrink-0 rounded-none border p-3">
         <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
           Detections
         </h3>
@@ -595,56 +596,68 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
         )}
       </div>
 
-      {/* Predicted frames */}
-      {segmentPredictions.length > 0 && (
-        <div className="border-border bg-muted/20 rounded-none border p-3">
-          <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
-            Predicted Frames
-          </h3>
-          <div className="flex flex-col gap-2">
-            {segmentPredictions.map((pred) => {
-              const labels = [...new Set(pred.predictions.map((p) => p.label).filter(Boolean))];
-              return (
-                <div className="border-border bg-background/50 rounded-none border" key={pred.id}>
-                  <div
-                    className="bg-muted flex items-center justify-center overflow-hidden"
-                    style={{ maxHeight: "120px" }}
-                  >
-                    <img
-                      alt={`Prediction frame ${pred.frameIndex}`}
-                      className="max-h-[120px] w-auto object-contain"
-                      src={`/assets/${encodeURIComponent(pred.afterAssetId)}`}
-                    />
-                  </div>
-                  <div className="border-border border-t px-2.5 py-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
-                        Frame {pred.frameIndex} &middot; {pred.atSec.toFixed(1)}s
-                      </span>
-                      <span className="text-muted-foreground/50 font-mono text-[9px]">
-                        {pred.predictions.length} {pred.predictions.length === 1 ? "detection" : "detections"}
-                      </span>
-                    </div>
-                    {labels.length > 0 && (
-                      <p className="text-muted-foreground/60 mt-0.5 truncate text-[9px]">{labels.join(", ")}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Scene summary (collapsible, short) */}
       {sceneSummary && (
-        <details className="border-border bg-muted/20 rounded-none border">
+        <details className="border-border bg-muted/20 shrink-0 rounded-none border">
           <summary className="text-muted-foreground hover:text-foreground/70 cursor-pointer p-3 text-[10px] font-medium tracking-wider uppercase select-none">
             Scene context
           </summary>
           <p className="text-foreground/80 px-3 pb-3 text-[11px] leading-relaxed">{sceneSummary}</p>
         </details>
       )}
+
+      {/* Predicted frames */}
+      <div className="border-border bg-muted/20 flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border p-3">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+          <h3 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+            Predicted Frames
+          </h3>
+          <span className="text-muted-foreground/50 font-mono text-[9px] tabular-nums">
+            {segmentPredictions.length}
+          </span>
+        </div>
+
+        {segmentPredictions.length === 0 ? (
+          <p className="text-muted-foreground/50 text-[11px]">No predicted frames for this segment.</p>
+        ) : (
+          <ScrollArea className="min-h-0 flex-1 pr-2">
+            <div className="flex flex-col gap-2 pb-px">
+              {segmentPredictions.map((pred) => {
+                const labels = [...new Set(pred.predictions.map((p) => p.label).filter(Boolean))];
+                return (
+                  <div className="border-border bg-background/50 rounded-none border" key={pred.id}>
+                    <div
+                      className="bg-muted flex items-center justify-center overflow-hidden"
+                      style={{ maxHeight: "120px" }}
+                    >
+                      <img
+                        alt={`Prediction frame ${pred.frameIndex}`}
+                        className="max-h-[120px] w-auto object-contain"
+                        decoding="async"
+                        loading="lazy"
+                        src={`/assets/${encodeURIComponent(pred.afterAssetId)}`}
+                      />
+                    </div>
+                    <div className="border-border border-t px-2.5 py-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
+                          Frame {pred.frameIndex} &middot; {pred.atSec.toFixed(1)}s
+                        </span>
+                        <span className="text-muted-foreground/50 font-mono text-[9px]">
+                          {pred.predictions.length} {pred.predictions.length === 1 ? "detection" : "detections"}
+                        </span>
+                      </div>
+                      {labels.length > 0 && (
+                        <p className="text-muted-foreground/60 mt-0.5 truncate text-[9px]">{labels.join(", ")}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
     </div>
   );
 }
