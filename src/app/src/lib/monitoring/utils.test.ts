@@ -10,17 +10,17 @@ interface InsertCapture {
   values: unknown;
 }
 
-function createDatabaseDouble({ failMedia = false }: { failMedia?: boolean } = {}) {
+function createDatabaseDouble({ failAttachments = false }: { failAttachments?: boolean } = {}) {
   const inserts: InsertCapture[] = [];
   const db = {
     insert(table: unknown) {
       return {
         values(values: unknown) {
           inserts.push({ table, values });
-          if (table === schema.eventMedia) {
+          if (table === schema.eventAttachment) {
             return {
               onConflictDoNothing: async () => {
-                if (failMedia) throw new Error("stale asset");
+                if (failAttachments) throw new Error("stale asset");
               },
             };
           }
@@ -45,7 +45,7 @@ function createObserverDouble() {
 }
 
 describe("recordEvent", () => {
-  test("returns the persisted event ID and associates ordered media", async () => {
+  test("returns the persisted event ID and associates ordered attachments", async () => {
     const { db, inserts } = createDatabaseDouble();
     const { observer, broadcasts } = createObserverDouble();
 
@@ -79,19 +79,19 @@ describe("recordEvent", () => {
     if (!eventId) throw new Error("Expected the event to persist");
     expect(inserts).toHaveLength(2);
     expect(inserts[0]?.table).toBe(schema.facilityEvent);
-    expect(inserts[1]?.table).toBe(schema.eventMedia);
+    expect(inserts[1]?.table).toBe(schema.eventAttachment);
     const eventValues = inserts[0]?.values as { id: string };
-    const mediaValues = inserts[1]?.values as Array<{ eventId: string; assetId: string; sortOrder: number }>;
+    const attachmentValues = inserts[1]?.values as Array<{ eventId: string; assetId: string; sortOrder: number }>;
     expect(eventValues.id).toBe(eventId);
-    expect(mediaValues).toEqual([
+    expect(attachmentValues).toEqual([
       expect.objectContaining({ eventId, assetId: "image-1", sortOrder: 0 }),
       expect.objectContaining({ eventId, assetId: "video-1", sortOrder: 1 }),
     ]);
     expect(broadcasts).toHaveLength(1);
   });
 
-  test("keeps the event when optional media association fails", async () => {
-    const { db, inserts } = createDatabaseDouble({ failMedia: true });
+  test("keeps the event when optional attachment association fails", async () => {
+    const { db, inserts } = createDatabaseDouble({ failAttachments: true });
     const { observer, broadcasts } = createObserverDouble();
 
     const eventId = await recordEvent(

@@ -182,13 +182,13 @@ export const facilityEvent = sqliteTable("facility_events", {
 });
 
 /**
- * Media evidence attached to a facility event.
+ * Evidence attachments linked to a facility event.
  *
  * Assets are shared with recordings and prediction outputs. Deleting an event
  * removes only the relation; deleting a source asset removes the attachment.
  */
-export const eventMedia = sqliteTable(
-  "event_media",
+export const eventAttachment = sqliteTable(
+  "event_attachments",
   {
     id: text("id")
       .primaryKey()
@@ -209,9 +209,9 @@ export const eventMedia = sqliteTable(
       .$default(() => new Date()),
   },
   (table) => [
-    index("event_media_event_id_idx").on(table.eventId),
-    index("event_media_asset_id_idx").on(table.assetId),
-    uniqueIndex("event_media_event_asset_variant_idx").on(table.eventId, table.assetId, table.variant),
+    index("event_attachments_event_id_idx").on(table.eventId),
+    index("event_attachments_asset_id_idx").on(table.assetId),
+    uniqueIndex("event_attachments_event_asset_variant_idx").on(table.eventId, table.assetId, table.variant),
   ],
 );
 
@@ -345,7 +345,7 @@ export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
-export type EventMedia = typeof eventMedia.$inferSelect;
+export type EventAttachment = typeof eventAttachment.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;

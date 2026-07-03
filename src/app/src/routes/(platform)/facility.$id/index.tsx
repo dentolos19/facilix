@@ -308,7 +308,7 @@ function Page() {
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
 
   // Resolve persisted events against the current facility map without dropping
-  // structured event data or media attachments.
+  // structured event data or evidence attachments.
   const facilityEventViews = useMemo<FacilityEventView[]>(() => {
     const deviceMap = new Map(placedItems.map((i) => [i.id, i]));
     const zoneMap = new Map(placedItems.filter((item) => item.type === "Zone").map((zone) => [zone.id, zone.name]));
@@ -982,7 +982,6 @@ function Page() {
               devices={placedItems}
               events={facilityEventViews}
               facilityId={facilityId}
-              onSelectDevice={selectMonitoringDevice}
               selection={monitoringSelection}
             />
           ) : (

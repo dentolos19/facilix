@@ -87,8 +87,10 @@ export function GlobalEventsPanel({
                 <div className="flex items-center gap-1.5">
                   <span className="text-foreground/80 shrink-0 font-medium">{event.deviceName}</span>
                   <EventSeverityBadge severity={event.severity} />
-                  {event.media.length > 0 && (
-                    <span className="text-muted-foreground/50 font-mono text-[9px]">{event.media.length} media</span>
+                  {event.attachments.length > 0 && (
+                    <span className="text-muted-foreground/50 font-mono text-[9px]">
+                      {event.attachments.length} attachments
+                    </span>
                   )}
                 </div>
                 <span className="text-muted-foreground/70">{event.message}</span>

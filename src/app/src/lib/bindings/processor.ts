@@ -4,7 +4,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { analyzeSceneAlerts, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
-import { selectRepresentativeFrames, type StoredPredictionMediaRef } from "#/lib/monitoring/event-evidence";
+import { selectRepresentativeFrames, type StoredPredictionOutputRef } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
   evaluateCountThreshold,
@@ -27,7 +27,7 @@ import {
   type PredictionOutputFrame,
   type WorkflowDetection,
 } from "#/lib/monitoring/roboflow";
-import { recordEvent, type EventMediaInput } from "#/lib/monitoring/utils";
+import { recordEvent, type EventAttachmentInput } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 /**
@@ -169,7 +169,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           roboflowApiBase: "https://serverless.roboflow.com",
         });
 
-        const predictionMedia =
+        const storedPredictionOutputs =
           result.predictionOutputs.length > 0
             ? await persistPredictionOutputs({
                 database: this.env.DATABASE,
@@ -188,7 +188,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         return {
           detections: result.detections,
           predictionOutputs: [],
-          predictionMedia,
+          storedPredictionOutputs,
           video: result.video,
         };
       });
@@ -221,7 +221,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         detectionCounts: countByLabel(filtered),
         maxCount: countValue,
         operationalState: deriveDetectionOperationalState(pluginId, countValue),
-        predictionMedia: result.predictionMedia,
+        storedPredictionOutputs: result.storedPredictionOutputs,
         matchedAlerts: pluginAlertResults,
       });
 
@@ -422,7 +422,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         const detectionResult = pluginResults.find((result) => result.pluginId === alert.pluginId);
         const segmentConfig = segmentPlugins.find((entry) => entry.plugin.id === alert.pluginId)?.config;
         const evidenceConfig = detectionResult?.config.evidence ?? segmentConfig?.evidence;
-        const eventMedia = buildAlertMedia(
+        const eventAttachments = buildAlertAttachments(
           payload,
           alert,
           detectionResult,
@@ -457,7 +457,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             assetId: payload.assetId,
             durationSec: payload.durationSec,
           },
-          eventMedia,
+          eventAttachments,
         );
       }
     });
@@ -631,26 +631,26 @@ interface PluginDetectionResult {
   detectionCounts: Record<string, number>;
   maxCount: number;
   operationalState: string;
-  predictionMedia: StoredPredictionMediaRef[];
+  storedPredictionOutputs: StoredPredictionOutputRef[];
   matchedAlerts: MatchedAlert[];
 }
 
-function buildAlertMedia(
+function buildAlertAttachments(
   payload: SegmentPayload,
   alert: MatchedAlert,
   detectionResult: PluginDetectionResult | undefined,
   config: { attachVideo: boolean; attachAnnotatedFrames: boolean; maxAnnotatedFrames: number },
-): EventMediaInput[] {
+): EventAttachmentInput[] {
   const selectedFrames =
     config.attachAnnotatedFrames && detectionResult
       ? selectRepresentativeFrames(
-          detectionResult.predictionMedia,
+          detectionResult.storedPredictionOutputs,
           detectionResult.detections,
           { kind: alert.kind, labels: alert.matchedLabels },
           config.maxAnnotatedFrames,
         )
       : [];
-  const media: EventMediaInput[] = selectedFrames.map((frame, index) => {
+  const attachments: EventAttachmentInput[] = selectedFrames.map((frame, index) => {
     const detections = detectionResult?.detections.filter((item) => item.frameIndex === frame.frameIndex) ?? [];
     return {
       assetId: frame.afterAssetId,
@@ -663,7 +663,10 @@ function buildAlertMedia(
         pluginId: alert.pluginId,
         frameIndex: frame.frameIndex,
         atSec: frame.atSec,
-        labels: [...new Set(detections.map((item) => item.label))],
+        labels: detections.length > 0 ? [...new Set(detections.map((item) => item.label))] : (frame.labels ?? []),
+        predictionCount: detections.length || frame.predictionCount || 0,
+        confidence:
+          detections.length > 0 ? Math.max(...detections.map((item) => item.confidence)) : frame.maxConfidence,
         detections: detections.slice(0, 10).map((item) => ({
           label: item.label,
           confidence: item.confidence,
@@ -674,7 +677,7 @@ function buildAlertMedia(
   });
 
   if (config.attachVideo) {
-    media.push({
+    attachments.push({
       assetId: payload.assetId,
       kind: "video",
       variant: "source-segment",
@@ -688,7 +691,7 @@ function buildAlertMedia(
     });
   }
 
-  return media;
+  return attachments;
 }
 
 function normalizeCountRecord(value: unknown): Record<string, number> {
@@ -799,10 +802,10 @@ async function persistPredictionOutputs({
   pluginId: string;
   workflowId: string;
   frames: PredictionOutputFrame[];
-}): Promise<StoredPredictionMediaRef[]> {
+}): Promise<StoredPredictionOutputRef[]> {
   const db = createDatabase(database);
   const outputName = "predictions";
-  const stored: StoredPredictionMediaRef[] = [];
+  const stored: StoredPredictionOutputRef[] = [];
 
   for (const frame of frames) {
     const frameIndex = frame.frameIndex;
@@ -891,6 +894,12 @@ async function persistPredictionOutputs({
       afterAssetId: afterKey,
       frameIndex,
       atSec: frame.atSec,
+      predictionCount: frame.predictions.length,
+      labels: [...new Set(frame.predictions.map((prediction) => prediction.label))],
+      maxConfidence:
+        frame.predictions.length > 0
+          ? Math.max(...frame.predictions.map((prediction) => prediction.confidence))
+          : undefined,
     });
   }
   return stored;

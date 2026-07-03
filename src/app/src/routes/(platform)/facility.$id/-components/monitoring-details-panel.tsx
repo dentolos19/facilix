@@ -10,19 +10,16 @@ export function MonitoringDetailsPanel({
   events,
   devices,
   facilityId,
-  onSelectDevice,
 }: {
   selection: MonitoringSelection;
   events: FacilityEventView[];
   devices: PlacedItem[];
   facilityId: string;
-  onSelectDevice: (deviceId: string) => void;
 }) {
   if (selection?.kind === "event") {
     const event = events.find((item) => item.id === selection.eventId);
     if (event) {
-      const device = event.deviceId ? devices.find((item) => item.id === event.deviceId) : null;
-      return <EventDetailsPanel device={device} event={event} onSelectDevice={onSelectDevice} />;
+      return <EventDetailsPanel event={event} />;
     }
   }
 

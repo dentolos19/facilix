@@ -1,8 +1,11 @@
-export interface StoredPredictionMediaRef {
+export interface StoredPredictionOutputRef {
   beforeAssetId: string;
   afterAssetId: string;
   frameIndex: number;
   atSec: number;
+  predictionCount?: number;
+  labels?: string[];
+  maxConfidence?: number;
 }
 
 export interface EvidenceDetection {
@@ -22,11 +25,11 @@ export interface EvidenceAlertDescriptor {
  * alerts prefer frames with the strongest concentration of detections.
  */
 export function selectRepresentativeFrames(
-  frames: StoredPredictionMediaRef[],
+  frames: StoredPredictionOutputRef[],
   detections: EvidenceDetection[],
   alert: EvidenceAlertDescriptor,
   limit: number,
-): StoredPredictionMediaRef[] {
+): StoredPredictionOutputRef[] {
   if (limit <= 0 || alert.kind === "object-leaves" || alert.kind === "scene-match") return [];
 
   const labels = new Set((alert.labels ?? []).map((label) => label.toLowerCase()));
@@ -39,6 +42,19 @@ export function selectRepresentativeFrames(
     score.count += 1;
     score.confidence = Math.max(score.confidence, detection.confidence);
     scoreByFrame.set(detection.frameIndex, score);
+  }
+
+  // Workflow retries created before attachment support may not preserve every
+  // aggregate detection/frame association. The lightweight persisted-output
+  // summary still tells us which annotated frames contain relevant boxes.
+  for (const frame of frames) {
+    if (scoreByFrame.has(frame.frameIndex) || !frame.predictionCount) continue;
+    const frameLabels = new Set((frame.labels ?? []).map((label) => label.toLowerCase()));
+    if (labels.size > 0 && ![...labels].some((label) => frameLabels.has(label))) continue;
+    scoreByFrame.set(frame.frameIndex, {
+      count: frame.predictionCount,
+      confidence: frame.maxConfidence ?? 0,
+    });
   }
 
   const candidates = frames.filter((frame) => scoreByFrame.has(frame.frameIndex));

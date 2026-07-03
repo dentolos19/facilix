@@ -917,7 +917,7 @@ function PluginCard({
         <div>
           <p className="text-foreground/80 text-[11px] font-medium">Event evidence</p>
           <p className="text-muted-foreground/60 text-[10px]">
-            Attach reviewable media when this plugin raises an alert.
+            Attach reviewable evidence when this plugin raises an alert.
           </p>
         </div>
         <div className="flex items-center justify-between gap-2">

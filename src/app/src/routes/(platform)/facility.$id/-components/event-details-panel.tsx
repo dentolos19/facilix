@@ -1,20 +1,11 @@
-import {
-  AlertTriangleIcon,
-  ExternalLinkIcon,
-  ImageIcon,
-  Maximize2Icon,
-  VideoIcon,
-  ZoomInIcon,
-  ZoomOutIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, ImageIcon, Maximize2Icon, VideoIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { ScrollArea } from "#/components/ui/scroll-area";
-import type { FacilityEventMediaRow, FacilityEventView } from "#/lib/functions/events";
+import type { FacilityEventAttachmentRow, FacilityEventView } from "#/lib/functions/events";
 
-import type { PlacedItem } from "../-helpers/types";
 import { EventSeverityBadge } from "./global-events-panel";
 
 const VALUE_KEYS = [
@@ -48,29 +39,22 @@ const RESERVED_KEYS = new Set([
   ...VALUE_KEYS,
 ]);
 
-export function EventDetailsPanel({
-  event,
-  device,
-  onSelectDevice,
-}: {
-  event: FacilityEventView;
-  device?: PlacedItem | null;
-  onSelectDevice: (deviceId: string) => void;
-}) {
-  const primaryMedia = event.media.find((item) => item.role === "primary") ?? event.media[0] ?? null;
-  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(primaryMedia?.id ?? null);
+export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
+  const primaryAttachment = event.attachments.find((item) => item.role === "primary") ?? event.attachments[0] ?? null;
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(primaryAttachment?.id ?? null);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [failedMediaId, setFailedMediaId] = useState<string | null>(null);
+  const [failedAttachmentId, setFailedAttachmentId] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelectedMediaId(primaryMedia?.id ?? null);
+    setSelectedAttachmentId(primaryAttachment?.id ?? null);
     setZoomOpen(false);
     setZoom(1);
-    setFailedMediaId(null);
-  }, [event.id, primaryMedia?.id]);
+    setFailedAttachmentId(null);
+  }, [event.id, primaryAttachment?.id]);
 
-  const selectedMedia = event.media.find((item) => item.id === selectedMediaId) ?? primaryMedia;
+  const selectedAttachment = event.attachments.find((item) => item.id === selectedAttachmentId) ?? primaryAttachment;
+  const attachmentContext = buildAttachmentContext(selectedAttachment, event);
   const values = useMemo(() => buildValueRows(event.data), [event.data]);
   const technicalData = useMemo(
     () => Object.fromEntries(Object.entries(event.data).filter(([key]) => !RESERVED_KEYS.has(key))),
@@ -92,17 +76,26 @@ export function EventDetailsPanel({
             <EventSeverityBadge severity={event.severity} />
           </div>
 
-          <EventMediaViewer
-            failedMediaId={failedMediaId}
-            media={event.media}
-            onMediaError={setFailedMediaId}
+          <EventAttachmentViewer
+            attachments={event.attachments}
+            failedAttachmentId={failedAttachmentId}
+            onAttachmentError={setFailedAttachmentId}
             onOpenZoom={() => {
               setZoom(1);
               setZoomOpen(true);
             }}
-            onSelectMedia={setSelectedMediaId}
-            selectedMedia={selectedMedia}
+            onSelectAttachment={setSelectedAttachmentId}
+            selectedAttachment={selectedAttachment}
           />
+
+          {attachmentContext && (
+            <section className="border border-sky-500/25 bg-sky-500/5 p-3">
+              <p className="font-mono text-[9px] tracking-wider text-sky-700 uppercase dark:text-sky-400">
+                What to look for
+              </p>
+              <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{attachmentContext}</p>
+            </section>
+          )}
 
           <section className="border-border bg-muted/20 border p-3">
             <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">What happened</p>
@@ -136,18 +129,6 @@ export function EventDetailsPanel({
             </section>
           )}
 
-          {device && event.deviceId && (
-            <Button
-              className="justify-between rounded-none"
-              onClick={() => onSelectDevice(event.deviceId!)}
-              size="sm"
-              variant="outline"
-            >
-              View {device.name} details
-              <ExternalLinkIcon className="size-3.5" />
-            </Button>
-          )}
-
           {Object.keys(technicalData).length > 0 && (
             <details className="border-border text-muted-foreground border p-2 text-[10px]">
               <summary className="cursor-pointer font-medium">Technical metadata</summary>
@@ -165,12 +146,12 @@ export function EventDetailsPanel({
             <DialogTitle>Evidence image</DialogTitle>
           </DialogHeader>
           <div className="border-border flex min-h-0 flex-1 items-center justify-center overflow-auto border bg-black/95">
-            {selectedMedia?.kind === "image" && (
+            {selectedAttachment?.kind === "image" && (
               <img
                 alt={`Evidence from ${event.deviceName}`}
                 className="max-h-none max-w-none transition-transform"
-                onError={() => setFailedMediaId(selectedMedia.id)}
-                src={selectedMedia.url}
+                onError={() => setFailedAttachmentId(selectedAttachment.id)}
+                src={selectedAttachment.url}
                 style={{ transform: `scale(${zoom})` }}
               />
             )}
@@ -204,26 +185,26 @@ export function EventDetailsPanel({
   );
 }
 
-function EventMediaViewer({
-  media,
-  selectedMedia,
-  failedMediaId,
-  onSelectMedia,
+function EventAttachmentViewer({
+  attachments,
+  selectedAttachment,
+  failedAttachmentId,
+  onSelectAttachment,
   onOpenZoom,
-  onMediaError,
+  onAttachmentError,
 }: {
-  media: FacilityEventMediaRow[];
-  selectedMedia: FacilityEventMediaRow | null;
-  failedMediaId: string | null;
-  onSelectMedia: (id: string) => void;
+  attachments: FacilityEventAttachmentRow[];
+  selectedAttachment: FacilityEventAttachmentRow | null;
+  failedAttachmentId: string | null;
+  onSelectAttachment: (id: string) => void;
   onOpenZoom: () => void;
-  onMediaError: (id: string) => void;
+  onAttachmentError: (id: string) => void;
 }) {
-  if (media.length === 0) {
+  if (attachments.length === 0) {
     return (
       <div className="border-border bg-muted/10 text-muted-foreground/60 flex min-h-28 flex-col items-center justify-center gap-2 border border-dashed p-4 text-center">
         <ImageIcon className="size-5 opacity-50" />
-        <p className="text-[10px]">No media evidence was captured for this event.</p>
+        <p className="text-[10px]">No evidence attachments were captured for this event.</p>
       </div>
     );
   }
@@ -231,27 +212,27 @@ function EventMediaViewer({
   return (
     <section className="flex flex-col gap-2">
       <div className="border-border relative aspect-video overflow-hidden border bg-black/90">
-        {selectedMedia?.id === failedMediaId ? (
+        {selectedAttachment?.id === failedAttachmentId ? (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center">
             <AlertTriangleIcon className="size-5" />
             <p className="text-[10px]">This evidence file is no longer available.</p>
           </div>
-        ) : selectedMedia?.kind === "video" ? (
+        ) : selectedAttachment?.kind === "video" ? (
           <video
             className="h-full w-full object-contain"
             controls
-            onError={() => onMediaError(selectedMedia.id)}
+            onError={() => onAttachmentError(selectedAttachment.id)}
             playsInline
             preload="metadata"
-            src={selectedMedia.url}
+            src={selectedAttachment.url}
           />
-        ) : selectedMedia ? (
+        ) : selectedAttachment ? (
           <>
             <img
               alt="Annotated event evidence"
               className="h-full w-full object-contain"
-              onError={() => onMediaError(selectedMedia.id)}
-              src={selectedMedia.url}
+              onError={() => onAttachmentError(selectedAttachment.id)}
+              src={selectedAttachment.url}
             />
             <Button
               aria-label="Open image zoom"
@@ -266,16 +247,16 @@ function EventMediaViewer({
         ) : null}
       </div>
 
-      {media.length > 1 && (
+      {attachments.length > 1 && (
         <div className="grid grid-cols-4 gap-1.5">
-          {media.map((item) => (
+          {attachments.map((item) => (
             <button
-              aria-label={`View ${item.kind} evidence`}
+              aria-label={`View ${item.kind} attachment`}
               className={`border-border bg-muted/20 flex aspect-video items-center justify-center overflow-hidden border transition-colors ${
-                selectedMedia?.id === item.id ? "ring-ring ring-1" : "hover:bg-muted/40"
+                selectedAttachment?.id === item.id ? "ring-ring ring-1" : "hover:bg-muted/40"
               }`}
               key={item.id}
-              onClick={() => onSelectMedia(item.id)}
+              onClick={() => onSelectAttachment(item.id)}
               type="button"
             >
               {item.kind === "video" ? (
@@ -289,6 +270,53 @@ function EventMediaViewer({
       )}
     </section>
   );
+}
+
+function buildAttachmentContext(
+  attachment: FacilityEventAttachmentRow | null,
+  event: FacilityEventView,
+): string | null {
+  const metadata = attachment?.metadata ?? {};
+  const rawDetections = Array.isArray(metadata.detections)
+    ? metadata.detections
+    : Array.isArray(metadata.predictions)
+      ? metadata.predictions
+      : [];
+  const detections: Record<string, unknown>[] = [];
+  for (const detection of rawDetections) {
+    if (isRecord(detection)) detections.push(detection);
+  }
+  const labels = uniqueStrings([
+    ...toStringArray(metadata.labels),
+    ...detections.map((detection) => detection.label).filter((label): label is string => typeof label === "string"),
+    ...toStringArray(event.data.matchedLabels),
+  ]);
+  const confidenceValues = [
+    toFiniteNumber(metadata.confidence),
+    ...detections.map((detection) => toFiniteNumber(detection.confidence)),
+  ].filter((value): value is number => value !== null);
+  const confidence = confidenceValues.length > 0 ? Math.max(...confidenceValues) : null;
+  const predictionCount = toFiniteNumber(metadata.predictionCount) ?? detections.length;
+  const atSec = toFiniteNumber(metadata.atSec);
+  const subject = labels.length > 0 ? labels.map(humanize).join(", ") : "the highlighted activity";
+
+  if (attachment?.kind === "image") {
+    const detectionSummary =
+      predictionCount > 0
+        ? `${predictionCount} detection${predictionCount === 1 ? "" : "s"}${labels.length > 0 ? `: ${subject}` : ""}`
+        : subject;
+    const parts = [`Bounding boxes mark ${detectionSummary.toLowerCase()}`];
+    if (atSec !== null) parts.push(`captured ${atSec.toFixed(1)} seconds into the clip`);
+    if (confidence !== null) parts.push(`with up to ${Math.round(confidence * 100)}% confidence`);
+    return `${parts.join(", ")}.`;
+  }
+
+  const reason = asText(event.data.reason);
+  if (attachment?.kind === "video") {
+    return reason ? `Review the clip for ${subject.toLowerCase()}. ${reason}` : `Review the clip for ${subject}.`;
+  }
+
+  return reason;
 }
 
 function DetailRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
@@ -329,4 +357,20 @@ function humanize(value: string): string {
 
 function asText(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

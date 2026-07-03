@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { selectRepresentativeFrames, type StoredPredictionMediaRef } from "./event-evidence";
+import { selectRepresentativeFrames, type StoredPredictionOutputRef } from "./event-evidence";
 
-const frames: StoredPredictionMediaRef[] = [
+const frames: StoredPredictionOutputRef[] = [
   { beforeAssetId: "before-0", afterAssetId: "after-0", frameIndex: 0, atSec: 0 },
   { beforeAssetId: "before-30", afterAssetId: "after-30", frameIndex: 30, atSec: 1 },
   { beforeAssetId: "before-60", afterAssetId: "after-60", frameIndex: 60, atSec: 2 },
@@ -52,5 +52,26 @@ describe("event evidence selection", () => {
       10,
     );
     expect(selected).toHaveLength(3);
+  });
+
+  test("uses persisted prediction summaries when aggregate frame matching is unavailable", () => {
+    const selected = selectRepresentativeFrames(
+      [
+        {
+          beforeAssetId: "before-30",
+          afterAssetId: "after-30",
+          frameIndex: 30,
+          atSec: 1,
+          predictionCount: 1,
+          labels: ["person"],
+          maxConfidence: 0.94,
+        },
+      ],
+      [{ label: "person", confidence: 0.94 }],
+      { kind: "object-enters", labels: ["person"] },
+      3,
+    );
+
+    expect(selected.map((frame) => frame.afterAssetId)).toEqual(["after-30"]);
   });
 });

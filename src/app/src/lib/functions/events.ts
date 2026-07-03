@@ -4,7 +4,7 @@ import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
-import type { EventMediaKind, EventMediaRole, EventMediaVariant } from "#/lib/monitoring/utils";
+import type { EventAttachmentKind, EventAttachmentRole, EventAttachmentVariant } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -17,20 +17,20 @@ export interface FacilityEventRow {
   type: string;
   message: string;
   data: JsonObject;
-  media: FacilityEventMediaRow[];
+  attachments: FacilityEventAttachmentRow[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface FacilityEventMediaRow {
+export interface FacilityEventAttachmentRow {
   id: string;
   assetId: string;
   name: string;
   type: string;
   size: number;
-  kind: EventMediaKind;
-  variant: EventMediaVariant;
-  role: EventMediaRole;
+  kind: EventAttachmentKind;
+  variant: EventAttachmentVariant;
+  role: EventAttachmentRole;
   sortOrder: number;
   metadata: JsonObject;
   url: string;
@@ -51,13 +51,13 @@ function toRow(r: typeof schema.facilityEvent.$inferSelect): FacilityEventRow {
     type: r.type,
     message: r.message,
     data: r.data,
-    media: [],
+    attachments: [],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
 }
 
-async function attachMedia(
+async function attachEventAttachments(
   db: ReturnType<typeof createDatabase>,
   events: FacilityEventRow[],
 ): Promise<FacilityEventRow[]> {
@@ -65,29 +65,29 @@ async function attachMedia(
 
   const rows = await db
     .select({
-      id: schema.eventMedia.id,
-      eventId: schema.eventMedia.eventId,
-      assetId: schema.eventMedia.assetId,
-      kind: schema.eventMedia.kind,
-      variant: schema.eventMedia.variant,
-      role: schema.eventMedia.role,
-      sortOrder: schema.eventMedia.sortOrder,
-      metadata: schema.eventMedia.metadata,
+      id: schema.eventAttachment.id,
+      eventId: schema.eventAttachment.eventId,
+      assetId: schema.eventAttachment.assetId,
+      kind: schema.eventAttachment.kind,
+      variant: schema.eventAttachment.variant,
+      role: schema.eventAttachment.role,
+      sortOrder: schema.eventAttachment.sortOrder,
+      metadata: schema.eventAttachment.metadata,
       name: schema.asset.name,
       type: schema.asset.type,
       size: schema.asset.size,
     })
-    .from(schema.eventMedia)
-    .innerJoin(schema.asset, eq(schema.eventMedia.assetId, schema.asset.id))
+    .from(schema.eventAttachment)
+    .innerJoin(schema.asset, eq(schema.eventAttachment.assetId, schema.asset.id))
     .where(
       inArray(
-        schema.eventMedia.eventId,
+        schema.eventAttachment.eventId,
         events.map((event) => event.id),
       ),
     )
-    .orderBy(asc(schema.eventMedia.sortOrder), asc(schema.eventMedia.createdAt));
+    .orderBy(asc(schema.eventAttachment.sortOrder), asc(schema.eventAttachment.createdAt));
 
-  const byEvent = new Map<string, FacilityEventMediaRow[]>();
+  const byEvent = new Map<string, FacilityEventAttachmentRow[]>();
   for (const row of rows) {
     const list = byEvent.get(row.eventId) ?? [];
     list.push({
@@ -96,9 +96,9 @@ async function attachMedia(
       name: row.name,
       type: row.type,
       size: row.size,
-      kind: row.kind as EventMediaKind,
-      variant: row.variant as EventMediaVariant,
-      role: row.role as EventMediaRole,
+      kind: row.kind as EventAttachmentKind,
+      variant: row.variant as EventAttachmentVariant,
+      role: row.role as EventAttachmentRole,
       sortOrder: row.sortOrder,
       metadata: row.metadata,
       url: `/assets/${encodeURIComponent(row.assetId)}`,
@@ -106,7 +106,7 @@ async function attachMedia(
     byEvent.set(row.eventId, list);
   }
 
-  return events.map((event) => ({ ...event, media: byEvent.get(event.id) ?? [] }));
+  return events.map((event) => ({ ...event, attachments: byEvent.get(event.id) ?? [] }));
 }
 
 // ─── Server functions ──────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
       .filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings))
       .slice(0, limit);
 
-    return attachMedia(db, filtered);
+    return attachEventAttachments(db, filtered);
   });
 
 /**
@@ -202,7 +202,7 @@ export const getDeviceEvents = createServerFn({ method: "GET" })
       .filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings))
       .slice(0, limit);
 
-    return attachMedia(db, filtered);
+    return attachEventAttachments(db, filtered);
   });
 
 /**
@@ -232,5 +232,5 @@ export const getAllFacilityEvents = createServerFn({ method: "GET" })
       .orderBy(desc(schema.facilityEvent.createdAt))
       .limit(limit);
 
-    return attachMedia(db, rows.map(toRow));
+    return attachEventAttachments(db, rows.map(toRow));
   });

@@ -11,15 +11,15 @@ function toJsonObject(value: Record<string, unknown>): JsonObject {
   return JSON.parse(JSON.stringify(value)) as JsonObject;
 }
 
-export type EventMediaKind = "image" | "video";
-export type EventMediaVariant = "source-segment" | "annotated-frame" | "original-frame";
-export type EventMediaRole = "primary" | "supporting" | "source";
+export type EventAttachmentKind = "image" | "video";
+export type EventAttachmentVariant = "source-segment" | "annotated-frame" | "original-frame";
+export type EventAttachmentRole = "primary" | "supporting" | "source";
 
-export interface EventMediaInput {
+export interface EventAttachmentInput {
   assetId: string;
-  kind: EventMediaKind;
-  variant: EventMediaVariant;
-  role?: EventMediaRole;
+  kind: EventAttachmentKind;
+  variant: EventAttachmentVariant;
+  role?: EventAttachmentRole;
   sortOrder?: number;
   metadata?: Record<string, unknown>;
 }
@@ -52,7 +52,7 @@ export async function recordEvent(
   severity: "info" | "warn" | "error",
   message: string,
   data: Record<string, unknown> = {},
-  media: EventMediaInput[] = [],
+  attachments: EventAttachmentInput[] = [],
 ): Promise<string | null> {
   const id = crypto.randomUUID();
   const now = new Date();
@@ -75,14 +75,14 @@ export async function recordEvent(
     return null;
   }
 
-  // Media is optional evidence. A bad or stale asset reference must not drop
-  // the event itself.
-  if (media.length > 0) {
+  // Attachments are optional evidence. A bad or stale asset reference must
+  // not drop the event itself.
+  if (attachments.length > 0) {
     try {
       await db
-        .insert(schema.eventMedia)
+        .insert(schema.eventAttachment)
         .values(
-          media.map((item, index) => ({
+          attachments.map((item, index) => ({
             eventId: id,
             assetId: item.assetId,
             kind: item.kind,
@@ -95,10 +95,10 @@ export async function recordEvent(
         )
         .onConflictDoNothing();
     } catch (err) {
-      log.error("D1 eventMedia insert failed", {
+      log.error("D1 eventAttachment insert failed", {
         error: String(err),
         eventId: id,
-        mediaCount: media.length,
+        attachmentCount: attachments.length,
       });
     }
   }

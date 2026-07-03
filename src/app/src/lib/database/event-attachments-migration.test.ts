@@ -1,7 +1,12 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
 
-const migration = await Bun.file(new URL("../../../migrations/0012_event_media.sql", import.meta.url)).text();
+const legacyAttachmentMigration = await Bun.file(
+  new URL("../../../migrations/0012_event_media.sql", import.meta.url),
+).text();
+const eventAttachmentsMigration = await Bun.file(
+  new URL("../../../migrations/0013_event_attachments.sql", import.meta.url),
+).text();
 
 let db: Database | null = null;
 
@@ -34,15 +39,30 @@ function createBaseDatabase() {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE prediction_outputs (
+      id TEXT PRIMARY KEY NOT NULL,
+      after_asset_id TEXT NOT NULL,
+      segment_id TEXT NOT NULL,
+      plugin_id TEXT NOT NULL,
+      frame_index INTEGER NOT NULL,
+      at_sec REAL NOT NULL,
+      predictions TEXT NOT NULL
+    );
   `);
   return db;
 }
 
-describe("0012 event media migration", () => {
-  test("backfills valid source clips and enforces attachment uniqueness", () => {
+function applyAttachmentMigrations(database: Database) {
+  database.exec(legacyAttachmentMigration);
+  database.exec(eventAttachmentsMigration);
+}
+
+describe("event attachments migrations", () => {
+  test("renames event_media and backfills source clips plus annotated predictions", () => {
     const database = createBaseDatabase();
     database.exec(`
       INSERT INTO assets VALUES ('clip-1', 'clip.webm', 'video/webm', 100, 'hash', 1, 1);
+      INSERT INTO assets VALUES ('annotated-1', 'frame.jpg', 'image/jpeg', 50, 'hash', 1, 1);
       INSERT INTO facility_events VALUES (
         'event-1',
         'facility-1',
@@ -54,23 +74,46 @@ describe("0012 event media migration", () => {
         1,
         1
       );
+      INSERT INTO prediction_outputs VALUES (
+        'output-1',
+        'annotated-1',
+        'segment-1',
+        'restricted-area-protection',
+        30,
+        1.0,
+        '[{"label":"person","confidence":0.92}]'
+      );
     `);
-    database.exec(migration);
+    applyAttachmentMigrations(database);
 
-    const attachment = database
-      .query("SELECT event_id, asset_id, kind, variant, role FROM event_media")
-      .get() as Record<string, string>;
-    expect(attachment).toEqual({
-      event_id: "event-1",
-      asset_id: "clip-1",
-      kind: "video",
-      variant: "source-segment",
-      role: "primary",
-    });
+    const attachments = database
+      .query("SELECT event_id, asset_id, kind, variant, role, sort_order FROM event_attachments ORDER BY sort_order")
+      .all();
+    expect(attachments).toEqual([
+      {
+        event_id: "event-1",
+        asset_id: "annotated-1",
+        kind: "image",
+        variant: "annotated-frame",
+        role: "primary",
+        sort_order: 0,
+      },
+      {
+        event_id: "event-1",
+        asset_id: "clip-1",
+        kind: "video",
+        variant: "source-segment",
+        role: "source",
+        sort_order: 3,
+      },
+    ]);
+    expect(
+      database.query("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'event_media'").get(),
+    ).toEqual({ count: 0 });
     expect(() =>
       database
         .query(`
-          INSERT INTO event_media VALUES (
+          INSERT INTO event_attachments VALUES (
             'duplicate',
             'event-1',
             'clip-1',
@@ -88,30 +131,30 @@ describe("0012 event media migration", () => {
 
   test("cascades attachments from event and asset deletion without coupling their lifetimes", () => {
     const database = createBaseDatabase();
-    database.exec(migration);
+    applyAttachmentMigrations(database);
     database.exec(`
       INSERT INTO assets VALUES ('clip-1', 'clip.webm', 'video/webm', 100, 'hash', 1, 1);
       INSERT INTO facility_events VALUES (
         'event-1', 'facility-1', 'device-1', 'warn', 'manual', 'Alert', '{}', 1, 1
       );
-      INSERT INTO event_media VALUES (
-        'media-1', 'event-1', 'clip-1', 'video', 'source-segment', 'primary', 0, '{}', 1
+      INSERT INTO event_attachments VALUES (
+        'attachment-1', 'event-1', 'clip-1', 'video', 'source-segment', 'primary', 0, '{}', 1
       );
       DELETE FROM facility_events WHERE id = 'event-1';
     `);
-    expect(database.query("SELECT count(*) AS count FROM event_media").get()).toEqual({ count: 0 });
+    expect(database.query("SELECT count(*) AS count FROM event_attachments").get()).toEqual({ count: 0 });
     expect(database.query("SELECT count(*) AS count FROM assets").get()).toEqual({ count: 1 });
 
     database.exec(`
       INSERT INTO facility_events VALUES (
         'event-2', 'facility-1', 'device-1', 'warn', 'manual', 'Alert', '{}', 1, 1
       );
-      INSERT INTO event_media VALUES (
-        'media-2', 'event-2', 'clip-1', 'video', 'source-segment', 'primary', 0, '{}', 1
+      INSERT INTO event_attachments VALUES (
+        'attachment-2', 'event-2', 'clip-1', 'video', 'source-segment', 'primary', 0, '{}', 1
       );
       DELETE FROM assets WHERE id = 'clip-1';
     `);
-    expect(database.query("SELECT count(*) AS count FROM event_media").get()).toEqual({ count: 0 });
+    expect(database.query("SELECT count(*) AS count FROM event_attachments").get()).toEqual({ count: 0 });
     expect(database.query("SELECT count(*) AS count FROM facility_events").get()).toEqual({ count: 1 });
   });
 });
