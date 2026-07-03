@@ -73,7 +73,7 @@ export function AllEventsDialog({ open, onOpenChange, events, onClearLogs }: All
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className="flex h-[min(42rem,85vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <TerminalIcon className="size-4" />

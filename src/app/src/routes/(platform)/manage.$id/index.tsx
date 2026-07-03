@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 
+import { FacilityChat } from "#/components/facility-chat";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/components/ui/chart";
@@ -48,7 +49,7 @@ import { FacilityFeedTab } from "./-components/feed-tab";
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
-export const Route = createFileRoute("/(platform)/analytics/$id/")({
+export const Route = createFileRoute("/(platform)/manage/$id/")({
   component: Page,
   validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
     tab: typeof search.tab === "string" ? search.tab : undefined,
@@ -657,6 +658,7 @@ function EmptyState() {
 const TABS = [
   { id: "analytics", label: "Analytics" },
   { id: "feed", label: "Feed" },
+  { id: "chat", label: "Chat" },
 ];
 
 function Page() {
@@ -702,8 +704,10 @@ function Page() {
   );
 
   useEffect(() => {
-    fetchAnalytics(range);
-  }, [range, fetchAnalytics]);
+    if (activeTab === "analytics") {
+      fetchAnalytics(range);
+    }
+  }, [activeTab, range, fetchAnalytics]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -725,7 +729,7 @@ function Page() {
   if (activeTab === "analytics" && isLoading && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-        <AnalyticsHeaderShell
+        <ManageHeaderShell
           facilityId={facilityId}
           facilityName={undefined}
           activeTab={activeTab}
@@ -745,7 +749,7 @@ function Page() {
   if (activeTab === "analytics" && error && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-        <AnalyticsHeaderShell
+        <ManageHeaderShell
           facilityId={facilityId}
           facilityName={undefined}
           activeTab={activeTab}
@@ -765,7 +769,7 @@ function Page() {
   if (activeTab === "analytics" && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-        <AnalyticsHeaderShell
+        <ManageHeaderShell
           facilityId={facilityId}
           facilityName={undefined}
           activeTab={activeTab}
@@ -785,7 +789,7 @@ function Page() {
   if (activeTab === "feed") {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-        <AnalyticsHeaderShell
+        <ManageHeaderShell
           facilityId={facilityId}
           facilityName={data?.facilityName}
           activeTab={activeTab}
@@ -803,6 +807,26 @@ function Page() {
     );
   }
 
+  // ── Chat tab ─────────────────────────────────────────────────────────
+  if (activeTab === "chat") {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <ManageHeaderShell
+          facilityId={facilityId}
+          facilityName={data?.facilityName}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <FacilityChat facilityId={facilityId} />
+      </div>
+    );
+  }
+
   // ── Analytics tab content ─────────────────────────────────────────────
   // Still show content even if some data is present
   if (!data || (data.totalDevices === 0 && data.totalEventsInRange === 0)) {
@@ -810,7 +834,7 @@ function Page() {
       if (data && data.totalDevices === 0) {
         return (
           <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-            <AnalyticsHeaderShell
+            <ManageHeaderShell
               facilityId={facilityId}
               facilityName={data.facilityName}
               activeTab={activeTab}
@@ -893,7 +917,7 @@ function Page() {
 
   return (
     <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
-      <AnalyticsHeaderShell
+      <ManageHeaderShell
         facilityId={facilityId}
         facilityName={data?.facilityName}
         activeTab={activeTab}
@@ -1072,9 +1096,9 @@ function Page() {
   );
 }
 
-// ─── Analytics Header Shell ─────────────────────────────────────────────────
+// ─── Manage Header Shell ────────────────────────────────────────────────────
 
-function AnalyticsHeaderShell({
+function ManageHeaderShell({
   facilityId,
   facilityName,
   activeTab,
@@ -1105,9 +1129,13 @@ function AnalyticsHeaderShell({
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Analytics"}</h1>
+          <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Manage"}</h1>
           <p className="text-muted-foreground/60 truncate text-[11px]">
-            {activeTab === "analytics" ? "Operational analytics and AI insights" : "Live facility feeds"}
+            {activeTab === "analytics"
+              ? "Operational analytics and AI insights"
+              : activeTab === "feed"
+                ? "Live facility feeds"
+                : "Ask questions across facility data and media"}
             {activeTab === "analytics" && lastUpdated && (
               <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>
             )}
@@ -1121,14 +1149,22 @@ function AnalyticsHeaderShell({
               <ToggleGroupItem value="30d">30d</ToggleGroupItem>
             </ToggleGroup>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button aria-label="Refresh" disabled={isRefreshing} onClick={onRefresh} size="icon-sm" variant="outline">
-                <RefreshCwIcon className={cn("size-4", isRefreshing && "animate-spin")} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh</TooltipContent>
-          </Tooltip>
+          {activeTab !== "chat" ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label="Refresh"
+                  disabled={isRefreshing}
+                  onClick={onRefresh}
+                  size="icon-sm"
+                  variant="outline"
+                >
+                  <RefreshCwIcon className={cn("size-4", isRefreshing && "animate-spin")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       </div>
 

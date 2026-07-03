@@ -1,3 +1,4 @@
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
 import { env } from "cloudflare:workers";
 
 import { createLogger } from "#/lib/logs";
@@ -39,6 +40,12 @@ function requireApiKey(): string {
     );
   }
   return key;
+}
+
+/** TanStack AI adapter configured with the same OpenRouter model and credentials. */
+export function createFacilityChatAdapter() {
+  const model = resolveModel() as Parameters<typeof createOpenRouterText>[0];
+  return createOpenRouterText(model, requireApiKey());
 }
 
 function attributionHeaders(): Record<string, string> {
@@ -144,6 +151,23 @@ export async function summarizeVideo(
     [
       { type: "text", text: prompt },
       { type: "video_url", video_url: { url } },
+    ],
+    options,
+  );
+}
+
+/** Ask the configured multimodal model a question about a facility image. */
+export async function summarizeImage(
+  imageBytes: Uint8Array | ArrayBuffer,
+  mimeType = "image/jpeg",
+  prompt: string,
+  options: { maxTokens?: number } = {},
+): Promise<string | null> {
+  const url = bytesToDataUrl(imageBytes, mimeType);
+  return chatCompletion(
+    [
+      { type: "text", text: prompt },
+      { type: "image_url", image_url: { url } },
     ],
     options,
   );

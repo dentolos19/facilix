@@ -10,7 +10,7 @@ interface PlatformTabsProps {
 
 /**
  * Horizontal tab bar matching the device detail page style.
- * Used by analytics and other full-page detail views.
+ * Used by Manage and other full-page detail views.
  */
 export function PlatformTabs({ tabs, activeTab, onChange }: PlatformTabsProps) {
   return (

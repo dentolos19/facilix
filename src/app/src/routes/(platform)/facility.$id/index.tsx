@@ -6,6 +6,7 @@ import {
   BarChart3,
   EyeIcon,
   Loader2,
+  MessageCircleIcon,
   PencilIcon,
   PlayIcon,
   Save,
@@ -16,6 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { FacilityChat } from "#/components/facility-chat";
 import { Button } from "#/components/ui/button";
 import {
   Dialog,
@@ -37,6 +39,7 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from "#/components/ui/menubar";
+import { Popover, PopoverContent, PopoverTrigger } from "#/components/ui/popover";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/components/ui/resizable";
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
@@ -137,6 +140,7 @@ function Page() {
   const [isMonitoringChanging, setIsMonitoringChanging] = useState(false);
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleClearContainerLogs = useCallback(async () => {
     try {
@@ -660,21 +664,45 @@ function Page() {
             </Tooltip>
           )}
 
-          {/* Analytics button (monitoring mode only) */}
+          {/* Manage button (monitoring mode only) */}
           {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  aria-label="View analytics"
-                  onClick={() => navigate({ to: "/analytics/$id", params: { id: facilityId } })}
+                  aria-label="Manage facility"
+                  onClick={() => navigate({ to: "/manage/$id", params: { id: facilityId } })}
                   size="icon-sm"
                   variant="ghost"
                 >
                   <BarChart3 className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Analytics</TooltipContent>
+              <TooltipContent>Manage</TooltipContent>
             </Tooltip>
+          )}
+
+          {/* Facility chat button (monitoring mode only) */}
+          {editMode === "monitoring" && (
+            <Popover onOpenChange={setChatOpen} open={chatOpen}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button aria-label="Open facility chat" size="icon-sm" variant="ghost">
+                      <MessageCircleIcon />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>Chat</TooltipContent>
+              </Tooltip>
+              <PopoverContent
+                align="end"
+                className="h-[min(38rem,calc(100vh-5rem))] w-[min(28rem,calc(100vw-2rem))] overflow-hidden p-0 data-[state=closed]:hidden"
+                forceMount
+                sideOffset={8}
+              >
+                <FacilityChat facilityId={facilityId} onClose={() => setChatOpen(false)} />
+              </PopoverContent>
+            </Popover>
           )}
 
           {editMode === "edit" && (
