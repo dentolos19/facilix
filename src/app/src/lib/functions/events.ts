@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
+import type { EventMediaKind, EventMediaRole, EventMediaVariant } from "#/lib/monitoring/utils";
+import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -14,9 +16,30 @@ export interface FacilityEventRow {
   severity: "info" | "warn" | "error";
   type: string;
   message: string;
-  data: string;
+  data: JsonObject;
+  media: FacilityEventMediaRow[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface FacilityEventMediaRow {
+  id: string;
+  assetId: string;
+  name: string;
+  type: string;
+  size: number;
+  kind: EventMediaKind;
+  variant: EventMediaVariant;
+  role: EventMediaRole;
+  sortOrder: number;
+  metadata: JsonObject;
+  url: string;
+}
+
+export interface FacilityEventView extends FacilityEventRow {
+  deviceName: string;
+  deviceType: string;
+  zoneName?: string;
 }
 
 function toRow(r: typeof schema.facilityEvent.$inferSelect): FacilityEventRow {
@@ -27,10 +50,63 @@ function toRow(r: typeof schema.facilityEvent.$inferSelect): FacilityEventRow {
     severity: r.severity as "info" | "warn" | "error",
     type: r.type,
     message: r.message,
-    data: JSON.stringify(r.data),
+    data: r.data,
+    media: [],
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
+}
+
+async function attachMedia(
+  db: ReturnType<typeof createDatabase>,
+  events: FacilityEventRow[],
+): Promise<FacilityEventRow[]> {
+  if (events.length === 0) return events;
+
+  const rows = await db
+    .select({
+      id: schema.eventMedia.id,
+      eventId: schema.eventMedia.eventId,
+      assetId: schema.eventMedia.assetId,
+      kind: schema.eventMedia.kind,
+      variant: schema.eventMedia.variant,
+      role: schema.eventMedia.role,
+      sortOrder: schema.eventMedia.sortOrder,
+      metadata: schema.eventMedia.metadata,
+      name: schema.asset.name,
+      type: schema.asset.type,
+      size: schema.asset.size,
+    })
+    .from(schema.eventMedia)
+    .innerJoin(schema.asset, eq(schema.eventMedia.assetId, schema.asset.id))
+    .where(
+      inArray(
+        schema.eventMedia.eventId,
+        events.map((event) => event.id),
+      ),
+    )
+    .orderBy(asc(schema.eventMedia.sortOrder), asc(schema.eventMedia.createdAt));
+
+  const byEvent = new Map<string, FacilityEventMediaRow[]>();
+  for (const row of rows) {
+    const list = byEvent.get(row.eventId) ?? [];
+    list.push({
+      id: row.id,
+      assetId: row.assetId,
+      name: row.name,
+      type: row.type,
+      size: row.size,
+      kind: row.kind as EventMediaKind,
+      variant: row.variant as EventMediaVariant,
+      role: row.role as EventMediaRole,
+      sortOrder: row.sortOrder,
+      metadata: row.metadata,
+      url: `/assets/${encodeURIComponent(row.assetId)}`,
+    });
+    byEvent.set(row.eventId, list);
+  }
+
+  return events.map((event) => ({ ...event, media: byEvent.get(event.id) ?? [] }));
 }
 
 // ─── Server functions ──────────────────────────────────────────────────────
@@ -77,7 +153,7 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
       .filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings))
       .slice(0, limit);
 
-    return filtered;
+    return attachMedia(db, filtered);
   });
 
 /**
@@ -126,7 +202,7 @@ export const getDeviceEvents = createServerFn({ method: "GET" })
       .filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings))
       .slice(0, limit);
 
-    return filtered;
+    return attachMedia(db, filtered);
   });
 
 /**
@@ -156,5 +232,5 @@ export const getAllFacilityEvents = createServerFn({ method: "GET" })
       .orderBy(desc(schema.facilityEvent.createdAt))
       .limit(limit);
 
-    return rows.map(toRow);
+    return attachMedia(db, rows.map(toRow));
   });

@@ -296,16 +296,6 @@ export function fromSnapshot(
 
 export type EditMode = "monitoring" | "edit";
 
-export interface LogEntry {
-  id: string;
-  deviceId: string;
-  deviceName: string;
-  deviceType: PlacedItemType;
-  timestamp: Date;
-  level: "info" | "warn" | "error";
-  message: string;
-}
-
 export interface CanvasEditorProps {
   readOnly?: boolean;
   placedItems: PlacedItem[];

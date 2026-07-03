@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
+import { getSession } from "#/lib/auth/guard";
 import { createDatabase, schema } from "#/lib/database";
 
 export const Route = createFileRoute("/assets/$id")({
@@ -45,6 +46,11 @@ function parseRangeHeader(range: string | null, totalSize: number): { offset: nu
 async function streamAsset(id: string, request: Request): Promise<Response> {
   if (!id) {
     return new Response("Missing asset id.", { status: 400 });
+  }
+
+  const session = await getSession(request, env.DATABASE);
+  if (!session) {
+    return new Response("Unauthorized.", { status: 401 });
   }
 
   const db = createDatabase(env.DATABASE);

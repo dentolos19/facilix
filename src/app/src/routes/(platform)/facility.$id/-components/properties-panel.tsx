@@ -16,7 +16,9 @@ import {
   type CountThresholdAlertRule,
   type DetectionAlertRule,
   type DevicePluginConfig,
+  createPluginConfig,
   getPlugin,
+  isLegacyPlugin,
   normalizePlugins,
   PLUGINS,
   type Plugin,
@@ -718,55 +720,7 @@ function removePlugin(configs: DevicePluginConfig[], pluginId: string): DevicePl
 
 function addPlugin(configs: DevicePluginConfig[], plugin: Plugin): DevicePluginConfig[] {
   if (configs.some((c) => c.pluginId === plugin.id)) return configs;
-
-  if (plugin.kind === "segment-understanding") {
-    const defaultPrompt = plugin.defaultPrompt ?? "Analyze this CCTV clip for anomalies.";
-    return [
-      ...configs,
-      {
-        pluginId: plugin.id,
-        enabled: true,
-        prompt: defaultPrompt,
-        severity: "warn",
-        alerts: [
-          {
-            kind: "scene-match",
-            enabled: true,
-            description: defaultPrompt,
-            severity: "warn",
-          },
-        ],
-      },
-    ];
-  }
-
-  if (plugin.kind === "workflow-object-detection") {
-    return [
-      ...configs,
-      {
-        pluginId: plugin.id,
-        enabled: true,
-        threshold: DEFAULT_COUNTING_THRESHOLD,
-        operator: DEFAULT_COUNTING_OPERATOR,
-        thresholdMode: "max-per-frame",
-        minConfidence: DEFAULT_PLUGIN_CONFIDENCE,
-        alertSeverity: "warn",
-        cooldownSec: 300,
-        alerts: [
-          {
-            kind: "count-threshold",
-            enabled: true,
-            threshold: DEFAULT_COUNTING_THRESHOLD,
-            operator: DEFAULT_COUNTING_OPERATOR,
-            thresholdMode: "max-per-frame",
-            severity: "warn",
-          },
-        ],
-      },
-    ];
-  }
-
-  return configs;
+  return [...configs, createPluginConfig(plugin)];
 }
 
 function CctvPluginsSection({
@@ -796,8 +750,8 @@ function CctvPluginsSection({
             No intelligence plugins installed
           </div>
           <p className="text-muted-foreground/70 text-[10px] leading-snug">
-            Object detection runs automatically on every video segment. Add a Natural Language plugin for AI scene
-            understanding.
+            Add an operational plugin to protect an area, enforce compliance, monitor a loading bay, or spot safety
+            risks.
           </p>
         </div>
       )}
@@ -813,6 +767,15 @@ function CctvPluginsSection({
               key={config.pluginId}
               onChange={(patch) => onChange(updatePlugin(configs, config.pluginId, patch))}
               onRemove={() => onChange(removePlugin(configs, config.pluginId))}
+              onReplace={
+                plugin.replacementId
+                  ? () => {
+                      const replacement = getPlugin(plugin.replacementId!);
+                      if (!replacement) return;
+                      onChange(addPlugin(removePlugin(configs, config.pluginId), replacement));
+                    }
+                  : undefined
+              }
               plugin={plugin}
             />
           );
@@ -821,7 +784,10 @@ function CctvPluginsSection({
 
       {!isReadOnly && available.length > 0 && (
         <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-          <Label className="text-muted-foreground text-[11px] font-medium">Add Plugin</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-muted-foreground text-[11px] font-medium">Add operational plugin</Label>
+            <span className="text-muted-foreground/50 font-mono text-[9px] uppercase">Outcome catalog</span>
+          </div>
           <div className="flex flex-col gap-1">
             {available.map((plugin) => (
               <Button
@@ -831,9 +797,17 @@ function CctvPluginsSection({
                 size="sm"
                 variant="outline"
               >
-                <span className="flex flex-col gap-0.5">
-                  <span className="text-foreground/80 text-[11px] font-medium">{plugin.name}</span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-foreground/80 text-[11px] font-medium">{plugin.name}</span>
+                    <span className="bg-muted text-muted-foreground rounded-sm px-1 py-0.5 font-mono text-[8px] uppercase">
+                      {plugin.category}
+                    </span>
+                  </span>
                   <span className="text-muted-foreground/70 text-[10px] font-normal">{plugin.description}</span>
+                  <span className="text-muted-foreground/50 truncate text-[9px] font-normal">
+                    Best for: {plugin.recommendedFor.join(" · ")}
+                  </span>
                 </span>
                 <PlusIcon className="text-muted-foreground size-3.5" />
               </Button>
@@ -851,15 +825,29 @@ function PluginCard({
   isReadOnly,
   onChange,
   onRemove,
+  onReplace,
 }: {
   plugin: Plugin;
   config: DevicePluginConfig;
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
   onRemove: () => void;
+  onReplace?: () => void;
 }) {
+  const legacy = isLegacyPlugin(plugin);
+
   return (
     <div className="border-border bg-muted/10 flex flex-col gap-2 rounded-none border p-2">
+      <div
+        className={`-mx-2 -mt-2 flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase ${
+          legacy
+            ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            : "border-border bg-muted/30 text-muted-foreground"
+        }`}
+      >
+        <span>{legacy ? "Legacy plugin" : plugin.category}</span>
+        <span>{plugin.provider === "roboflow" ? "Tracked detection" : "Scene review"}</span>
+      </div>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -883,6 +871,25 @@ function PluginCard({
         </div>
       </div>
 
+      {!legacy && (
+        <div className="grid grid-cols-2 gap-2 border-y py-2">
+          <div className="min-w-0">
+            <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
+            <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
+          </div>
+          <div className="min-w-0 border-l pl-2">
+            <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
+            <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
+          </div>
+        </div>
+      )}
+
+      {legacy && onReplace && !isReadOnly && (
+        <Button className="h-7 justify-start rounded-none text-[10px]" onClick={onReplace} size="sm" variant="outline">
+          Replace with {getPlugin(plugin.replacementId!)?.name}
+        </Button>
+      )}
+
       {/* Enable switch */}
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
@@ -898,21 +905,78 @@ function PluginCard({
         />
       </div>
 
-      {plugin.kind === "segment-understanding" && (
-        <SegmentAnalysisConfig
-          config={config as SegmentAnalysisDeviceConfig}
-          isReadOnly={isReadOnly}
-          onChange={onChange}
-        />
+      {plugin.kind === "segment-understanding" && config.kind === "segment-understanding" && (
+        <SegmentAnalysisConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
       )}
 
-      {plugin.kind === "workflow-object-detection" && (
-        <DetectionPluginConfig
-          config={config as WorkflowObjectDetectionDeviceConfig}
-          isReadOnly={isReadOnly}
-          onChange={onChange}
-        />
+      {plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection" && (
+        <DetectionPluginConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
       )}
+
+      <div className="border-border flex flex-col gap-2 border-t pt-2">
+        <div>
+          <p className="text-foreground/80 text-[11px] font-medium">Event evidence</p>
+          <p className="text-muted-foreground/60 text-[10px]">
+            Attach reviewable media when this plugin raises an alert.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground text-[10px]">Source video clip</span>
+          <Switch
+            aria-label={`Attach video for ${plugin.name}`}
+            checked={config.evidence.attachVideo}
+            disabled={isReadOnly}
+            onCheckedChange={(checked) =>
+              onChange((current) => ({
+                ...current,
+                evidence: { ...current.evidence, attachVideo: checked },
+              }))
+            }
+            size="sm"
+          />
+        </div>
+        {config.kind === "workflow-object-detection" && (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground text-[10px]">Annotated frames</span>
+              <Switch
+                aria-label={`Attach annotated frames for ${plugin.name}`}
+                checked={config.evidence.attachAnnotatedFrames}
+                disabled={isReadOnly}
+                onCheckedChange={(checked) =>
+                  onChange((current) => ({
+                    ...current,
+                    evidence: { ...current.evidence, attachAnnotatedFrames: checked },
+                  }))
+                }
+                size="sm"
+              />
+            </div>
+            {config.evidence.attachAnnotatedFrames && (
+              <Field label="Maximum annotated images">
+                <Input
+                  className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                  max={3}
+                  min={1}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    onChange((current) => ({
+                      ...current,
+                      evidence: {
+                        ...current.evidence,
+                        maxAnnotatedFrames: Number.isFinite(value) ? Math.max(1, Math.min(3, value)) : 3,
+                      },
+                    }));
+                  }}
+                  readOnly={isReadOnly}
+                  type="number"
+                  value={String(config.evidence.maxAnnotatedFrames)}
+                />
+              </Field>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -962,7 +1026,7 @@ function SegmentAnalysisConfig({
     <>
       {/* Legacy Prompt */}
       <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Base prompt</Label>
+        <Label className="text-muted-foreground text-[11px] font-medium">Review guidance</Label>
         <textarea
           className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-20 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${
             isReadOnly ? "pointer-events-none opacity-60" : ""
@@ -977,25 +1041,23 @@ function SegmentAnalysisConfig({
           placeholder="Describe what anomalies to look for in this CCTV feed..."
           value={config.prompt}
         />
-        <p className="text-muted-foreground/60 text-[10px]">
-          Base prompt sent to AI video understanding on segment upload.
-        </p>
+        <p className="text-muted-foreground/60 text-[10px]">Guidance used when reviewing each recorded segment.</p>
       </div>
 
       {/* Scene Alert Rules */}
       <div className="border-border flex flex-col gap-2 border-t pt-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium">Scene Alerts</Label>
+          <Label className="text-muted-foreground text-[11px] font-medium">Operational rules</Label>
           {!isReadOnly && (
             <Button className="h-5 px-1.5 text-[10px]" onClick={addAlert} size="sm" variant="outline">
               <PlusIcon className="mr-0.5 size-2.5" />
-              Add Alert
+              Add rule
             </Button>
           )}
         </div>
 
         {alerts.length === 0 && (
-          <p className="text-muted-foreground/60 text-[10px]">No scene alerts configured. Using base prompt only.</p>
+          <p className="text-muted-foreground/60 text-[10px]">No operational rules configured.</p>
         )}
 
         {alerts.map((alert, index) => (
@@ -1009,7 +1071,7 @@ function SegmentAnalysisConfig({
                   onCheckedChange={(checked) => updateAlert(index, (a) => ({ ...a, enabled: checked }))}
                   size="sm"
                 />
-                <span className="text-foreground/80 text-[10px] font-medium">Scene Match</span>
+                <span className="text-foreground/80 text-[10px] font-medium">Risk condition</span>
               </div>
               {!isReadOnly && (
                 <Button
@@ -1029,7 +1091,7 @@ function SegmentAnalysisConfig({
               }`}
               disabled={isReadOnly}
               onChange={(e) => updateAlert(index, (a) => ({ ...a, description: e.target.value }))}
-              placeholder="Describe what to detect, e.g. 'A person loitering near the entrance'..."
+              placeholder="Describe a visible condition that should trigger an alert..."
               value={alert.kind === "scene-match" ? alert.description : ""}
             />
 
@@ -1131,7 +1193,7 @@ function DetectionPluginConfig({
     <>
       {/* Minimum Confidence */}
       <div className="border-border flex flex-col gap-1 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Minimum confidence</Label>
+        <Label className="text-muted-foreground text-[11px] font-medium">Detection confidence</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={1}
@@ -1155,7 +1217,7 @@ function DetectionPluginConfig({
 
       {/* Class Filter */}
       <div className="border-border flex flex-col gap-1 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Class filter (optional)</Label>
+        <Label className="text-muted-foreground text-[11px] font-medium">Objects to monitor</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           onChange={(e) => {
@@ -1177,14 +1239,14 @@ function DetectionPluginConfig({
           value={config.classes?.join(", ") ?? ""}
         />
         <p className="text-muted-foreground/60 text-[10px]">
-          Comma-separated class labels to detect. Leave empty for all classes.
+          Comma-separated detector labels. The plugin includes practical defaults.
         </p>
       </div>
 
       {/* Alert Rules */}
       <div className="border-border flex flex-col gap-2 border-t pt-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium">Alert Rules</Label>
+          <Label className="text-muted-foreground text-[11px] font-medium">Operational rules</Label>
           {!isReadOnly && (
             <div className="flex gap-1">
               <Button
@@ -1194,7 +1256,7 @@ function DetectionPluginConfig({
                 variant="outline"
               >
                 <PlusIcon className="mr-0.5 size-2.5" />
-                Count
+                Limit
               </Button>
               <Button
                 className="h-5 px-1.5 text-[10px]"
@@ -1203,7 +1265,7 @@ function DetectionPluginConfig({
                 variant="outline"
               >
                 <PlusIcon className="mr-0.5 size-2.5" />
-                Enters
+                Arrives
               </Button>
               <Button
                 className="h-5 px-1.5 text-[10px]"
@@ -1218,7 +1280,9 @@ function DetectionPluginConfig({
           )}
         </div>
 
-        {alerts.length === 0 && <p className="text-muted-foreground/60 text-[10px]">No alert rules configured.</p>}
+        {alerts.length === 0 && (
+          <p className="text-muted-foreground/60 text-[10px]">No operational rules configured.</p>
+        )}
 
         {alerts.map((alert, index) => (
           <div className="bg-muted/20 flex flex-col gap-1.5 rounded-none border p-2" key={index}>
@@ -1232,9 +1296,9 @@ function DetectionPluginConfig({
                   size="sm"
                 />
                 <span className="text-foreground/80 text-[10px] font-medium">
-                  {alert.kind === "count-threshold" && "Count Threshold"}
-                  {alert.kind === "object-enters" && "Object Enters"}
-                  {alert.kind === "object-leaves" && "Object Leaves"}
+                  {alert.kind === "count-threshold" && "Occupancy limit"}
+                  {alert.kind === "object-enters" && "Arrival or entry"}
+                  {alert.kind === "object-leaves" && "Departure or exit"}
                 </span>
               </div>
               {!isReadOnly && (

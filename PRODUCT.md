@@ -152,41 +152,40 @@ Since the factory has 2 loading bays, visibility and planning are important to p
 
 ## 7. CCTV Intelligence Plugins
 
-Facilix should support configurable intelligence plugins for CCTV video analysis. Each CCTV device can have multiple plugins enabled, each with multiple alert rules.
+Facilix should support configurable, outcome-oriented intelligence plugins for CCTV video analysis. Plugins should describe an operational job that facility staff recognize rather than exposing underlying AI capabilities such as generic person, vehicle, object, or natural-language detection.
+
+Each CCTV device can have multiple plugins enabled. Roboflow object detection, tracking, and AI scene understanding are shared internal capabilities used by the plugins.
 
 ### Plugin Types
 
-**People Detection** — Detects people using Roboflow computer vision workflows. Alerts when:
-- Detection count crosses a threshold (e.g., more than 5 people)
-- People enter the scene (count goes from 0 to >0)
-- People leave the scene (count goes from >0 to 0)
+**Restricted Area Protection** — Protects sensitive areas by detecting unexpected people, entry transitions, and occupancy breaches.
 
-**Vehicle Detection** — Detects vehicles using Roboflow computer vision workflows. Alerts when:
-- Detection count crosses a threshold
-- Vehicles enter or leave the scene
-- Specific vehicle types are detected (car, truck, etc.)
+**PPE Compliance** — Reviews food-operation footage for visible missing or incorrectly worn protective equipment.
 
-**Object Detection** — Detects any configurable object class (car, truck, person, dining table, etc.) with optional class filtering.
+**Loading Bay Operations** — Tracks vehicle arrivals, departures, bay occupancy, and possible congestion.
 
-**Natural Language** — Uses AI vision models to analyze scenes based on natural-language descriptions. Alerts when:
-- The scene matches a user-described scenario (e.g., "a person loitering near the entrance")
-- Multiple scene descriptions can be configured per plugin
-- Evidence (bounding boxes) is provided for each match
+**Hygiene & Pest Watch** — Reviews food-sensitive areas for visible pests, spills, standing water, and waste risks.
+
+**Workplace Safety** — Reviews operational areas for falls, blocked access, unsafe crowding, and dangerous person–vehicle proximity.
 
 ### Alert Rules
 
-Each plugin supports multiple alert rules:
-- **Count Threshold** — Alert when detection count crosses a value (configurable operator and counting mode)
-- **Object Enters** — Alert when objects appear in the scene
-- **Object Leaves** — Alert when objects disappear from the scene
-- **Scene Match** — Alert when a natural-language description matches the scene
+Plugins provide practical default policies that staff can adjust:
+
+- **Presence and Occupancy** — Alert when a relevant person or vehicle appears or exceeds an operational limit.
+- **Arrival and Departure** — Record transitions such as a vehicle arriving at or leaving a loading bay.
+- **Compliance Review** — Alert when visible PPE or hygiene conditions violate the configured policy.
+- **Safety Review** — Alert when a clearly visible safety scenario matches a configured rule.
+- **Operational State** — Project plugin results into states such as clear, breach, available, occupied, normal, or attention.
 
 ### Configuration
 
-- Minimum confidence threshold (0-1)
-- Class filtering (optional, comma-separated labels)
-- Alert severity (info, warning, error)
-- Cooldown between alerts
+- Enable or disable each plugin per camera.
+- Select the operational policy and editable alert rules.
+- Configure minimum confidence where object detection is used.
+- Configure alert severity and a cooldown that is enforced during processing.
+- Show supporting detections or scene evidence on recorded CCTV playback.
+- Preserve existing generic plugin configurations as legacy entries until an administrator replaces them.
 
 ## 8. Dashboard and Operational Visibility
 
@@ -242,6 +241,10 @@ Each alert should clearly show:
 - How serious it is.
 - What action should be taken.
 - Whether the issue is new, acknowledged, in progress, or resolved.
+- Available source video and annotated image evidence for actionable CCTV intelligence alerts.
+- The measured values, rule, confidence, and visible evidence that explain why the alert was raised.
+
+In the global event list, selecting one event should show only that event's evidence and details. Selecting the source device should show the device details and all events from that device. A double-click on an event is the shortcut for selecting its source device.
 
 The system should help reduce confusion and make incident response faster and more organized.
 

@@ -6,7 +6,7 @@ import { getLatestSensorReading } from "#/lib/functions/sensors";
 
 import { Route as DeviceRoute } from "../index";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
-import { DeviceLogsTab } from "./device-logs";
+import { DeviceEventsTab } from "./device-events-tab";
 
 const TABS = [
   { id: "live", label: "Live" },
@@ -112,7 +112,7 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
           unit={unit}
         />
       )}
-      {activeTab === "logs" && <DeviceLogsTab device={device} />}
+      {activeTab === "logs" && <DeviceEventsTab device={device} />}
     </DeviceDetailShell>
   );
 }

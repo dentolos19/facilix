@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { type FacilityEventRow, getDeviceEvents } from "#/lib/functions/events";
 import type { DeviceDetail } from "#/lib/functions/facility";
 
-export function DeviceLogsTab({ device }: { device: DeviceDetail }) {
+export function DeviceEventsTab({ device }: { device: DeviceDetail }) {
   const [events, setEvents] = useState<FacilityEventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,9 +95,9 @@ function EventRow({ event }: { event: FacilityEventRow }) {
           </span>
         </div>
         <p className="text-foreground/70 text-[11px]">{event.message}</p>
-        {event.data && event.data !== "{}" && (
+        {Object.keys(event.data).length > 0 && (
           <pre className="bg-muted/30 text-muted-foreground/70 mt-1 overflow-x-auto rounded-none p-1.5 text-[10px]">
-            {event.data}
+            {JSON.stringify(event.data, null, 2)}
           </pre>
         )}
       </div>

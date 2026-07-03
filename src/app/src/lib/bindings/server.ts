@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
 import { type LogSeverity, normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
+import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 const log = createLogger("server");
 
@@ -57,7 +58,7 @@ export class Server extends Container<Env> {
         severity,
         type,
         message: (message as string) ?? type,
-        data: extra,
+        data: JSON.parse(JSON.stringify(extra)) as JsonObject,
         createdAt: now,
         updatedAt: now,
       });

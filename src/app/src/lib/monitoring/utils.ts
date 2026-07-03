@@ -3,8 +3,26 @@ import { eq } from "drizzle-orm";
 import type { createDatabase } from "#/lib/database";
 import * as schema from "#/lib/database/schema";
 import { createLogger } from "#/lib/logs";
+import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 const log = createLogger("monitoring-utils");
+
+function toJsonObject(value: Record<string, unknown>): JsonObject {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
+}
+
+export type EventMediaKind = "image" | "video";
+export type EventMediaVariant = "source-segment" | "annotated-frame" | "original-frame";
+export type EventMediaRole = "primary" | "supporting" | "source";
+
+export interface EventMediaInput {
+  assetId: string;
+  kind: EventMediaKind;
+  variant: EventMediaVariant;
+  role?: EventMediaRole;
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+}
 
 /**
  * Validate that a deviceId belongs to the given facility and return its row.
@@ -27,13 +45,14 @@ export async function validateDevice(
  */
 export async function recordEvent(
   db: ReturnType<typeof createDatabase>,
-  observer: DurableObjectStub<import("./observer").Observer>,
+  observer: DurableObjectStub<import("#/lib/bindings/observer").Observer>,
   facilityId: string,
   deviceId: string | null,
   type: string,
   severity: "info" | "warn" | "error",
   message: string,
   data: Record<string, unknown> = {},
+  media: EventMediaInput[] = [],
 ): Promise<string | null> {
   const id = crypto.randomUUID();
   const now = new Date();
@@ -47,13 +66,41 @@ export async function recordEvent(
       severity,
       type,
       message,
-      data,
+      data: toJsonObject(data),
       createdAt: now,
       updatedAt: now,
     });
   } catch (err) {
     log.error("D1 facilityEvent insert failed", { error: String(err), facilityId, type });
     return null;
+  }
+
+  // Media is optional evidence. A bad or stale asset reference must not drop
+  // the event itself.
+  if (media.length > 0) {
+    try {
+      await db
+        .insert(schema.eventMedia)
+        .values(
+          media.map((item, index) => ({
+            eventId: id,
+            assetId: item.assetId,
+            kind: item.kind,
+            variant: item.variant,
+            role: item.role ?? "supporting",
+            sortOrder: item.sortOrder ?? index,
+            metadata: toJsonObject(item.metadata ?? {}),
+            createdAt: now,
+          })),
+        )
+        .onConflictDoNothing();
+    } catch (err) {
+      log.error("D1 eventMedia insert failed", {
+        error: String(err),
+        eventId: id,
+        mediaCount: media.length,
+      });
+    }
   }
 
   // 2. Broadcast via Observer DO WebSocket for real-time updates

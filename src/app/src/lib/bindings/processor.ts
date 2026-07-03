@@ -4,15 +4,21 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { analyzeSceneAlerts, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
+import { selectRepresentativeFrames, type StoredPredictionMediaRef } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
   evaluateCountThreshold,
   evaluateTransition,
+  getPlugin,
+  isCooldownElapsed,
   normalizePlugins,
   resolveEnabledPlugins,
   type DetectionAlertRule,
+  type PluginCategory,
   type SceneMatchAlertRule,
   type SegmentAnalysisDeviceConfig,
+  type SegmentUnderstandingPlugin,
+  type WorkflowObjectDetectionPlugin,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
 import {
@@ -21,7 +27,7 @@ import {
   type PredictionOutputFrame,
   type WorkflowDetection,
 } from "#/lib/monitoring/roboflow";
-import { recordEvent } from "#/lib/monitoring/utils";
+import { recordEvent, type EventMediaInput } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 /**
@@ -75,10 +81,15 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const { facilityId, deviceId, segmentId } = payload;
 
     // Load all enabled plugins for this device
-    const resolvedPlugins: import("#/lib/monitoring/plugins").ResolvedPlugin[] = [];
-    const detectionPlugins: import("#/lib/monitoring/plugins").ResolvedPlugin<WorkflowObjectDetectionDeviceConfig>[] =
-      [];
-    const segmentPlugins: import("#/lib/monitoring/plugins").ResolvedPlugin<SegmentAnalysisDeviceConfig>[] = [];
+    const detectionPlugins: Array<{
+      plugin: WorkflowObjectDetectionPlugin;
+      config: WorkflowObjectDetectionDeviceConfig;
+    }> = [];
+    const segmentPlugins: Array<{
+      plugin: SegmentUnderstandingPlugin;
+      config: SegmentAnalysisDeviceConfig;
+    }> = [];
+    const cooldownByPlugin = new Map<string, number>();
 
     await step.do("load-device-plugins", STEP_RETRIES, async () => {
       const db = createDatabase(this.env.DATABASE);
@@ -89,17 +100,12 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         .limit(1);
       const configs = normalizePlugins((row?.data as JsonObject | undefined)?.plugins);
       const enabled = resolveEnabledPlugins(configs);
-      for (const r of enabled) {
-        resolvedPlugins.push(r);
-        if (r.plugin.kind === "workflow-object-detection") {
-          detectionPlugins.push(
-            r as unknown as import("#/lib/monitoring/plugins").ResolvedPlugin<WorkflowObjectDetectionDeviceConfig>,
-          );
-        }
-        if (r.plugin.kind === "segment-understanding") {
-          segmentPlugins.push(
-            r as unknown as import("#/lib/monitoring/plugins").ResolvedPlugin<SegmentAnalysisDeviceConfig>,
-          );
+      for (const resolved of enabled) {
+        cooldownByPlugin.set(resolved.plugin.id, resolved.config.cooldownSec ?? 0);
+        if (resolved.kind === "workflow-object-detection") {
+          detectionPlugins.push(resolved);
+        } else {
+          segmentPlugins.push(resolved);
         }
       }
     });
@@ -139,7 +145,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         continue;
       }
 
-      const config = detectionPlugin.config as WorkflowObjectDetectionDeviceConfig;
+      const config = detectionPlugin.config;
       const classFilter = config.classes && config.classes.length > 0 ? config.classes : undefined;
 
       const result = await step.do(`detect-objects-${pluginId}`, STEP_RETRIES, async () => {
@@ -163,24 +169,26 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           roboflowApiBase: "https://serverless.roboflow.com",
         });
 
-        if (result.predictionOutputs.length > 0) {
-          await persistPredictionOutputs({
-            database: this.env.DATABASE,
-            bucket: this.env.BUCKET,
-            segmentId,
-            facilityId,
-            deviceId,
-            pluginId,
-            workflowId: pluginWorkflow.workflowId,
-            frames: result.predictionOutputs,
-          });
-        }
+        const predictionMedia =
+          result.predictionOutputs.length > 0
+            ? await persistPredictionOutputs({
+                database: this.env.DATABASE,
+                bucket: this.env.BUCKET,
+                segmentId,
+                facilityId,
+                deviceId,
+                pluginId,
+                workflowId: pluginWorkflow.workflowId,
+                frames: result.predictionOutputs,
+              })
+            : [];
 
         // Never return base64 image payloads from a Workflow step. Workflows
         // serializes step outputs and has a 32MiB serialized value limit.
         return {
           detections: result.detections,
           predictionOutputs: [],
+          predictionMedia,
           video: result.video,
         };
       });
@@ -200,7 +208,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         filtered,
         countValue,
         config,
-        detectionPlugin.plugin.name,
+        detectionPlugin.plugin,
         previousSegmentData,
       );
 
@@ -212,6 +220,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         detections: filtered,
         detectionCounts: countByLabel(filtered),
         maxCount: countValue,
+        operationalState: deriveDetectionOperationalState(pluginId, countValue),
+        predictionMedia: result.predictionMedia,
         matchedAlerts: pluginAlertResults,
       });
 
@@ -240,7 +250,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       const results: SceneAnalysisResult[] = [];
 
       for (const segmentPlugin of segmentPlugins) {
-        const config = segmentPlugin.config as SegmentAnalysisDeviceConfig;
+        const config = segmentPlugin.config;
         const alerts = config.alerts.filter((a): a is SceneMatchAlertRule => a.kind === "scene-match" && a.enabled);
 
         if (alerts.length === 0) {
@@ -252,7 +262,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
               results.push({
                 pluginId: segmentPlugin.plugin.id,
                 pluginName: segmentPlugin.plugin.name,
+                category: segmentPlugin.plugin.category,
                 summary,
+                operationalState: "normal",
                 alertMatches: [],
               });
             }
@@ -280,7 +292,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             results.push({
               pluginId: segmentPlugin.plugin.id,
               pluginName: segmentPlugin.plugin.name,
+              category: segmentPlugin.plugin.category,
               summary: analysis.summary,
+              operationalState: analysis.matches.some((match) => match.matched) ? "attention" : "normal",
               alertMatches: analysis.matches.map((m) => ({
                 description: m.description,
                 matched: m.matched,
@@ -300,6 +314,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
                     matched: true,
                     pluginId: segmentPlugin.plugin.id,
                     pluginName: segmentPlugin.plugin.name,
+                    category: segmentPlugin.plugin.category,
                     description: rule.description,
                     severity: rule.severity,
                     confidence: match.confidence,
@@ -321,13 +336,22 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       return results;
     });
 
+    const evaluatedAt = new Date(payload.endedAt || payload.startedAt);
+    const cooldownResult = applyAlertCooldown(
+      matchedAlerts,
+      cooldownByPlugin,
+      previousSegmentData?.alertState ?? {},
+      Number.isNaN(evaluatedAt.getTime()) ? new Date() : evaluatedAt,
+    );
+    const emittedAlerts = cooldownResult.alerts;
+
     // Persist results to video_segments.data
     await step.do("persist", STEP_RETRIES, async () => {
       const db = createDatabase(this.env.DATABASE);
 
       const data = {
         source: "facilix-processor",
-        analysisVersion: 8,
+        analysisVersion: 9,
         detectionVideo,
         detections: allDetections.map((d) => ({
           label: d.label,
@@ -348,13 +372,15 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           workflowId: r.workflowId,
           detectionCounts: r.detectionCounts,
           maxCount: r.maxCount,
+          operationalState: r.operationalState,
           matchedAlerts: r.matchedAlerts,
         })),
         sceneResults,
-        matchedAlerts: matchedAlerts.map((a) => ({
+        matchedAlerts: emittedAlerts.map((a) => ({
           kind: a.kind,
           pluginId: a.pluginId,
           pluginName: a.pluginName,
+          category: a.category,
           severity: a.severity,
           description: "description" in a ? a.description : undefined,
           count: "count" in a ? a.count : undefined,
@@ -363,6 +389,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           confidence: a.confidence,
           evidence: a.evidence,
         })),
+        alertState: cooldownResult.alertState,
         analyzedAt: new Date().toISOString(),
       };
 
@@ -371,7 +398,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       const observer = this.env.OBSERVER.getByName(facilityId);
       const detectionCount = allDetections.length;
       const anomalyCount = anomalies.length;
-      const alertCount = matchedAlerts.length;
+      const alertCount = emittedAlerts.length;
 
       const summaryText = sceneResults.find((r) => r.summary)?.summary;
       const message = summaryText
@@ -389,33 +416,49 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       });
 
       // Record alert events for each matched alert
-      for (const alert of matchedAlerts) {
-        let alertMessage: string;
-        if (alert.kind === "scene-match") {
-          alertMessage = `${alert.pluginName}: Scene matched — "${alert.description}"`;
-        } else if (alert.kind === "object-enters") {
-          const labels = alert.matchedLabels?.length ? ` (${alert.matchedLabels.join(", ")})` : "";
-          alertMessage = `${alert.pluginName}: Object(s) entered${labels}`;
-        } else if (alert.kind === "object-leaves") {
-          const labels = alert.matchedLabels?.length ? ` (${alert.matchedLabels.join(", ")})` : "";
-          alertMessage = `${alert.pluginName}: Object(s) left${labels}`;
-        } else {
-          alertMessage = `${alert.pluginName}: ${alert.count} detected (${alert.operator} ${alert.threshold})`;
-        }
+      for (const alert of emittedAlerts) {
+        const alertMessage = formatAlertMessage(alert);
+        const plugin = getPlugin(alert.pluginId);
+        const detectionResult = pluginResults.find((result) => result.pluginId === alert.pluginId);
+        const segmentConfig = segmentPlugins.find((entry) => entry.plugin.id === alert.pluginId)?.config;
+        const evidenceConfig = detectionResult?.config.evidence ?? segmentConfig?.evidence;
+        const eventMedia = buildAlertMedia(
+          payload,
+          alert,
+          detectionResult,
+          evidenceConfig ?? { attachVideo: true, attachAnnotatedFrames: false, maxAnnotatedFrames: 0 },
+        );
 
-        await recordEvent(db, observer, facilityId, deviceId, "cctv:detection:alert", alert.severity, alertMessage, {
-          source: "facilix-processor",
-          pluginId: alert.pluginId,
-          pluginName: alert.pluginName,
-          alertKind: alert.kind,
-          count: "count" in alert ? alert.count : undefined,
-          threshold: "threshold" in alert ? alert.threshold : undefined,
-          operator: "operator" in alert ? alert.operator : undefined,
-          confidence: alert.confidence,
-          evidence: alert.evidence,
-          segmentId,
-          assetId: payload.assetId,
-        });
+        await recordEvent(
+          db,
+          observer,
+          facilityId,
+          deviceId,
+          "cctv:detection:alert",
+          alert.severity,
+          alertMessage,
+          {
+            source: "facilix-processor",
+            pluginId: alert.pluginId,
+            pluginName: alert.pluginName,
+            category: alert.category,
+            alertKind: alert.kind,
+            description: plugin?.description,
+            reason: formatAlertReason(alert),
+            recommendedAction: plugin?.recommendedAction,
+            count: "count" in alert ? alert.count : undefined,
+            threshold: "threshold" in alert ? alert.threshold : undefined,
+            operator: "operator" in alert ? alert.operator : undefined,
+            thresholdMode: "thresholdMode" in alert ? alert.thresholdMode : undefined,
+            matchedLabels: alert.matchedLabels,
+            confidence: alert.confidence,
+            evidence: alert.evidence,
+            segmentId,
+            assetId: payload.assetId,
+            durationSec: payload.durationSec,
+          },
+          eventMedia,
+        );
       }
     });
 
@@ -433,6 +476,7 @@ interface MatchedAlert {
   matched: boolean;
   pluginId: string;
   pluginName: string;
+  category: PluginCategory;
   severity: import("#/lib/monitoring/plugins").AlertSeverity;
   /** For count-threshold alerts */
   count?: number;
@@ -455,7 +499,7 @@ function evaluateDetectionAlerts(
   detections: WorkflowDetection[],
   countValue: number,
   config: WorkflowObjectDetectionDeviceConfig,
-  pluginName: string,
+  plugin: WorkflowObjectDetectionPlugin,
   previousData: PreviousSegmentData | null,
 ): MatchedAlert[] {
   const results: MatchedAlert[] = [];
@@ -470,7 +514,8 @@ function evaluateDetectionAlerts(
         kind: "count-threshold",
         matched: thresholdResult.exceeded,
         pluginId,
-        pluginName,
+        pluginName: plugin.name,
+        category: plugin.category,
         severity: rule.severity,
         count: thresholdResult.count,
         threshold: thresholdResult.threshold,
@@ -496,7 +541,8 @@ function evaluateDetectionAlerts(
         kind: rule.kind,
         matched,
         pluginId,
-        pluginName,
+        pluginName: plugin.name,
+        category: plugin.category,
         severity: rule.severity,
         matchedLabels,
       });
@@ -521,7 +567,9 @@ function countByLabelWithFilter(counts: Record<string, number>, labels?: string[
 interface SceneAnalysisResult {
   pluginId: string;
   pluginName: string;
+  category: PluginCategory;
   summary: string | null;
+  operationalState: "normal" | "attention";
   alertMatches: Array<{
     description: string;
     matched: boolean;
@@ -539,6 +587,7 @@ interface SceneAnalysisResult {
 
 interface PreviousSegmentData {
   detectionCounts: Record<string, number>;
+  alertState: Record<string, string>;
 }
 
 async function loadPreviousSegmentData(
@@ -565,12 +614,10 @@ async function loadPreviousSegmentData(
   const prevData = prev.data as JsonObject | undefined;
   if (!prevData) return null;
 
-  const counts = prevData.detectionCounts;
-  if (counts && typeof counts === "object") {
-    return { detectionCounts: counts as Record<string, number> };
-  }
-
-  return null;
+  return {
+    detectionCounts: normalizeCountRecord(prevData.detectionCounts),
+    alertState: normalizeStringRecord(prevData.alertState),
+  };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -583,7 +630,149 @@ interface PluginDetectionResult {
   detections: WorkflowDetection[];
   detectionCounts: Record<string, number>;
   maxCount: number;
+  operationalState: string;
+  predictionMedia: StoredPredictionMediaRef[];
   matchedAlerts: MatchedAlert[];
+}
+
+function buildAlertMedia(
+  payload: SegmentPayload,
+  alert: MatchedAlert,
+  detectionResult: PluginDetectionResult | undefined,
+  config: { attachVideo: boolean; attachAnnotatedFrames: boolean; maxAnnotatedFrames: number },
+): EventMediaInput[] {
+  const selectedFrames =
+    config.attachAnnotatedFrames && detectionResult
+      ? selectRepresentativeFrames(
+          detectionResult.predictionMedia,
+          detectionResult.detections,
+          { kind: alert.kind, labels: alert.matchedLabels },
+          config.maxAnnotatedFrames,
+        )
+      : [];
+  const media: EventMediaInput[] = selectedFrames.map((frame, index) => {
+    const detections = detectionResult?.detections.filter((item) => item.frameIndex === frame.frameIndex) ?? [];
+    return {
+      assetId: frame.afterAssetId,
+      kind: "image",
+      variant: "annotated-frame",
+      role: index === 0 ? "primary" : "supporting",
+      sortOrder: index,
+      metadata: {
+        segmentId: payload.segmentId,
+        pluginId: alert.pluginId,
+        frameIndex: frame.frameIndex,
+        atSec: frame.atSec,
+        labels: [...new Set(detections.map((item) => item.label))],
+        detections: detections.slice(0, 10).map((item) => ({
+          label: item.label,
+          confidence: item.confidence,
+          box: item.box,
+        })),
+      },
+    };
+  });
+
+  if (config.attachVideo) {
+    media.push({
+      assetId: payload.assetId,
+      kind: "video",
+      variant: "source-segment",
+      role: selectedFrames.length === 0 ? "primary" : "source",
+      sortOrder: selectedFrames.length,
+      metadata: {
+        segmentId: payload.segmentId,
+        pluginId: alert.pluginId,
+        durationSec: payload.durationSec,
+      },
+    });
+  }
+
+  return media;
+}
+
+function normalizeCountRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const counts: Record<string, number> = {};
+  for (const [key, count] of Object.entries(value)) {
+    if (typeof count === "number" && Number.isFinite(count)) counts[key] = count;
+  }
+  return counts;
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const strings: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string") strings[key] = entry;
+  }
+  return strings;
+}
+
+function deriveDetectionOperationalState(pluginId: string, count: number): string {
+  if (pluginId === "restricted-area-protection") return count > 0 ? "breach" : "clear";
+  if (pluginId === "loading-bay-operations") return count > 0 ? "occupied" : "available";
+  return count > 0 ? "active" : "clear";
+}
+
+function alertStateKey(alert: MatchedAlert): string {
+  if (alert.kind === "scene-match") {
+    return `${alert.pluginId}:scene-match:${alert.description ?? ""}`;
+  }
+  if (alert.kind === "count-threshold") {
+    return `${alert.pluginId}:count-threshold:${alert.operator ?? ""}:${alert.threshold ?? ""}:${alert.thresholdMode ?? ""}`;
+  }
+  return `${alert.pluginId}:${alert.kind}:${[...(alert.matchedLabels ?? [])].sort().join(",")}`;
+}
+
+function applyAlertCooldown(
+  alerts: MatchedAlert[],
+  cooldownByPlugin: Map<string, number>,
+  previousAlertState: Record<string, string>,
+  now: Date,
+): { alerts: MatchedAlert[]; alertState: Record<string, string> } {
+  const alertState = { ...previousAlertState };
+  const emitted: MatchedAlert[] = [];
+
+  for (const alert of alerts) {
+    if (!alert.matched) continue;
+    const key = alertStateKey(alert);
+    const cooldownSec = Math.max(0, cooldownByPlugin.get(alert.pluginId) ?? 0);
+    if (!isCooldownElapsed(previousAlertState[key], cooldownSec, now)) continue;
+    emitted.push(alert);
+    alertState[key] = now.toISOString();
+  }
+
+  return { alerts: emitted, alertState };
+}
+
+function formatAlertMessage(alert: MatchedAlert): string {
+  if (alert.kind === "scene-match") {
+    return `${alert.pluginName}: ${alert.description ?? "operational risk detected"}`;
+  }
+  if (alert.pluginId === "loading-bay-operations") {
+    if (alert.kind === "object-enters") return `${alert.pluginName}: vehicle arrived`;
+    if (alert.kind === "object-leaves") return `${alert.pluginName}: vehicle departed`;
+    return `${alert.pluginName}: possible congestion — ${alert.count ?? 0} vehicles detected`;
+  }
+  if (alert.pluginId === "restricted-area-protection") {
+    if (alert.kind === "object-enters") return `${alert.pluginName}: person entered the monitored area`;
+    return `${alert.pluginName}: ${alert.count ?? 0} person(s) visible in the monitored area`;
+  }
+  if (alert.kind === "object-enters") return `${alert.pluginName}: monitored object entered`;
+  if (alert.kind === "object-leaves") return `${alert.pluginName}: monitored object left`;
+  return `${alert.pluginName}: ${alert.count ?? 0} detection(s) matched the configured limit`;
+}
+
+function formatAlertReason(alert: MatchedAlert): string {
+  if (alert.kind === "scene-match") return alert.description ?? "The configured visual condition matched.";
+  if (alert.kind === "object-enters") {
+    return `${alert.matchedLabels?.join(", ") || "A monitored object"} entered the camera view.`;
+  }
+  if (alert.kind === "object-leaves") {
+    return `${alert.matchedLabels?.join(", ") || "A monitored object"} left the camera view.`;
+  }
+  return `The measured count ${alert.count ?? 0} matched ${alert.operator ?? "the limit"} ${alert.threshold ?? 0}.`;
 }
 
 async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint8Array> {
@@ -610,9 +799,10 @@ async function persistPredictionOutputs({
   pluginId: string;
   workflowId: string;
   frames: PredictionOutputFrame[];
-}): Promise<void> {
+}): Promise<StoredPredictionMediaRef[]> {
   const db = createDatabase(database);
   const outputName = "predictions";
+  const stored: StoredPredictionMediaRef[] = [];
 
   for (const frame of frames) {
     const frameIndex = frame.frameIndex;
@@ -696,7 +886,14 @@ async function persistPredictionOutputs({
           image: frame.image,
         },
       });
+    stored.push({
+      beforeAssetId: beforeKey,
+      afterAssetId: afterKey,
+      frameIndex,
+      atSec: frame.atSec,
+    });
   }
+  return stored;
 }
 
 function countByLabel(detections: WorkflowDetection[]): Record<string, number> {

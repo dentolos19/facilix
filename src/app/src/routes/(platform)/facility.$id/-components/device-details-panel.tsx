@@ -3,14 +3,15 @@ import { ExternalLinkIcon, ShieldAlertIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { ScrollArea } from "#/components/ui/scroll-area";
+import type { FacilityEventView } from "#/lib/functions/events";
 import type { SensorReadingRow } from "#/lib/functions/sensors";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
-import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
+import { getPlugin, isLegacyPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 
-import type { LogEntry, PlacedItem } from "../-helpers/types";
+import type { PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
-import { LogLevelBadge } from "./monitoring-logs-panel";
+import { EventSeverityBadge } from "./global-events-panel";
 import { SensorReadingPanel } from "./sensor-reading-panel";
 
 const STATUS_STYLES: Record<string, { bg: string; dot: string }> = {
@@ -57,10 +58,9 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
       </h4>
       <div className="flex flex-col gap-1.5">
         {installed.map(({ config, plugin }) => {
-          const isDetection = plugin.kind === "workflow-object-detection";
-          const detConfig = isDetection
-            ? (config as import("#/lib/monitoring/plugins").WorkflowObjectDetectionDeviceConfig)
-            : null;
+          const isDetection =
+            plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection";
+          const detConfig = isDetection ? config : null;
 
           return (
             <div
@@ -71,6 +71,9 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
                 <ShieldAlertIcon className="text-muted-foreground/60 mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-foreground/80 truncate text-[11px] font-medium">{plugin.name}</p>
+                  <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
+                    {isLegacyPlugin(plugin) ? "Legacy" : plugin.category}
+                  </p>
                   {isDetection && detConfig && (
                     <p className="text-muted-foreground/60 text-[9px]">
                       {(detConfig.alerts?.length ?? 0) > 0
@@ -78,14 +81,11 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
                         : "No alerts configured"}
                     </p>
                   )}
-                  {!isDetection && (
+                  {plugin.kind === "segment-understanding" && config.kind === "segment-understanding" && (
                     <p className="text-muted-foreground/60 text-[9px]">
-                      {(() => {
-                        const segConfig = config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig;
-                        return (segConfig.alerts?.length ?? 0) > 0
-                          ? `${segConfig.alerts.length} scene alert(s)`
-                          : "Using base prompt";
-                      })()}
+                      {(config.alerts?.length ?? 0) > 0
+                        ? `${config.alerts.length} scene rule(s)`
+                        : "Using operational review"}
                     </p>
                   )}
                 </div>
@@ -143,20 +143,20 @@ function deriveSensorDeviceStatus(reading: SensorReadingRow | null): string | nu
 }
 
 /** Individual log entries for a single selected device (monitoring right panel). */
-export function DeviceEventPanel({
-  logs,
+export function DeviceDetailsPanel({
+  events,
   selectedDeviceId,
   selectedDevice,
   facilityId,
 }: {
-  logs: LogEntry[];
+  events: FacilityEventView[];
   selectedDeviceId: string | null;
   selectedDevice?: PlacedItem | null;
   facilityId?: string;
 }) {
   const deviceEvents = useMemo(
-    () => (selectedDeviceId ? logs.filter((l) => l.deviceId === selectedDeviceId) : []),
-    [logs, selectedDeviceId],
+    () => (selectedDeviceId ? events.filter((event) => event.deviceId === selectedDeviceId) : []),
+    [events, selectedDeviceId],
   );
 
   const navigate = useNavigate();
@@ -354,20 +354,22 @@ export function DeviceEventPanel({
                 </h4>
                 {deviceEvents.length > 0 ? (
                   <div className="flex flex-col gap-1">
-                    {deviceEvents.map((log) => (
+                    {deviceEvents.map((event) => (
                       <div
                         className="flex flex-col gap-0.5 rounded-none border-l-2 px-2.5 py-1.5 text-[11px] leading-relaxed"
-                        key={log.id}
+                        key={event.id}
                         style={{
                           borderLeftColor:
-                            log.level === "error" ? "#ef4444" : log.level === "warn" ? "#f59e0b" : "#22c55e",
+                            event.severity === "error" ? "#ef4444" : event.severity === "warn" ? "#f59e0b" : "#22c55e",
                         }}
                       >
                         <div className="flex items-center gap-1.5">
-                          <LogLevelBadge level={log.level} />
-                          <span className="text-muted-foreground/40">{log.timestamp.toLocaleTimeString()}</span>
+                          <EventSeverityBadge severity={event.severity} />
+                          <span className="text-muted-foreground/40">
+                            {new Date(event.createdAt).toLocaleTimeString()}
+                          </span>
                         </div>
-                        <span className="text-foreground/80">{log.message}</span>
+                        <span className="text-foreground/80">{event.message}</span>
                       </div>
                     ))}
                   </div>

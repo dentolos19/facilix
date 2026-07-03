@@ -207,7 +207,16 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
   const observer = env.OBSERVER.getByName(facilityId);
 
   // Record event (D1 + WebSocket broadcast)
-  await recordEvent(db, observer, facilityId, device?.id ?? null, body.type, severity, body.message, enrichedData);
+  const eventId = await recordEvent(
+    db,
+    observer,
+    facilityId,
+    device?.id ?? null,
+    body.type,
+    severity,
+    body.message,
+    enrichedData,
+  );
 
   // Record structured sensor reading for sensor events (requires a real device)
   if ((body.type === "sensor:reading" || body.type === "sensor:alert") && body.data && device) {
@@ -216,7 +225,7 @@ async function handleEvent(request: Request, env: Env, facilityId: string): Prom
     );
   }
 
-  return Response.json({ success: true, eventId: crypto.randomUUID() });
+  return Response.json({ success: eventId !== null, eventId });
 }
 
 async function handleSegment(request: Request, env: Env, facilityId: string): Promise<Response> {

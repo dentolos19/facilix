@@ -7,10 +7,9 @@ import { Input } from "#/components/ui/input";
 import { ScrollArea } from "#/components/ui/scroll-area";
 import type { FacilityEventRow } from "#/lib/functions/events";
 
-import type { LogEntry } from "../-helpers/types";
-import { LogLevelBadge } from "./monitoring-logs-panel";
+import { EventSeverityBadge } from "./global-events-panel";
 
-export interface LogsDialogProps {
+export interface AllEventsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** All events from D1 facility_events table. */
@@ -23,9 +22,9 @@ export interface LogsDialogProps {
  * Dialog that shows all events for a facility.
  * Shows every event regardless of type or source.
  */
-export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDialogProps) {
+export function AllEventsDialog({ open, onOpenChange, events, onClearLogs }: AllEventsDialogProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [levelFilter, setLevelFilter] = useState<LogEntry["level"] | "all">("all");
+  const [levelFilter, setLevelFilter] = useState<FacilityEventRow["severity"] | "all">("all");
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   // Reset confirmation state when dialog opens
@@ -78,9 +77,9 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
         <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <TerminalIcon className="size-4" />
-            Logs
+            All events
           </DialogTitle>
-          <DialogDescription>All events for this facility</DialogDescription>
+          <DialogDescription>Complete event history for this facility</DialogDescription>
         </DialogHeader>
 
         {/* Toolbar */}
@@ -88,10 +87,10 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
           <div className="relative min-w-0 flex-1">
             <SearchIcon className="text-muted-foreground/50 pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
             <Input
-              aria-label="Search logs"
+              aria-label="Search events"
               className="h-8 pl-8 text-xs"
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search logs…"
+              placeholder="Search events…"
               value={searchQuery}
             />
           </div>
@@ -135,14 +134,15 @@ export function LogsDialog({ open, onOpenChange, events, onClearLogs }: LogsDial
             {filteredLogs.length === 0 && (
               <div className="flex flex-col items-center gap-2 py-12">
                 <TerminalIcon className="text-muted-foreground/20 size-6" />
-                <p className="text-muted-foreground/40 text-xs">{searchQuery ? "No matching logs" : "No logs yet"}</p>
+                <p className="text-muted-foreground/40 text-xs">
+                  {searchQuery ? "No matching events" : "No events yet"}
+                </p>
               </div>
             )}
             {filteredLogs.map((ev) => {
-              const level = ev.severity as LogEntry["level"];
               return (
                 <div className="flex items-start gap-3 px-6 py-2.5 text-xs" key={ev.id}>
-                  <LogLevelBadge level={level} />
+                  <EventSeverityBadge severity={ev.severity} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-foreground/80 font-medium">{ev.type}</span>

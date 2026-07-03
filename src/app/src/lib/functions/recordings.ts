@@ -53,6 +53,7 @@ export interface RecordingPluginResult {
   workflowId: string;
   detectionCounts?: Record<string, number>;
   maxCount?: number;
+  operationalState?: "clear" | "breach" | "available" | "occupied" | "active";
   thresholdAlert?: boolean;
   threshold?: {
     exceeded: boolean;
@@ -67,11 +68,28 @@ export interface RecordingPluginResult {
 export interface RecordingAlert {
   pluginId: string;
   pluginName: string;
-  count: number;
-  threshold: number;
-  operator: string;
-  thresholdMode: string;
+  category?: "security" | "compliance" | "operations" | "hygiene" | "safety";
+  kind?: "count-threshold" | "object-enters" | "object-leaves" | "scene-match";
+  description?: string;
+  count?: number;
+  threshold?: number;
+  operator?: string;
+  thresholdMode?: string;
   severity: string;
+}
+
+export interface RecordingSceneResult {
+  pluginId: string;
+  pluginName: string;
+  category?: "security" | "compliance" | "operations" | "hygiene" | "safety";
+  summary: string | null;
+  operationalState?: "normal" | "attention";
+  alertMatches?: Array<{
+    description: string;
+    matched: boolean;
+    confidence?: number;
+    severity: string;
+  }>;
 }
 
 export interface RecordingRow {
@@ -98,6 +116,9 @@ export interface RecordingRow {
     detectionCounts?: Record<string, number>;
     anomalies?: RecordingAnomaly[];
     pluginResults?: RecordingPluginResult[];
+    sceneResults?: RecordingSceneResult[];
+    matchedAlerts?: RecordingAlert[];
+    alertState?: Record<string, string>;
     alerts?: RecordingAlert[];
     sceneSummary?: string | null;
     analyzedAt?: string;

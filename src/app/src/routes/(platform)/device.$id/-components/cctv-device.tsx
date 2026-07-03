@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 
 import { Switch } from "#/components/ui/switch";
 import type { DeviceDetail } from "#/lib/functions/facility";
-import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
+import { getPlugin, isLegacyPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 
@@ -11,7 +11,7 @@ import { Route as DeviceRoute } from "../index";
 import { CctvPlaybackTab } from "./cctv-playback";
 import { CctvPredictionsTab } from "./cctv-predictions";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
-import { DeviceLogsTab } from "./device-logs";
+import { DeviceEventsTab } from "./device-events-tab";
 
 const TABS = [
   { id: "live", label: "Live" },
@@ -61,7 +61,7 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
           streamName={streamName}
         />
       )}
-      {activeTab === "logs" && <DeviceLogsTab device={device} />}
+      {activeTab === "logs" && <DeviceEventsTab device={device} />}
       {activeTab === "playback" && <CctvPlaybackTab device={device} />}
       {activeTab === "predictions" && <CctvPredictionsTab device={device} />}
     </DeviceDetailShell>
@@ -204,8 +204,7 @@ function CctvOptionsCard({
  * Read-only summary of the intelligence plugins installed on this CCTV.
  * Editing happens in the facility editor's properties panel.
  *
- * Note: Object detection runs only for enabled detection plugins.
- * Scene understanding runs only for enabled segment-understanding plugins.
+ * Processing runs only for enabled operational plugins.
  */
 function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
   const configs = normalizePlugins(device.data.plugins);
@@ -230,18 +229,16 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
       {installed.length === 0 ? (
         <div className="text-muted-foreground/70 flex items-start gap-2 text-[11px]">
           <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
-          <p className="leading-snug">No plugins installed. Add detection or language plugins to analyze segments.</p>
+          <p className="leading-snug">No operational plugins installed for this camera.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
           {installed.map(({ config, plugin }) => {
-            const isDetection = plugin.kind === "workflow-object-detection";
-            const detConfig = isDetection
-              ? (config as import("#/lib/monitoring/plugins").WorkflowObjectDetectionDeviceConfig)
-              : null;
-            const segConfig = !isDetection
-              ? (config as import("#/lib/monitoring/plugins").SegmentAnalysisDeviceConfig)
-              : null;
+            const isDetection =
+              plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection";
+            const detConfig = isDetection ? config : null;
+            const segConfig =
+              plugin.kind === "segment-understanding" && config.kind === "segment-understanding" ? config : null;
 
             return (
               <div
@@ -249,7 +246,12 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                 key={plugin.id}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
+                  <div className="min-w-0">
+                    <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
+                    <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
+                      {isLegacyPlugin(plugin) ? "Legacy" : plugin.category}
+                    </p>
+                  </div>
                   <span
                     className={
                       config.enabled

@@ -41,20 +41,26 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/componen
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
-import { type FacilityEventRow, getAllFacilityEvents, getFacilityEvents } from "#/lib/functions/events";
+import {
+  type FacilityEventRow,
+  type FacilityEventView,
+  getAllFacilityEvents,
+  getFacilityEvents,
+} from "#/lib/functions/events";
 import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
+import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 
+import { AllEventsDialog } from "./-components/all-events-dialog";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
-import { LogsDialog } from "./-components/container-logs-dialog";
-import { DeviceEventPanel } from "./-components/device-event-panel";
-import { MonitoringLogsPanel } from "./-components/monitoring-logs-panel";
+import { GlobalEventsPanel } from "./-components/global-events-panel";
+import { MonitoringDetailsPanel } from "./-components/monitoring-details-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
-import type { EditMode, JsonObject, LogEntry, PlacedItem, PlacedItemType } from "./-helpers/types";
+import type { EditMode, JsonObject, PlacedItem, PlacedItemType } from "./-helpers/types";
 import {
   DEFAULT_PROPS,
   DEFAULT_SIZES,
@@ -86,20 +92,6 @@ function Field({
       {children}
     </div>
   );
-}
-
-/** Map a D1 FacilityEventRow to a LogEntry for the UI. */
-function d1EventToLogEntry(event: FacilityEventRow, deviceMap: Map<string, PlacedItem>): LogEntry {
-  const device = event.deviceId ? deviceMap.get(event.deviceId) : null;
-  return {
-    id: event.id,
-    deviceId: event.deviceId ?? "",
-    deviceName: device?.name ?? (event.deviceId ? event.deviceId : "Facility"),
-    deviceType: (device?.type ?? "Sensor") as PlacedItemType,
-    timestamp: new Date(event.createdAt),
-    level: event.severity,
-    message: event.message,
-  };
 }
 
 /** Human-readable label for a MonitoringStatus value. */
@@ -152,6 +144,7 @@ function Page() {
       if (result.success) {
         setFacilityEvents([]);
         setAllEvents([]);
+        setMonitoringSelection(null);
         toast.success("Events cleared");
       } else {
         toast.error("Failed to clear events");
@@ -312,12 +305,35 @@ function Page() {
   }, []);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
 
-  // Derive LogEntry[] from D1 facility_events (Global Events + Device Event History)
-  const facilityEventLogs = useMemo(() => {
+  // Resolve persisted events against the current facility map without dropping
+  // structured event data or media attachments.
+  const facilityEventViews = useMemo<FacilityEventView[]>(() => {
     const deviceMap = new Map(placedItems.map((i) => [i.id, i]));
-    return facilityEvents.map((e) => d1EventToLogEntry(e, deviceMap));
+    const zoneMap = new Map(placedItems.filter((item) => item.type === "Zone").map((zone) => [zone.id, zone.name]));
+    return facilityEvents.map((event) => {
+      const device = event.deviceId ? deviceMap.get(event.deviceId) : null;
+      return {
+        ...event,
+        deviceName: device?.name ?? (event.deviceId || "Facility"),
+        deviceType: device?.type ?? "Facility",
+        zoneName: device?.zoneId ? zoneMap.get(device.zoneId) : undefined,
+      };
+    });
   }, [facilityEvents, placedItems]);
+
+  const monitoringDeviceId = selectedDeviceId(monitoringSelection);
+
+  const selectMonitoringEvent = useCallback((eventId: string) => {
+    setMonitoringSelection({ kind: "event", eventId });
+    setSelectedItemId(null);
+  }, []);
+
+  const selectMonitoringDevice = useCallback((deviceId: string) => {
+    setMonitoringSelection({ kind: "device", deviceId });
+    setSelectedItemId(deviceId);
+  }, []);
 
   const updatePlacedItem = useCallback(
     (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => {
@@ -349,6 +365,9 @@ function Page() {
     saveSnapshot();
     setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => item.id !== id)));
     setSelectedItemId((prev) => (prev === id ? null : prev));
+    setMonitoringSelection((selection) =>
+      selection?.kind === "device" && selection.deviceId === id ? null : selection,
+    );
     setIsDirty(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -518,6 +537,7 @@ function Page() {
     if (editMode === "edit") {
       // Switching from edit → monitoring — save if dirty then switch
       if (isDirty) handleSave({ silent: true });
+      setMonitoringSelection(selectedItemId ? { kind: "device", deviceId: selectedItemId } : null);
       setEditMode("monitoring");
       return;
     }
@@ -526,9 +546,10 @@ function Page() {
     if (monitoringStatus === "running" || monitoringStatus === "starting") {
       setEditConfirmOpen(true);
     } else {
+      setSelectedItemId(monitoringDeviceId);
       setEditMode("edit");
     }
-  }, [editMode, isDirty, handleSave, monitoringStatus]);
+  }, [editMode, isDirty, handleSave, monitoringStatus, monitoringDeviceId, selectedItemId]);
 
   const handleConfirmEdit = useCallback(async () => {
     setEditConfirmOpen(false);
@@ -536,6 +557,7 @@ function Page() {
     try {
       await stopMonitoring({ data: { facilityId } });
       setMonitoringStatus("stopped");
+      setSelectedItemId(monitoringDeviceId);
       setEditMode("edit");
     } catch {
       toast.error("Failed to stop monitoring before editing");
@@ -543,7 +565,7 @@ function Page() {
     } finally {
       setIsMonitoringChanging(false);
     }
-  }, [facilityId]);
+  }, [facilityId, monitoringDeviceId]);
 
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
   useHotkeys([
@@ -890,7 +912,7 @@ function Page() {
       </Dialog>
 
       {/* ── Logs Dialog (all events) ── */}
-      <LogsDialog
+      <AllEventsDialog
         events={allEvents}
         onClearLogs={handleClearContainerLogs}
         onOpenChange={setLogsOpen}
@@ -902,10 +924,11 @@ function Page() {
         {/* Left panel — logs (monitoring) / component palette (edit) */}
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
-            <MonitoringLogsPanel
-              logs={facilityEventLogs}
-              onSelectDevice={setSelectedItemId}
-              selectedDeviceId={selectedItemId}
+            <GlobalEventsPanel
+              events={facilityEventViews}
+              onSelectDevice={selectMonitoringDevice}
+              onSelectEvent={selectMonitoringEvent}
+              selection={monitoringSelection}
             />
           ) : (
             <ComponentPalette />
@@ -927,11 +950,21 @@ function Page() {
             ) : (
               <CanvasEditor
                 onAddItem={addPlacedItem}
-                onSelectItem={setSelectedItemId}
+                onSelectItem={(id) => {
+                  if (editMode === "monitoring") {
+                    if (id) selectMonitoringDevice(id);
+                    else {
+                      setMonitoringSelection(null);
+                      setSelectedItemId(null);
+                    }
+                  } else {
+                    setSelectedItemId(id);
+                  }
+                }}
                 onUpdateItem={updatePlacedItem}
                 placedItems={placedItems}
                 readOnly={editMode === "monitoring"}
-                selectedItemId={selectedItemId}
+                selectedItemId={editMode === "monitoring" ? monitoringDeviceId : selectedItemId}
               />
             )}
           </div>
@@ -945,11 +978,12 @@ function Page() {
         {/* Right panel — properties (edit) / device logs (monitoring) */}
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
-            <DeviceEventPanel
+            <MonitoringDetailsPanel
+              devices={placedItems}
+              events={facilityEventViews}
               facilityId={facilityId}
-              logs={facilityEventLogs}
-              selectedDevice={placedItems.find((i) => i.id === selectedItemId) ?? null}
-              selectedDeviceId={selectedItemId}
+              onSelectDevice={selectMonitoringDevice}
+              selection={monitoringSelection}
             />
           ) : (
             <PropertiesPanel

@@ -171,7 +171,7 @@ export const facilityEvent = sqliteTable("facility_events", {
   severity: text("severity").notNull(),
   type: text("type").notNull(),
   message: text("message").notNull(),
-  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+  data: text("data", { mode: "json" }).$type<JsonObject>().notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$default(() => new Date()),
@@ -180,6 +180,40 @@ export const facilityEvent = sqliteTable("facility_events", {
     .$default(() => new Date())
     .$onUpdate(() => new Date()),
 });
+
+/**
+ * Media evidence attached to a facility event.
+ *
+ * Assets are shared with recordings and prediction outputs. Deleting an event
+ * removes only the relation; deleting a source asset removes the attachment.
+ */
+export const eventMedia = sqliteTable(
+  "event_media",
+  {
+    id: text("id")
+      .primaryKey()
+      .$default(() => crypto.randomUUID()),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => facilityEvent.id, { onDelete: "cascade" }),
+    assetId: text("asset_id")
+      .notNull()
+      .references(() => asset.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    variant: text("variant").notNull(),
+    role: text("role").notNull().default("supporting"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    metadata: text("metadata", { mode: "json" }).$type<JsonObject>().default({}).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$default(() => new Date()),
+  },
+  (table) => [
+    index("event_media_event_id_idx").on(table.eventId),
+    index("event_media_asset_id_idx").on(table.assetId),
+    uniqueIndex("event_media_event_asset_variant_idx").on(table.eventId, table.assetId, table.variant),
+  ],
+);
 
 /**
  * Recorded CCTV video segment metadata stored in D1 alongside R2.
@@ -311,6 +345,7 @@ export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
+export type EventMedia = typeof eventMedia.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;
