@@ -17,7 +17,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { FacilityChat } from "#/components/facility-chat";
+import { ChatAssistant } from "#/components/chat-assistant";
 import { Button } from "#/components/ui/button";
 import {
   Dialog,
@@ -687,7 +687,7 @@ function Page() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <PopoverTrigger asChild>
-                    <Button aria-label="Open facility chat" size="icon-sm" variant="ghost">
+                    <Button aria-label="Open chat assistant" size="icon-sm" variant="ghost">
                       <MessageCircleIcon />
                     </Button>
                   </PopoverTrigger>
@@ -700,7 +700,7 @@ function Page() {
                 forceMount
                 sideOffset={8}
               >
-                <FacilityChat facilityId={facilityId} onClose={() => setChatOpen(false)} />
+                <ChatAssistant facilityId={facilityId} onClose={() => setChatOpen(false)} />
               </PopoverContent>
             </Popover>
           )}

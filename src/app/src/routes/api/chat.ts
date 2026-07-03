@@ -3,12 +3,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
-import { createFacilityChatAdapter } from "#/lib/ai";
+import { createChatAdapter } from "#/lib/ai";
 import { getSession } from "#/lib/auth/guard";
 import { createDatabase, schema } from "#/lib/database";
-import { createFacilityChatTools } from "#/lib/facility-chat";
+import { createChatTools } from "#/lib/chat";
 
-export const Route = createFileRoute("/api/facility-chat")({
+export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/api/facility-chat")({
         if (!facility) return new Response("Facility not found.", { status: 404 });
 
         const stream = chat({
-          adapter: createFacilityChatAdapter(),
+          adapter: createChatAdapter(),
           messages: params.messages,
           systemPrompts: [
             `You are the read-only facility intelligence assistant for "${facility.name}" (${facilityId}).
@@ -50,7 +50,7 @@ You can read information and inspect facility media, but you cannot create, upda
 
 When citing evidence, name the device, timestamp, event, or media asset when available. Distinguish observed facts from inference. Keep the final answer concise and operational.`,
           ],
-          tools: createFacilityChatTools(facilityId),
+          tools: createChatTools(facilityId),
           agentLoopStrategy: maxIterations(8),
           modelOptions: {
             maxCompletionTokens: 1800,

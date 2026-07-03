@@ -77,7 +77,7 @@ async function getAssetMetadata(assetIds: string[]) {
   return new Map(rows.map((row) => [row.id, { name: row.name, type: row.type, size: row.size }]));
 }
 
-export function createFacilityChatTools(facilityId: string) {
+export function createChatTools(facilityId: string) {
   const getFacilityOverview = getFacilityOverviewDefinition.server(async () => {
     const db = createDatabase(env.DATABASE);
     const [facilityRows, zones, devices, sensorReadings] = await Promise.all([

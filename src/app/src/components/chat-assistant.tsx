@@ -1,11 +1,12 @@
 "use client";
 
 import { fetchServerSentEvents, useChat, type UIMessage } from "@tanstack/ai-react";
-import { BotIcon, SearchIcon, SendIcon, SquareIcon, UserIcon, XIcon } from "lucide-react";
+import { BotIcon, SearchIcon, SendIcon, SquareIcon, TrashIcon, UserIcon, XIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Bubble, BubbleContent } from "#/components/ui/bubble";
 import { Button } from "#/components/ui/button";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
 import { Field, FieldError, FieldGroup } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
@@ -39,18 +40,31 @@ function toolLabel(name: string): string {
 
 function ChatMessage({ message }: { message: UIMessage }) {
   const isUser = message.role === "user";
-  const visibleParts = message.parts.filter(
-    (part) => part.type === "text" || part.type === "thinking" || part.type === "tool-call",
-  );
+  const textAndToolParts = message.parts.filter((part) => part.type === "text" || part.type === "tool-call");
+  const thinkingParts = message.parts.filter((part) => part.type === "thinking");
 
-  if (visibleParts.length === 0) return null;
+  if (textAndToolParts.length === 0 && thinkingParts.length === 0) return null;
 
   return (
     <Message align={isUser ? "end" : "start"}>
       <MessageAvatar>{isUser ? <UserIcon /> : <BotIcon />}</MessageAvatar>
       <MessageContent>
-        <MessageHeader>{isUser ? "You" : "Facility assistant"}</MessageHeader>
-        {visibleParts.map((part, index) => {
+        <MessageHeader>{isUser ? "You" : "Chat assistant"}</MessageHeader>
+        {thinkingParts.length > 0 && !isUser ? (
+          <Accordion className="w-full" collapsible defaultValue={undefined} type="single">
+            <AccordionItem value="reasoning">
+              <AccordionTrigger>Reasoning</AccordionTrigger>
+              <AccordionContent>
+                {thinkingParts.map((part, index) => (
+                  <p className="text-muted-foreground whitespace-pre-wrap text-xs" key={`${message.id}-thinking-${index}`}>
+                    {part.content || "Reasoning through the facility data…"}
+                  </p>
+                ))}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        ) : null}
+        {textAndToolParts.map((part, index) => {
           if (part.type === "text") {
             if (!part.content.trim()) return null;
             return (
@@ -60,16 +74,6 @@ function ChatMessage({ message }: { message: UIMessage }) {
                 variant={isUser ? "default" : "outline"}
               >
                 <BubbleContent className="whitespace-pre-wrap">{part.content}</BubbleContent>
-              </Bubble>
-            );
-          }
-
-          if (part.type === "thinking") {
-            return (
-              <Bubble key={`${message.id}-thinking-${index}`} variant="ghost">
-                <BubbleContent>
-                  <span className="shimmer">{part.content || "Reasoning through the facility data…"}</span>
-                </BubbleContent>
               </Bubble>
             );
           }
@@ -90,21 +94,23 @@ function ChatMessage({ message }: { message: UIMessage }) {
   );
 }
 
-export function FacilityChat({
+export function ChatAssistant({
   facilityId,
   className,
   onClose,
+  hideHeader,
 }: {
   facilityId: string;
   className?: string;
   onClose?: () => void;
+  hideHeader?: boolean;
 }) {
   const [input, setInput] = useState("");
-  const connection = useMemo(() => fetchServerSentEvents("/api/facility-chat"), []);
+  const connection = useMemo(() => fetchServerSentEvents("/api/chat"), []);
   const { messages, sendMessage, isLoading, error, stop, clear } = useChat({
     connection,
     forwardedProps: { facilityId },
-    id: `facility-chat-${facilityId}`,
+    id: `chat-${facilityId}`,
   });
 
   async function submit(question: string) {
@@ -116,28 +122,25 @@ export function FacilityChat({
 
   return (
     <section
-      aria-label="Facility chat"
+      aria-label="Chat assistant"
       className={cn("bg-background flex min-h-0 flex-1 flex-col overflow-hidden", className)}
     >
-      <header className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
-        <div className="bg-muted flex size-8 items-center justify-center">
-          <BotIcon className="size-4" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-medium">Facility chat</h2>
-          <p className="text-muted-foreground truncate text-[11px]">Read-only access to operations and media</p>
-        </div>
-        {messages.length > 0 ? (
-          <Button onClick={clear} size="sm" variant="ghost">
-            Clear
-          </Button>
-        ) : null}
-        {onClose ? (
-          <Button aria-label="Close chat" onClick={onClose} size="icon-sm" variant="ghost">
-            <XIcon />
-          </Button>
-        ) : null}
-      </header>
+      {!hideHeader && (
+        <header className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
+          <div className="bg-muted flex size-8 items-center justify-center">
+            <BotIcon className="size-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-medium">Chat assistant</h2>
+            <p className="text-muted-foreground truncate text-[11px]">Read-only access to operations and media</p>
+          </div>
+          {onClose ? (
+            <Button aria-label="Close chat" onClick={onClose} size="icon-sm" variant="ghost">
+              <XIcon />
+            </Button>
+          ) : null}
+        </header>
+      )}
 
       <div className="min-h-0 flex-1">
         {messages.length === 0 ? (
@@ -176,7 +179,7 @@ export function FacilityChat({
                     </MessageScrollerItem>
                   ))}
                   {isLoading && messages.at(-1)?.role === "user" ? (
-                    <MessageScrollerItem messageId="facility-chat-thinking">
+                    <MessageScrollerItem messageId="chat-thinking">
                       <Message align="start">
                         <MessageAvatar>
                           <BotIcon />
@@ -207,15 +210,21 @@ export function FacilityChat({
         }}
       >
         <FieldGroup className="gap-2">
-          <Field className="flex-row items-center">
+          <Field orientation="horizontal">
             <Input
               aria-label="Ask about this facility"
               autoComplete="off"
+              className="flex-1"
               disabled={isLoading}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Ask about devices, events, sensors, or media…"
               value={input}
             />
+            {messages.length > 0 ? (
+              <Button aria-label="Clear chat" onClick={clear} size="icon-sm" type="button" variant="ghost">
+                <TrashIcon />
+              </Button>
+            ) : null}
             {isLoading ? (
               <Button aria-label="Stop response" onClick={stop} size="icon" type="button" variant="outline">
                 <SquareIcon />

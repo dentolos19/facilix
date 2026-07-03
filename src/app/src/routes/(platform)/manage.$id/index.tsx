@@ -22,7 +22,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 
-import { FacilityChat } from "#/components/facility-chat";
+import { ChatAssistant } from "#/components/chat-assistant";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "#/components/ui/chart";
@@ -822,7 +822,7 @@ function Page() {
           onRangeChange={handleRangeChange}
           onRefresh={handleRefresh}
         />
-        <FacilityChat facilityId={facilityId} />
+        <ChatAssistant facilityId={facilityId} hideHeader />
       </div>
     );
   }
