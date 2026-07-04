@@ -95,14 +95,14 @@ function bytesToDataUrl(bytes: Uint8Array | ArrayBuffer, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
-function resolveProvider(model: string): string | undefined {
-  return model.startsWith("qwen/") ? "alibaba" : undefined;
+function resolveProvider(model: string): { only: string[]; allow_fallbacks: false } | undefined {
+  return model.startsWith("qwen/") ? { only: ["alibaba"], allow_fallbacks: false } : undefined;
 }
 
 /** Internal: call OpenRouter and pull the assistant text out. */
 async function chatCompletion(parts: ContentPart[], options: { maxTokens?: number }): Promise<string | null> {
   const model = resolveModel();
-  const request: ChatRequest & { provider?: string } = {
+  const request: ChatRequest & { provider?: { only: string[]; allow_fallbacks: false } } = {
     model,
     messages: [{ role: "user", content: parts }],
     max_tokens: options.maxTokens ?? 200,
@@ -203,6 +203,96 @@ export interface SceneAlertAnalysis {
   matches: SceneAlertMatch[];
 }
 
+export interface SceneFrameImage {
+  bytes: Uint8Array | ArrayBuffer;
+  mimeType?: string;
+}
+
+export interface SceneFrameAnalysisInput {
+  original: SceneFrameImage;
+  annotated: SceneFrameImage;
+  descriptions: string[];
+  guidance?: string;
+  contextSuffix?: string;
+}
+
+/**
+ * Analyze one representative Roboflow frame pair. The original image is the
+ * visual source of truth; the annotated image is included as a location hint.
+ * This is materially cheaper than sending the complete video to the VLM.
+ */
+export async function analyzeSceneFrames(input: SceneFrameAnalysisInput): Promise<SceneAlertAnalysis | null> {
+  if (input.descriptions.length === 0) return null;
+
+  const descriptionList = input.descriptions.map((description, index) => `${index + 1}. "${description}"`).join("\n");
+  const systemPrompt = `You are a CCTV scene analysis assistant. Compare an original CCTV frame with a Roboflow-annotated version of the same frame.
+
+The original frame is the source of truth. Roboflow boxes and labels are hints that can help locate relevant objects, but they may be incomplete or incorrect.
+
+For each description, determine whether the visible scene matches it, give a confidence score from 0 to 1, and cite visible evidence.
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "summary": "Brief overall scene description",
+  "matches": [
+    {
+      "description": "<the description being evaluated>",
+      "matched": true,
+      "confidence": 0.0,
+      "evidence": [
+        { "label": "visible evidence", "confidence": 0.0, "box": { "xmin": 0, "ymin": 0, "xmax": 0, "ymax": 0 } }
+      ]
+    }
+  ]
+}`;
+  const userPrompt = `${input.guidance ? `${input.guidance}\n\n` : ""}Evaluate these operational conditions:
+
+${descriptionList}${input.contextSuffix ?? ""}`;
+  const originalUrl = bytesToDataUrl(input.original.bytes, input.original.mimeType ?? "image/jpeg");
+  const annotatedUrl = bytesToDataUrl(input.annotated.bytes, input.annotated.mimeType ?? "image/jpeg");
+
+  const result = await chatCompletionWithJson(
+    [
+      { type: "text", text: systemPrompt },
+      { type: "text", text: userPrompt },
+      { type: "text", text: "Original CCTV frame:" },
+      { type: "image_url", image_url: { url: originalUrl } },
+      { type: "text", text: "Roboflow-annotated frame of the same moment:" },
+      { type: "image_url", image_url: { url: annotatedUrl } },
+    ],
+    { maxTokens: 1500 },
+  );
+
+  return parseSceneAlertAnalysis(result);
+}
+
+export async function summarizeSceneFrames(
+  original: SceneFrameImage,
+  annotated: SceneFrameImage,
+  prompt: string,
+  options: { maxTokens?: number } = {},
+): Promise<string | null> {
+  return chatCompletion(
+    [
+      {
+        type: "text",
+        text: `${prompt}\n\nThe original frame is the source of truth. Use Roboflow annotations only as location hints.`,
+      },
+      { type: "text", text: "Original CCTV frame:" },
+      {
+        type: "image_url",
+        image_url: { url: bytesToDataUrl(original.bytes, original.mimeType ?? "image/jpeg") },
+      },
+      { type: "text", text: "Roboflow-annotated frame of the same moment:" },
+      {
+        type: "image_url",
+        image_url: { url: bytesToDataUrl(annotated.bytes, annotated.mimeType ?? "image/jpeg") },
+      },
+    ],
+    options,
+  );
+}
+
 /**
  * Analyze a video clip against multiple natural-language scene alert
  * descriptions. Returns structured JSON indicating which descriptions
@@ -267,13 +357,14 @@ ${descriptionList}${contextSuffix}`;
     { maxTokens: 1500 },
   );
 
-  if (!result) return null;
+  return parseSceneAlertAnalysis(result);
+}
 
+function parseSceneAlertAnalysis(result: string | null): SceneAlertAnalysis | null {
+  if (!result) return null;
   try {
     const parsed = JSON.parse(result) as SceneAlertAnalysis;
-    // Validate structure
-    if (typeof parsed.summary !== "string") return null;
-    if (!Array.isArray(parsed.matches)) return null;
+    if (typeof parsed.summary !== "string" || !Array.isArray(parsed.matches)) return null;
     return parsed;
   } catch {
     log.error("Failed to parse scene alert JSON", { response: result.slice(0, 500) });
@@ -287,11 +378,11 @@ ${descriptionList}${contextSuffix}`;
  */
 async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens?: number }): Promise<string | null> {
   const model = resolveModel();
-  const request: ChatRequest & { provider?: string } = {
+  const request: ChatRequest & { provider?: { only: string[]; allow_fallbacks: false } } = {
     model,
     messages: [{ role: "user", content: parts }],
-    max_tokens: options.maxTokens ?? 1000,
-    temperature: 0.1,
+    max_tokens: options.maxTokens ?? 200,
+    temperature: 0.2,
     stream: false,
   };
   const provider = resolveProvider(model);
@@ -353,5 +444,7 @@ export function createAI() {
   return {
     summarizeVideo,
     analyzeSceneAlerts,
+    analyzeSceneFrames,
+    summarizeSceneFrames,
   };
 }

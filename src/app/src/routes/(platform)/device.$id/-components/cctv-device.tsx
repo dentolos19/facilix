@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 
 import { Switch } from "#/components/ui/switch";
 import type { DeviceDetail } from "#/lib/functions/facility";
-import { getPlugin, isLegacyPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
+import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 
@@ -249,7 +249,7 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                   <div className="min-w-0">
                     <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
                     <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
-                      {isLegacyPlugin(plugin) ? "Legacy" : plugin.category}
+                      {plugin.category} · {plugin.workflow.workflowId}
                     </p>
                   </div>
                   <span

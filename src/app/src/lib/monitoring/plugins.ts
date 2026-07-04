@@ -1,17 +1,14 @@
 /**
- * Outcome-oriented CCTV intelligence plugin catalog.
+ * Outcome-oriented CCTV intelligence plugins.
  *
- * Staff install operational outcomes such as restricted-area protection or
- * loading-bay monitoring. Roboflow object detection and OpenRouter scene
- * understanding remain implementation details behind those outcomes.
- *
- * Per-camera configuration is stored on the facility device JSON at
- * `data.plugins`. Schema version 2 keeps the configuration forward-migratable.
+ * Every plugin is backed by a Roboflow workflow. Plugins that need richer
+ * reasoning additionally run a vision-language review using representative
+ * original and annotated frames produced by that workflow.
  */
 
 // ─── Catalog types ────────────────────────────────────────────────────────
 
-export type PluginProvider = "openrouter" | "roboflow";
+export type PluginProvider = "roboflow";
 export type PluginKind = "segment-understanding" | "workflow-object-detection";
 export type PluginCategory = "security" | "compliance" | "operations" | "hygiene" | "safety";
 export type PluginTrigger = { mode: "segment"; intervalSec?: number };
@@ -23,43 +20,39 @@ export interface PluginWorkflowConfig {
   dataOutputNames?: string[];
 }
 
-interface PluginBase {
-  id: string;
-  name: string;
-  description: string;
-  category: PluginCategory;
-  provider: PluginProvider;
-  watchFor: string[];
-  alertsWhen: string[];
-  recommendedFor: string[];
-  recommendedAction: string;
-  defaultEvidence: PluginEvidenceConfig;
-  legacy?: boolean;
-  replacementId?: string;
-}
-
 export interface PluginEvidenceConfig {
   attachVideo: boolean;
   attachAnnotatedFrames: boolean;
   maxAnnotatedFrames: number;
 }
 
+interface PluginBase {
+  id: string;
+  name: string;
+  description: string;
+  category: PluginCategory;
+  provider: PluginProvider;
+  workflow: PluginWorkflowConfig;
+  watchFor: string[];
+  alertsWhen: string[];
+  recommendedFor: string[];
+  recommendedAction: string;
+  defaultEvidence: PluginEvidenceConfig;
+  defaultClasses?: string[];
+  defaultConfidence: number;
+  defaultCooldownSec: number;
+}
+
 export interface SegmentUnderstandingPlugin extends PluginBase {
   kind: "segment-understanding";
-  provider: "openrouter";
+  usesVisionLanguage: true;
   defaultPrompt: string;
   defaultAlerts: SceneAlertRule[];
-  defaultCooldownSec: number;
 }
 
 export interface WorkflowObjectDetectionPlugin extends PluginBase {
   kind: "workflow-object-detection";
-  provider: "roboflow";
-  workflow: PluginWorkflowConfig;
-  defaultClasses?: string[];
   defaultAlerts: DetectionAlertRule[];
-  defaultConfidence: number;
-  defaultCooldownSec: number;
 }
 
 export type Plugin = SegmentUnderstandingPlugin | WorkflowObjectDetectionPlugin;
@@ -107,10 +100,12 @@ export type AlertRule = DetectionAlertRule | SceneAlertRule;
 // ─── Per-camera configuration ─────────────────────────────────────────────
 
 interface DevicePluginConfigBase<K extends PluginKind> {
-  schemaVersion: 2;
+  schemaVersion: 3;
   kind: K;
   pluginId: string;
   enabled: boolean;
+  minConfidence: number;
+  classes?: string[];
   trigger?: PluginTrigger;
   cooldownSec?: number;
   evidence: PluginEvidenceConfig;
@@ -126,9 +121,7 @@ export interface WorkflowObjectDetectionDeviceConfig extends DevicePluginConfigB
   threshold: number;
   operator: ComparisonOperator;
   thresholdMode: ThresholdMode;
-  minConfidence: number;
   alertSeverity: AlertSeverity;
-  classes?: string[];
   alerts: DetectionAlertRule[];
 }
 
@@ -142,14 +135,39 @@ export type ResolvedPlugin =
       config: WorkflowObjectDetectionDeviceConfig;
     };
 
+export interface WorkflowExecutionGroup {
+  key: string;
+  workflow: PluginWorkflowConfig;
+  plugins: ResolvedPlugin[];
+  minConfidence: number;
+  classFilter?: string[];
+}
+
 // ─── Defaults ─────────────────────────────────────────────────────────────
 
-export const PLUGIN_SCHEMA_VERSION = 2 as const;
+export const PLUGIN_SCHEMA_VERSION = 3 as const;
 export const DEFAULT_PLUGIN_CONFIDENCE = 0.4;
 export const DEFAULT_COUNTING_OPERATOR = "gte" as const;
 export const DEFAULT_COUNTING_THRESHOLD = 1;
 export const DEFAULT_SEGMENT_PROMPT =
-  "Review this CCTV clip for the configured operational risks. Describe only visible evidence and avoid guessing.";
+  "Review the original and annotated CCTV frames for the configured operational risks. Describe only visible evidence.";
+
+export const DEFAULT_OBJECT_DETECTION_WORKFLOW: PluginWorkflowConfig = {
+  workspaceName: "dentolos19",
+  workflowId: "object-detection",
+  inputName: "image",
+  dataOutputNames: ["image", "predictions", "count"],
+};
+
+const PEOPLE_DETECTION_WORKFLOW: PluginWorkflowConfig = {
+  ...DEFAULT_OBJECT_DETECTION_WORKFLOW,
+  workflowId: "people-detection",
+};
+
+const VEHICLE_DETECTION_WORKFLOW: PluginWorkflowConfig = {
+  ...DEFAULT_OBJECT_DETECTION_WORKFLOW,
+  workflowId: "vehicle-detection",
+};
 
 const PERSON_LABELS = ["person"];
 const VEHICLE_LABELS = ["vehicle", "car", "truck", "bus", "van"];
@@ -158,10 +176,10 @@ const DETECTION_EVIDENCE: PluginEvidenceConfig = {
   attachAnnotatedFrames: true,
   maxAnnotatedFrames: 3,
 };
-const SCENE_EVIDENCE: PluginEvidenceConfig = {
+const VISION_LANGUAGE_EVIDENCE: PluginEvidenceConfig = {
   attachVideo: true,
-  attachAnnotatedFrames: false,
-  maxAnnotatedFrames: 0,
+  attachAnnotatedFrames: true,
+  maxAnnotatedFrames: 2,
 };
 
 // ─── Outcome catalog ──────────────────────────────────────────────────────
@@ -174,17 +192,12 @@ export const PLUGINS: Plugin[] = [
     category: "security",
     kind: "workflow-object-detection",
     provider: "roboflow",
+    workflow: PEOPLE_DETECTION_WORKFLOW,
     watchFor: ["People entering the monitored area", "Unexpected occupancy"],
     alertsWhen: ["A person appears", "The configured occupancy limit is reached"],
     recommendedFor: ["Restricted areas", "Entry points", "Cold storage"],
     recommendedAction: "Verify authorization, contact security, and secure the affected area.",
     defaultEvidence: DETECTION_EVIDENCE,
-    workflow: {
-      workspaceName: "dentolos19",
-      workflowId: "people-detection",
-      inputName: "image",
-      dataOutputNames: ["image", "predictions", "count"],
-    },
     defaultClasses: PERSON_LABELS,
     defaultConfidence: 0.5,
     defaultCooldownSec: 300,
@@ -206,15 +219,18 @@ export const PLUGINS: Plugin[] = [
     description: "Review food-operation footage for visible missing or incorrectly worn protective equipment.",
     category: "compliance",
     kind: "segment-understanding",
-    provider: "openrouter",
+    provider: "roboflow",
+    workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
+    usesVisionLanguage: true,
     watchFor: ["Hairnets and hair covering", "Face masks", "Required protective clothing"],
     alertsWhen: ["Required PPE is visibly missing or worn incorrectly"],
     recommendedFor: ["PPE checkpoints", "Food operations", "Tenant production areas"],
     recommendedAction: "Stop entry to the controlled area and correct the PPE violation.",
-    defaultEvidence: SCENE_EVIDENCE,
-    defaultPrompt:
-      "Review this clip as a food-factory PPE compliance check. Report only clearly visible violations and identify the evidence.",
+    defaultEvidence: VISION_LANGUAGE_EVIDENCE,
+    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 300,
+    defaultPrompt:
+      "Review the original and annotated frames as a food-factory PPE compliance check. Treat Roboflow annotations as location hints, and report only clearly visible violations.",
     defaultAlerts: [
       {
         kind: "scene-match",
@@ -237,17 +253,12 @@ export const PLUGINS: Plugin[] = [
     category: "operations",
     kind: "workflow-object-detection",
     provider: "roboflow",
+    workflow: VEHICLE_DETECTION_WORKFLOW,
     watchFor: ["Vehicle arrivals and departures", "Bay occupancy", "Multiple waiting vehicles"],
     alertsWhen: ["A vehicle arrives or leaves", "More than one vehicle is present"],
     recommendedFor: ["Loading Bay 1", "Loading Bay 2", "Delivery approaches"],
     recommendedAction: "Confirm the bay assignment and coordinate waiting drivers if congestion is forming.",
     defaultEvidence: DETECTION_EVIDENCE,
-    workflow: {
-      workspaceName: "dentolos19",
-      workflowId: "vehicle-detection",
-      inputName: "image",
-      dataOutputNames: ["image", "predictions", "count"],
-    },
     defaultClasses: VEHICLE_LABELS,
     defaultConfidence: 0.45,
     defaultCooldownSec: 120,
@@ -270,15 +281,18 @@ export const PLUGINS: Plugin[] = [
     description: "Review food-sensitive areas for visible pests, spills, standing water, and waste risks.",
     category: "hygiene",
     kind: "segment-understanding",
-    provider: "openrouter",
+    provider: "roboflow",
+    workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
+    usesVisionLanguage: true,
     watchFor: ["Rodents and visible pests", "Spills or standing water", "Exposed or accumulated waste"],
     alertsWhen: ["A visible hygiene risk is present"],
     recommendedFor: ["Food operations", "Waste holding areas", "Loading bays"],
     recommendedAction: "Isolate the affected area and start the hygiene or pest-control response.",
-    defaultEvidence: SCENE_EVIDENCE,
-    defaultPrompt:
-      "Review this clip for visible food-factory hygiene and pest risks. Report only observable evidence and its location.",
+    defaultEvidence: VISION_LANGUAGE_EVIDENCE,
+    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 600,
+    defaultPrompt:
+      "Review the original and annotated frames for visible food-factory hygiene and pest risks. Treat Roboflow annotations as hints, not ground truth.",
     defaultAlerts: [
       {
         kind: "scene-match",
@@ -300,15 +314,18 @@ export const PLUGINS: Plugin[] = [
     description: "Review operational areas for falls, blocked exits, unsafe crowding, and vehicle proximity.",
     category: "safety",
     kind: "segment-understanding",
-    provider: "openrouter",
+    provider: "roboflow",
+    workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
+    usesVisionLanguage: true,
     watchFor: ["A fallen person", "Blocked emergency access", "Unsafe person and vehicle proximity"],
     alertsWhen: ["An immediate, visible safety hazard is present"],
     recommendedFor: ["Loading bays", "Parking", "Production corridors"],
     recommendedAction: "Pause nearby activity and dispatch the appropriate safety response.",
-    defaultEvidence: SCENE_EVIDENCE,
-    defaultPrompt:
-      "Review this clip for immediate workplace safety hazards. Report only clearly visible hazards and supporting evidence.",
+    defaultEvidence: VISION_LANGUAGE_EVIDENCE,
+    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 180,
+    defaultPrompt:
+      "Review the original and annotated frames for immediate workplace safety hazards. Treat Roboflow annotations as hints and report only visible evidence.",
     defaultAlerts: [
       {
         kind: "scene-match",
@@ -332,167 +349,48 @@ export const PLUGINS: Plugin[] = [
   },
 ];
 
-/**
- * Existing cameras may still carry these configurations. They remain
- * resolvable and executable, but cannot be installed on new cameras.
- */
-export const LEGACY_PLUGINS: Plugin[] = [
-  {
-    id: "natural-language",
-    name: "Natural Language",
-    description: "Legacy free-form scene analysis. Replace it with a purpose-built operational plugin.",
-    category: "safety",
-    kind: "segment-understanding",
-    provider: "openrouter",
-    watchFor: ["A free-form scene description"],
-    alertsWhen: ["The configured description matches"],
-    recommendedFor: [],
-    recommendedAction: "Review the attached evidence and follow the configured response procedure.",
-    defaultEvidence: SCENE_EVIDENCE,
-    legacy: true,
-    defaultPrompt: DEFAULT_SEGMENT_PROMPT,
-    defaultCooldownSec: 300,
-    defaultAlerts: [],
-  },
-  {
-    id: "people-detection",
-    name: "People Detection",
-    description: "Legacy generic detector. Replace it with Restricted Area Protection.",
-    category: "security",
-    kind: "workflow-object-detection",
-    provider: "roboflow",
-    watchFor: ["People"],
-    alertsWhen: ["A generic people rule matches"],
-    recommendedFor: [],
-    recommendedAction: "Review the detected person and verify whether intervention is required.",
-    defaultEvidence: DETECTION_EVIDENCE,
-    legacy: true,
-    replacementId: "restricted-area-protection",
-    workflow: {
-      workspaceName: "dentolos19",
-      workflowId: "people-detection",
-      inputName: "image",
-      dataOutputNames: ["image", "predictions", "count"],
-    },
-    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
-    defaultCooldownSec: 300,
-    defaultAlerts: [],
-  },
-  {
-    id: "vehicle-detection",
-    name: "Vehicle Detection",
-    description: "Legacy generic detector. Replace it with Loading Bay Operations.",
-    category: "operations",
-    kind: "workflow-object-detection",
-    provider: "roboflow",
-    watchFor: ["Vehicles"],
-    alertsWhen: ["A generic vehicle rule matches"],
-    recommendedFor: [],
-    recommendedAction: "Review the vehicle activity and verify the operational impact.",
-    defaultEvidence: DETECTION_EVIDENCE,
-    legacy: true,
-    replacementId: "loading-bay-operations",
-    workflow: {
-      workspaceName: "dentolos19",
-      workflowId: "vehicle-detection",
-      inputName: "image",
-      dataOutputNames: ["image", "predictions", "count"],
-    },
-    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
-    defaultCooldownSec: 300,
-    defaultAlerts: [],
-  },
-  {
-    id: "object-detection",
-    name: "Object Detection",
-    description: "Legacy generic detector. Replace it with a purpose-built operational plugin.",
-    category: "safety",
-    kind: "workflow-object-detection",
-    provider: "roboflow",
-    watchFor: ["Configured object classes"],
-    alertsWhen: ["A generic object rule matches"],
-    recommendedFor: [],
-    recommendedAction: "Review the detected object and verify whether intervention is required.",
-    defaultEvidence: DETECTION_EVIDENCE,
-    legacy: true,
-    workflow: {
-      workspaceName: "dentolos19",
-      workflowId: "object-detection",
-      inputName: "image",
-      dataOutputNames: ["image", "predictions", "count"],
-    },
-    defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
-    defaultCooldownSec: 300,
-    defaultAlerts: [],
-  },
-];
-
-const PLUGIN_BY_ID = new Map([...PLUGINS, ...LEGACY_PLUGINS].map((plugin) => [plugin.id, plugin]));
+const PLUGIN_BY_ID = new Map(PLUGINS.map((plugin) => [plugin.id, plugin]));
 
 export function getPlugin(id: string): Plugin | undefined {
   return PLUGIN_BY_ID.get(id);
 }
 
-export function isLegacyPlugin(plugin: Plugin): boolean {
-  return plugin.legacy === true;
-}
-
 export function createPluginConfig(plugin: Plugin): DevicePluginConfig {
-  if (plugin.kind === "segment-understanding") {
-    const alerts =
-      plugin.defaultAlerts.length > 0
-        ? structuredClone(plugin.defaultAlerts)
-        : [createDefaultSceneAlert(plugin.defaultPrompt)];
-    return {
-      schemaVersion: PLUGIN_SCHEMA_VERSION,
-      kind: plugin.kind,
-      pluginId: plugin.id,
-      enabled: true,
-      prompt: plugin.defaultPrompt,
-      severity: alerts[0]?.severity ?? "warn",
-      cooldownSec: plugin.defaultCooldownSec,
-      evidence: { ...plugin.defaultEvidence },
-      alerts,
-    };
-  }
-
-  const alerts =
-    plugin.defaultAlerts.length > 0
-      ? structuredClone(plugin.defaultAlerts)
-      : [
-          {
-            kind: "count-threshold" as const,
-            enabled: true,
-            threshold: DEFAULT_COUNTING_THRESHOLD,
-            operator: DEFAULT_COUNTING_OPERATOR,
-            thresholdMode: "max-per-frame" as const,
-            severity: "warn" as const,
-          },
-        ];
-  const thresholdRule = alerts.find((alert): alert is CountThresholdAlertRule => alert.kind === "count-threshold");
-
-  return {
+  const base = {
     schemaVersion: PLUGIN_SCHEMA_VERSION,
     kind: plugin.kind,
     pluginId: plugin.id,
     enabled: true,
-    threshold: thresholdRule?.threshold ?? DEFAULT_COUNTING_THRESHOLD,
-    operator: thresholdRule?.operator ?? DEFAULT_COUNTING_OPERATOR,
-    thresholdMode: thresholdRule?.thresholdMode ?? "max-per-frame",
     minConfidence: plugin.defaultConfidence,
-    alertSeverity: thresholdRule?.severity ?? alerts[0]?.severity ?? "warn",
     classes: plugin.defaultClasses ? [...plugin.defaultClasses] : undefined,
     cooldownSec: plugin.defaultCooldownSec,
     evidence: { ...plugin.defaultEvidence },
+  };
+
+  if (plugin.kind === "segment-understanding") {
+    return {
+      ...base,
+      kind: plugin.kind,
+      prompt: plugin.defaultPrompt,
+      severity: plugin.defaultAlerts[0]?.severity ?? "warn",
+      alerts: structuredClone(plugin.defaultAlerts),
+    };
+  }
+
+  const alerts = structuredClone(plugin.defaultAlerts);
+  const thresholdRule = alerts.find((alert): alert is CountThresholdAlertRule => alert.kind === "count-threshold");
+  return {
+    ...base,
+    kind: plugin.kind,
+    threshold: thresholdRule?.threshold ?? DEFAULT_COUNTING_THRESHOLD,
+    operator: thresholdRule?.operator ?? DEFAULT_COUNTING_OPERATOR,
+    thresholdMode: thresholdRule?.thresholdMode ?? "max-per-frame",
+    alertSeverity: thresholdRule?.severity ?? alerts[0]?.severity ?? "warn",
     alerts,
   };
 }
 
-// ─── Normalization and migration ──────────────────────────────────────────
-
-function createDefaultSceneAlert(description: string): SceneMatchAlertRule {
-  return { kind: "scene-match", enabled: true, description, severity: "warn" };
-}
+// ─── Normalization ────────────────────────────────────────────────────────
 
 function normalizeDetectionAlertRule(raw: unknown): DetectionAlertRule | null {
   if (!raw || typeof raw !== "object") return null;
@@ -539,26 +437,26 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
   if (!plugin) return null;
 
   const defaults = createPluginConfig(plugin);
-  const enabled = value.enabled === true;
-  const trigger = normalizeTrigger(value.trigger);
-  const cooldownSec = normalizeCooldown(value.cooldownSec) ?? defaults.cooldownSec;
-  const evidence = normalizeEvidence(value.evidence, plugin.defaultEvidence);
+  const shared = {
+    ...defaults,
+    enabled: value.enabled === true,
+    minConfidence: normalizeConfidence(value.minConfidence, defaults.minConfidence),
+    classes: normalizeStringArray(value.classes) ?? defaults.classes,
+    trigger: normalizeTrigger(value.trigger),
+    cooldownSec: normalizeCooldown(value.cooldownSec) ?? defaults.cooldownSec,
+    evidence: normalizeEvidence(value.evidence, plugin.defaultEvidence),
+  };
 
   if (plugin.kind === "segment-understanding" && defaults.kind === "segment-understanding") {
-    const prompt = typeof value.prompt === "string" && value.prompt.trim() ? value.prompt : defaults.prompt;
     const alerts = Array.isArray(value.alerts)
       ? value.alerts.map(normalizeSceneAlertRule).filter((alert): alert is SceneMatchAlertRule => alert !== null)
       : [];
-
     return {
-      ...defaults,
-      enabled,
-      prompt,
+      ...shared,
+      kind: plugin.kind,
+      prompt: typeof value.prompt === "string" && value.prompt.trim() ? value.prompt : defaults.prompt,
       severity: normalizeSeverity(value.severity),
       alerts: alerts.length > 0 ? alerts : defaults.alerts,
-      trigger,
-      cooldownSec,
-      evidence,
     };
   }
 
@@ -570,32 +468,17 @@ function normalizeOne(raw: unknown): DevicePluginConfig | null {
     const alerts = Array.isArray(value.alerts)
       ? value.alerts.map(normalizeDetectionAlertRule).filter((alert): alert is DetectionAlertRule => alert !== null)
       : [];
-
     return {
-      ...defaults,
-      enabled,
+      ...shared,
+      kind: plugin.kind,
       threshold,
       operator,
       thresholdMode,
-      minConfidence: normalizeConfidence(value.minConfidence, defaults.minConfidence),
       alertSeverity,
-      classes: normalizeStringArray(value.classes) ?? defaults.classes,
       alerts:
         alerts.length > 0
           ? alerts
-          : [
-              {
-                kind: "count-threshold",
-                enabled: true,
-                threshold,
-                operator,
-                thresholdMode,
-                severity: alertSeverity,
-              },
-            ],
-      trigger,
-      cooldownSec,
-      evidence,
+          : [{ kind: "count-threshold", enabled: true, threshold, operator, thresholdMode, severity: alertSeverity }],
     };
   }
 
@@ -683,7 +566,6 @@ export function resolveEnabledPlugins(configs: DevicePluginConfig[]): ResolvedPl
     if (!config.enabled) continue;
     const plugin = getPlugin(config.pluginId);
     if (!plugin || plugin.kind !== config.kind) continue;
-
     if (plugin.kind === "segment-understanding" && config.kind === "segment-understanding") {
       resolved.push({ kind: plugin.kind, plugin, config });
     } else if (plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection") {
@@ -691,6 +573,59 @@ export function resolveEnabledPlugins(configs: DevicePluginConfig[]): ResolvedPl
     }
   }
   return resolved;
+}
+
+export function workflowIdentity(workflow: PluginWorkflowConfig): string {
+  return [
+    workflow.workspaceName,
+    workflow.workflowId,
+    workflow.inputName,
+    ...[...(workflow.dataOutputNames ?? [])].sort(),
+  ].join(":");
+}
+
+export function groupPluginsByWorkflow(plugins: ResolvedPlugin[]): WorkflowExecutionGroup[] {
+  const grouped = new Map<string, WorkflowExecutionGroup>();
+
+  for (const resolved of plugins) {
+    const key = workflowIdentity(resolved.plugin.workflow);
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.plugins.push(resolved);
+      existing.minConfidence = Math.min(existing.minConfidence, resolved.config.minConfidence);
+      existing.classFilter = mergeClassFilters(existing.plugins);
+      continue;
+    }
+    grouped.set(key, {
+      key,
+      workflow: resolved.plugin.workflow,
+      plugins: [resolved],
+      minConfidence: resolved.config.minConfidence,
+      classFilter: resolved.config.classes?.length ? [...resolved.config.classes] : undefined,
+    });
+  }
+
+  return [...grouped.values()];
+}
+
+function mergeClassFilters(plugins: ResolvedPlugin[]): string[] | undefined {
+  if (plugins.some((entry) => !entry.config.classes?.length)) return undefined;
+  const labels = new Set<string>();
+  for (const entry of plugins) {
+    for (const label of entry.config.classes ?? []) labels.add(label.toLowerCase());
+  }
+  return [...labels];
+}
+
+export function filterDetectionsForPlugin<T extends { label: string; confidence: number }>(
+  detections: T[],
+  config: DevicePluginConfig,
+): T[] {
+  const labels = config.classes?.length ? new Set(config.classes.map((label) => label.toLowerCase())) : undefined;
+  return detections.filter(
+    (detection) =>
+      detection.confidence >= config.minConfidence && (!labels || labels.has(detection.label.toLowerCase())),
+  );
 }
 
 // ─── Rule evaluation ──────────────────────────────────────────────────────

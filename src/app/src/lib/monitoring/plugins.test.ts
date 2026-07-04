@@ -4,9 +4,10 @@ import {
   createPluginConfig,
   evaluateCountThreshold,
   evaluateTransition,
+  filterDetectionsForPlugin,
   getPlugin,
+  groupPluginsByWorkflow,
   isCooldownElapsed,
-  isLegacyPlugin,
   normalizePlugins,
   PLUGINS,
   resolveEnabledPlugins,
@@ -22,6 +23,9 @@ describe("outcome-oriented intelligence plugins", () => {
       "workplace-safety",
     ]);
     expect(PLUGINS.every((plugin) => plugin.watchFor.length > 0 && plugin.alertsWhen.length > 0)).toBe(true);
+    expect(PLUGINS.every((plugin) => plugin.provider === "roboflow" && plugin.workflow.workflowId.length > 0)).toBe(
+      true,
+    );
   });
 
   test("creates practical restricted-area defaults", () => {
@@ -29,7 +33,7 @@ describe("outcome-oriented intelligence plugins", () => {
     if (!plugin) throw new Error("missing restricted-area plugin");
 
     const config = createPluginConfig(plugin);
-    expect(config.schemaVersion).toBe(2);
+    expect(config.schemaVersion).toBe(3);
     expect(config.enabled).toBe(true);
     expect(config.cooldownSec).toBe(300);
     expect(config.evidence).toEqual({
@@ -43,24 +47,20 @@ describe("outcome-oriented intelligence plugins", () => {
     expect(config.alerts.map((alert) => alert.kind)).toEqual(["object-enters", "count-threshold"]);
   });
 
-  test("keeps existing generic configurations resolvable as legacy", () => {
-    const [config] = normalizePlugins([
+  test("completely removes legacy generic configurations", () => {
+    const configs = normalizePlugins([
       {
         pluginId: "people-detection",
         enabled: true,
-        minConfidence: 0.7,
-        threshold: 2,
-        operator: "gte",
-        thresholdMode: "max-per-frame",
-        alertSeverity: "error",
       },
+      { pluginId: "vehicle-detection", enabled: true },
+      { pluginId: "object-detection", enabled: true },
+      { pluginId: "natural-language", enabled: true },
     ]);
 
-    expect(config?.schemaVersion).toBe(2);
-    expect(config?.pluginId).toBe("people-detection");
-    expect(isLegacyPlugin(getPlugin("people-detection")!)).toBe(true);
-    expect(getPlugin("people-detection")?.replacementId).toBe("restricted-area-protection");
-    expect(resolveEnabledPlugins(config ? [config] : [])).toHaveLength(1);
+    expect(configs).toEqual([]);
+    expect(getPlugin("people-detection")).toBeUndefined();
+    expect(getPlugin("natural-language")).toBeUndefined();
   });
 
   test("normalizes purpose-built scene rules", () => {
@@ -80,6 +80,8 @@ describe("outcome-oriented intelligence plugins", () => {
 
     expect(config?.kind).toBe("segment-understanding");
     if (!config || config.kind !== "segment-understanding") throw new Error("unexpected config kind");
+    expect(config.schemaVersion).toBe(3);
+    expect(config.minConfidence).toBe(0.4);
     expect(config.alerts).toEqual([
       {
         kind: "scene-match",
@@ -88,6 +90,36 @@ describe("outcome-oriented intelligence plugins", () => {
         severity: "error",
       },
     ]);
+  });
+
+  test("groups plugins that share a workflow into one inference pass", () => {
+    const configs = ["ppe-compliance", "hygiene-pest-watch", "workplace-safety"].map((pluginId) => {
+      const plugin = getPlugin(pluginId);
+      if (!plugin) throw new Error(`missing ${pluginId}`);
+      return createPluginConfig(plugin);
+    });
+    const groups = groupPluginsByWorkflow(resolveEnabledPlugins(configs));
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].workflow.workflowId).toBe("object-detection");
+    expect(groups[0].plugins).toHaveLength(3);
+    expect(groups[0].classFilter).toBeUndefined();
+  });
+
+  test("filters a shared workflow result for each plugin", () => {
+    const plugin = getPlugin("restricted-area-protection");
+    if (!plugin) throw new Error("missing restricted-area plugin");
+    const config = createPluginConfig(plugin);
+    const detections = filterDetectionsForPlugin(
+      [
+        { label: "person", confidence: 0.9 },
+        { label: "person", confidence: 0.3 },
+        { label: "car", confidence: 0.9 },
+      ],
+      config,
+    );
+
+    expect(detections).toEqual([{ label: "person", confidence: 0.9 }]);
   });
 });
 

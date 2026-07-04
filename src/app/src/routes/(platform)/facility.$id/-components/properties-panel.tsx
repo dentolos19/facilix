@@ -18,7 +18,6 @@ import {
   type DevicePluginConfig,
   createPluginConfig,
   getPlugin,
-  isLegacyPlugin,
   normalizePlugins,
   PLUGINS,
   type Plugin,
@@ -767,15 +766,6 @@ function CctvPluginsSection({
               key={config.pluginId}
               onChange={(patch) => onChange(updatePlugin(configs, config.pluginId, patch))}
               onRemove={() => onChange(removePlugin(configs, config.pluginId))}
-              onReplace={
-                plugin.replacementId
-                  ? () => {
-                      const replacement = getPlugin(plugin.replacementId!);
-                      if (!replacement) return;
-                      onChange(addPlugin(removePlugin(configs, config.pluginId), replacement));
-                    }
-                  : undefined
-              }
               plugin={plugin}
             />
           );
@@ -825,28 +815,18 @@ function PluginCard({
   isReadOnly,
   onChange,
   onRemove,
-  onReplace,
 }: {
   plugin: Plugin;
   config: DevicePluginConfig;
   isReadOnly: boolean;
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
   onRemove: () => void;
-  onReplace?: () => void;
 }) {
-  const legacy = isLegacyPlugin(plugin);
-
   return (
     <div className="border-border bg-muted/10 flex flex-col gap-2 rounded-none border p-2">
-      <div
-        className={`-mx-2 -mt-2 flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase ${
-          legacy
-            ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-            : "border-border bg-muted/30 text-muted-foreground"
-        }`}
-      >
-        <span>{legacy ? "Legacy plugin" : plugin.category}</span>
-        <span>{plugin.provider === "roboflow" ? "Tracked detection" : "Scene review"}</span>
+      <div className="border-border bg-muted/30 text-muted-foreground -mx-2 -mt-2 flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase">
+        <span>{plugin.category}</span>
+        <span>{plugin.kind === "segment-understanding" ? "Roboflow + vision review" : "Roboflow workflow"}</span>
       </div>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -871,24 +851,16 @@ function PluginCard({
         </div>
       </div>
 
-      {!legacy && (
-        <div className="grid grid-cols-2 gap-2 border-y py-2">
-          <div className="min-w-0">
-            <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
-            <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
-          </div>
-          <div className="min-w-0 border-l pl-2">
-            <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
-            <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
-          </div>
+      <div className="grid grid-cols-2 gap-2 border-y py-2">
+        <div className="min-w-0">
+          <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
+          <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
         </div>
-      )}
-
-      {legacy && onReplace && !isReadOnly && (
-        <Button className="h-7 justify-start rounded-none text-[10px]" onClick={onReplace} size="sm" variant="outline">
-          Replace with {getPlugin(plugin.replacementId!)?.name}
-        </Button>
-      )}
+        <div className="min-w-0 border-l pl-2">
+          <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
+          <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
+        </div>
+      </div>
 
       {/* Enable switch */}
       <div className="flex items-center justify-between gap-2">
@@ -904,6 +876,8 @@ function PluginCard({
           size="sm"
         />
       </div>
+
+      <WorkflowInputConfig config={config} isReadOnly={isReadOnly} onChange={onChange} plugin={plugin} />
 
       {plugin.kind === "segment-understanding" && config.kind === "segment-understanding" && (
         <SegmentAnalysisConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
@@ -935,48 +909,105 @@ function PluginCard({
             size="sm"
           />
         </div>
-        {config.kind === "workflow-object-detection" && (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground text-[10px]">Annotated frames</span>
-              <Switch
-                aria-label={`Attach annotated frames for ${plugin.name}`}
-                checked={config.evidence.attachAnnotatedFrames}
-                disabled={isReadOnly}
-                onCheckedChange={(checked) =>
-                  onChange((current) => ({
-                    ...current,
-                    evidence: { ...current.evidence, attachAnnotatedFrames: checked },
-                  }))
-                }
-                size="sm"
-              />
-            </div>
-            {config.evidence.attachAnnotatedFrames && (
-              <Field label="Maximum annotated images">
-                <Input
-                  className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                  max={3}
-                  min={1}
-                  onChange={(event) => {
-                    const value = Number(event.target.value);
-                    onChange((current) => ({
-                      ...current,
-                      evidence: {
-                        ...current.evidence,
-                        maxAnnotatedFrames: Number.isFinite(value) ? Math.max(1, Math.min(3, value)) : 3,
-                      },
-                    }));
-                  }}
-                  readOnly={isReadOnly}
-                  type="number"
-                  value={String(config.evidence.maxAnnotatedFrames)}
-                />
-              </Field>
-            )}
-          </>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground text-[10px]">Annotated frames</span>
+          <Switch
+            aria-label={`Attach annotated frames for ${plugin.name}`}
+            checked={config.evidence.attachAnnotatedFrames}
+            disabled={isReadOnly}
+            onCheckedChange={(checked) =>
+              onChange((current) => ({
+                ...current,
+                evidence: { ...current.evidence, attachAnnotatedFrames: checked },
+              }))
+            }
+            size="sm"
+          />
+        </div>
+        {config.evidence.attachAnnotatedFrames && (
+          <Field label="Maximum annotated images">
+            <Input
+              className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+              max={3}
+              min={1}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                onChange((current) => ({
+                  ...current,
+                  evidence: {
+                    ...current.evidence,
+                    maxAnnotatedFrames: Number.isFinite(value) ? Math.max(1, Math.min(3, value)) : 3,
+                  },
+                }));
+              }}
+              readOnly={isReadOnly}
+              type="number"
+              value={String(config.evidence.maxAnnotatedFrames)}
+            />
+          </Field>
         )}
       </div>
+    </div>
+  );
+}
+
+function WorkflowInputConfig({
+  plugin,
+  config,
+  isReadOnly,
+  onChange,
+}: {
+  plugin: Plugin;
+  config: DevicePluginConfig;
+  isReadOnly: boolean;
+  onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
+}) {
+  return (
+    <div className="border-border flex flex-col gap-2 border-t pt-2">
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Roboflow workflow">
+          <Input className="font-mono text-[10px]" readOnly value={plugin.workflow.workflowId} />
+        </Field>
+        <Field label="Detection confidence">
+          <Input
+            className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+            max={1}
+            min={0}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              onChange((current) => ({
+                ...current,
+                minConfidence: Number.isFinite(value) && value >= 0 && value <= 1 ? value : DEFAULT_PLUGIN_CONFIDENCE,
+              }));
+            }}
+            readOnly={isReadOnly}
+            step={0.05}
+            type="number"
+            value={String(config.minConfidence)}
+          />
+        </Field>
+      </div>
+      <Field label="Objects to monitor">
+        <Input
+          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+          onChange={(event) => {
+            const value = event.target.value.trim();
+            const classes = value
+              ? value
+                  .split(",")
+                  .map((entry) => entry.trim())
+                  .filter(Boolean)
+              : undefined;
+            onChange((current) => ({ ...current, classes }));
+          }}
+          placeholder="All workflow labels"
+          readOnly={isReadOnly}
+          value={config.classes?.join(", ") ?? ""}
+        />
+      </Field>
+      <p className="text-muted-foreground/60 text-[10px]">
+        Plugins sharing this workflow reuse one inference pass. Results are filtered per plugin afterward.
+      </p>
     </div>
   );
 }
@@ -1191,58 +1222,6 @@ function DetectionPluginConfig({
 
   return (
     <>
-      {/* Minimum Confidence */}
-      <div className="border-border flex flex-col gap-1 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Detection confidence</Label>
-        <Input
-          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-          max={1}
-          min={0}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            onChange((c) => ({
-              ...(c as WorkflowObjectDetectionDeviceConfig),
-              minConfidence: Number.isFinite(n) && n >= 0 && n <= 1 ? n : DEFAULT_PLUGIN_CONFIDENCE,
-            }));
-          }}
-          readOnly={isReadOnly}
-          step={0.05}
-          type="number"
-          value={String(config.minConfidence)}
-        />
-        <p className="text-muted-foreground/60 text-[10px]">
-          0-1 (lower = more sensitive). Detections below this are ignored.
-        </p>
-      </div>
-
-      {/* Class Filter */}
-      <div className="border-border flex flex-col gap-1 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Objects to monitor</Label>
-        <Input
-          className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-          onChange={(e) => {
-            const val = e.target.value.trim();
-            const classes =
-              val.length > 0
-                ? val
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                : undefined;
-            onChange((c) => ({
-              ...(c as WorkflowObjectDetectionDeviceConfig),
-              classes,
-            }));
-          }}
-          readOnly={isReadOnly}
-          placeholder="e.g. car, truck, person (comma-separated)"
-          value={config.classes?.join(", ") ?? ""}
-        />
-        <p className="text-muted-foreground/60 text-[10px]">
-          Comma-separated detector labels. The plugin includes practical defaults.
-        </p>
-      </div>
-
       {/* Alert Rules */}
       <div className="border-border flex flex-col gap-2 border-t pt-2">
         <div className="flex items-center justify-between">

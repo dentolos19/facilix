@@ -11,13 +11,16 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScrollArea, ScrollBar } from "#/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import type { DeviceDetail } from "#/lib/functions/facility";
 import {
   getDevicePredictions,
   getDeviceRecordings,
   type PredictionOutputRow,
+  type RecordingDetection,
   type RecordingRow,
 } from "#/lib/functions/recordings";
+import { getPlugin } from "#/lib/monitoring/plugins";
 
 function formatWallClock(date: Date): string {
   return new Date(date).toLocaleString(undefined, {
@@ -29,11 +32,87 @@ function formatWallClock(date: Date): string {
   });
 }
 
+function getDetectionRect(detection: RecordingDetection) {
+  if (detection.box) {
+    return {
+      x: detection.box.xmin,
+      y: detection.box.ymin,
+      width: detection.box.xmax - detection.box.xmin,
+      height: detection.box.ymax - detection.box.ymin,
+    };
+  }
+  if (detection.prediction) {
+    return {
+      x: detection.prediction.x - detection.prediction.width / 2,
+      y: detection.prediction.y - detection.prediction.height / 2,
+      width: detection.prediction.width,
+      height: detection.prediction.height,
+    };
+  }
+  return null;
+}
+
+function PredictionFrame({ prediction }: { prediction: PredictionOutputRow }) {
+  const { width, height } = prediction.image;
+  const strokeWidth = Math.max(2, Math.max(width, height) * 0.003);
+
+  return (
+    <div className="relative size-full">
+      <img
+        alt={`Prediction frame ${prediction.frameIndex}`}
+        className="size-full object-contain"
+        src={`/assets/${encodeURIComponent(prediction.beforeAssetId)}`}
+      />
+      {width > 0 && height > 0 && (
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 size-full"
+          preserveAspectRatio="xMidYMid meet"
+          viewBox={`0 0 ${width} ${height}`}
+        >
+          {prediction.predictions.map((detection, index) => {
+            const rect = getDetectionRect(detection);
+            if (!rect) return null;
+            const labelY = Math.max(12, rect.y - 5);
+            return (
+              <g key={`${detection.label}-${detection.frameIndex ?? prediction.frameIndex}-${index}`}>
+                <rect
+                  fill="transparent"
+                  height={rect.height}
+                  stroke="#84cc16"
+                  strokeWidth={strokeWidth}
+                  width={rect.width}
+                  x={rect.x}
+                  y={rect.y}
+                />
+                <text
+                  fill="#84cc16"
+                  fontFamily="monospace"
+                  fontSize={Math.max(12, height * 0.025)}
+                  fontWeight="700"
+                  paintOrder="stroke"
+                  stroke="rgba(0,0,0,0.8)"
+                  strokeWidth={strokeWidth}
+                  x={rect.x}
+                  y={labelY}
+                >
+                  {detection.label} {Math.round(detection.confidence * 100)}%
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
+    </div>
+  );
+}
+
 export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
   const [predictions, setPredictions] = useState<PredictionOutputRow[]>([]);
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPluginId, setSelectedPluginId] = useState("all");
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -56,9 +135,12 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
           }),
         ]);
         if (!cancelled) {
+          const firstPluginId = preds[0]?.pluginId ?? "all";
+          const pluginPredictionCount = preds.filter((prediction) => prediction.pluginId === firstPluginId).length;
           setPredictions(preds);
           setRecordings(recs);
-          setSelectedIdx(Math.max(0, preds.length - 1));
+          setSelectedPluginId(firstPluginId);
+          setSelectedIdx(Math.max(0, pluginPredictionCount - 1));
           setIsPlaying(false);
         }
       } catch (err) {
@@ -85,9 +167,27 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
     return map;
   }, [recordings]);
 
+  const pluginOptions = useMemo(() => {
+    const ids = [...new Set(predictions.map((prediction) => prediction.pluginId))];
+    return ids
+      .map((pluginId) => ({
+        pluginId,
+        name: getPlugin(pluginId)?.name ?? pluginId,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [predictions]);
+
+  const visiblePredictions = useMemo(
+    () =>
+      selectedPluginId === "all"
+        ? predictions
+        : predictions.filter((prediction) => prediction.pluginId === selectedPluginId),
+    [predictions, selectedPluginId],
+  );
+
   const sortedPredictions = useMemo(
     () =>
-      [...predictions].sort((a, b) => {
+      [...visiblePredictions].sort((a, b) => {
         const aRecording = segmentMap.get(a.segmentId);
         const bRecording = segmentMap.get(b.segmentId);
         const aTime = aRecording
@@ -99,7 +199,7 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
 
         return aTime - bTime || a.frameIndex - b.frameIndex || a.id.localeCompare(b.id);
       }),
-    [predictions, segmentMap],
+    [visiblePredictions, segmentMap],
   );
 
   const selected = sortedPredictions[selectedIdx] ?? null;
@@ -159,7 +259,14 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
   useEffect(() => {
     if (sortedPredictions.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLButtonElement ||
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         goPrev();
@@ -234,18 +341,49 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
 
   // Compute labels for the selected prediction
   const selectedLabels = selected ? [...new Set(selected.predictions.map((p) => p.label).filter(Boolean))] : [];
+  const selectedPluginName =
+    selectedPluginId === "all" ? "All plugins" : (getPlugin(selectedPluginId)?.name ?? selectedPluginId);
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-[calc(100vw-2rem)] min-w-0 flex-col gap-3 overflow-hidden">
+      <div className="border-border bg-muted/20 flex shrink-0 items-center justify-between gap-3 border px-3 py-2">
+        <div className="min-w-0">
+          <p className="text-foreground/80 text-[11px] font-medium">{selectedPluginName}</p>
+          <p className="text-muted-foreground/50 text-[9px]">
+            {sortedPredictions.length} prediction frame{sortedPredictions.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        {pluginOptions.length > 1 && (
+          <Select
+            onValueChange={(pluginId) => {
+              const count =
+                pluginId === "all"
+                  ? predictions.length
+                  : predictions.filter((prediction) => prediction.pluginId === pluginId).length;
+              setSelectedPluginId(pluginId);
+              setSelectedIdx(Math.max(0, count - 1));
+              setIsPlaying(false);
+            }}
+            value={selectedPluginId}
+          >
+            <SelectTrigger aria-label="Prediction plugin" className="h-8 w-56 text-[10px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All plugins</SelectItem>
+              {pluginOptions.map((option) => (
+                <SelectItem key={option.pluginId} value={option.pluginId}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
       {/* ─ Image viewer ──────────────────────────────────────────────────── */}
       <div className="border-border bg-muted/40 relative min-h-[160px] min-w-0 flex-1 overflow-hidden border">
-        {selected && (
-          <img
-            alt={`Prediction frame ${selected.frameIndex}`}
-            className="h-full w-full object-contain"
-            src={`/assets/${encodeURIComponent(selected.afterAssetId)}`}
-          />
-        )}
+        {selected && <PredictionFrame prediction={selected} />}
 
         {/* Timestamp overlay */}
         {selectedTimestamp && (
@@ -334,7 +472,7 @@ export function CctvPredictionsTab({ device }: { device: DeviceDetail }) {
                       className="size-full object-contain"
                       decoding="async"
                       loading={isSelected ? "eager" : "lazy"}
-                      src={`/assets/${encodeURIComponent(pred.afterAssetId)}`}
+                      src={`/assets/${encodeURIComponent(pred.beforeAssetId)}`}
                     />
                   </div>
                   <p className="text-muted-foreground/60 font-mono text-[8px] tabular-nums">

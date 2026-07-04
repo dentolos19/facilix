@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { selectRepresentativeFrames, type StoredPredictionOutputRef } from "./event-evidence";
+import {
+  selectAnalysisContextFrame,
+  selectRepresentativeFrames,
+  type StoredPredictionOutputRef,
+} from "./event-evidence";
 
 const frames: StoredPredictionOutputRef[] = [
   { beforeAssetId: "before-0", afterAssetId: "after-0", frameIndex: 0, atSec: 0 },
@@ -38,10 +42,20 @@ describe("event evidence selection", () => {
     expect(selected[0]?.frameIndex).toBe(30);
   });
 
-  test("does not attach a misleading current frame to departure or scene alerts", () => {
+  test("does not attach a misleading current frame to departure alerts", () => {
     const detections = [{ label: "truck", confidence: 0.9, frameIndex: 30 }];
     expect(selectRepresentativeFrames(frames, detections, { kind: "object-leaves" }, 3)).toEqual([]);
-    expect(selectRepresentativeFrames(frames, detections, { kind: "scene-match" }, 3)).toEqual([]);
+  });
+
+  test("uses the strongest Roboflow frame pair for vision-language context", () => {
+    const context = selectAnalysisContextFrame([
+      { ...frames[0], predictionCount: 1, maxConfidence: 0.7 },
+      { ...frames[1], predictionCount: 3, maxConfidence: 0.8 },
+      { ...frames[2], predictionCount: 3, maxConfidence: 0.95 },
+    ]);
+
+    expect(context?.frameIndex).toBe(60);
+    expect(selectRepresentativeFrames(frames, [], { kind: "scene-match" }, 3)).toHaveLength(1);
   });
 
   test("caps annotated images at three", () => {

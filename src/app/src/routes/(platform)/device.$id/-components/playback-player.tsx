@@ -552,11 +552,35 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
     .filter(([key]) => !key.startsWith("__"))
     .sort(([, a], [, b]) => b - a);
 
-  // Filter predictions for this segment
-  const segmentPredictions = useMemo(
-    () => predictions.filter((p) => p.segmentId === segment.recording.id),
-    [predictions, segment.recording.id],
-  );
+  // Shared workflows fan out lightweight rows per plugin. Collapse rows that
+  // point at the same annotated frame so playback does not show duplicates.
+  const segmentPredictions = useMemo(() => {
+    const byFrame = new Map<string, PredictionOutputRow>();
+    for (const prediction of predictions) {
+      if (prediction.segmentId !== segment.recording.id) continue;
+      const existing = byFrame.get(prediction.afterAssetId);
+      if (!existing) {
+        byFrame.set(prediction.afterAssetId, prediction);
+        continue;
+      }
+      const seen = new Set(
+        existing.predictions.map(
+          (item) => `${item.label}:${item.frameIndex ?? ""}:${item.prediction?.detectionId ?? ""}:${item.confidence}`,
+        ),
+      );
+      const additions = prediction.predictions.filter(
+        (item) =>
+          !seen.has(`${item.label}:${item.frameIndex ?? ""}:${item.prediction?.detectionId ?? ""}:${item.confidence}`),
+      );
+      if (additions.length > 0) {
+        byFrame.set(prediction.afterAssetId, {
+          ...existing,
+          predictions: [...existing.predictions, ...additions],
+        });
+      }
+    }
+    return [...byFrame.values()];
+  }, [predictions, segment.recording.id]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">

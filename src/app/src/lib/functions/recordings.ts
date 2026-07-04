@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { getPlugin } from "#/lib/monitoring/plugins";
 
 /** A detection from the Roboflow workflow. */
 export interface RecordingDetection {
@@ -105,6 +106,7 @@ export interface RecordingRow {
   data: {
     source?: string;
     analysisVersion?: number;
+    workflowExecutions?: Array<{ workflowId: string; pluginIds: string[] }>;
     detectionVideo?: {
       fps: number;
       frameCount: number;
@@ -206,20 +208,22 @@ export const getDevicePredictions = createServerFn({ method: "GET" })
       .orderBy(desc(schema.predictionOutput.createdAt))
       .limit(limit);
 
-    return rows.map(
-      (row): PredictionOutputRow => ({
-        id: row.id,
-        beforeAssetId: row.beforeAssetId,
-        afterAssetId: row.afterAssetId,
-        segmentId: row.segmentId,
-        pluginId: row.pluginId,
-        workflowId: row.workflowId,
-        outputName: row.outputName,
-        frameIndex: row.frameIndex,
-        atSec: row.atSec,
-        predictions: row.predictions as unknown as RecordingDetection[],
-        image: row.image,
-        createdAt: row.createdAt,
-      }),
-    );
+    return rows
+      .filter((row) => getPlugin(row.pluginId) !== undefined)
+      .map(
+        (row): PredictionOutputRow => ({
+          id: row.id,
+          beforeAssetId: row.beforeAssetId,
+          afterAssetId: row.afterAssetId,
+          segmentId: row.segmentId,
+          pluginId: row.pluginId,
+          workflowId: row.workflowId,
+          outputName: row.outputName,
+          frameIndex: row.frameIndex,
+          atSec: row.atSec,
+          predictions: row.predictions as unknown as RecordingDetection[],
+          image: row.image,
+          createdAt: row.createdAt,
+        }),
+      );
   });

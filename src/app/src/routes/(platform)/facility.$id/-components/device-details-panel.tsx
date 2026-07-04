@@ -6,7 +6,7 @@ import { ScrollArea } from "#/components/ui/scroll-area";
 import type { FacilityEventView } from "#/lib/functions/events";
 import type { SensorReadingRow } from "#/lib/functions/sensors";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
-import { getPlugin, isLegacyPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
+import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 
 import type { PlacedItem } from "../-helpers/types";
@@ -72,7 +72,7 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
                 <div className="min-w-0">
                   <p className="text-foreground/80 truncate text-[11px] font-medium">{plugin.name}</p>
                   <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
-                    {isLegacyPlugin(plugin) ? "Legacy" : plugin.category}
+                    {plugin.category} · {plugin.workflow.workflowId}
                   </p>
                   {isDetection && detConfig && (
                     <p className="text-muted-foreground/60 text-[9px]">
