@@ -303,6 +303,11 @@ export interface CanvasEditorProps {
   onAddItem: (type: PlacedItemType, x: number, y: number) => void;
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
   onSelectItem: (id: string | null) => void;
+  onMoveUp?: (id: string) => void;
+  onMoveDown?: (id: string) => void;
+  onMoveToFront?: (id: string) => void;
+  onMoveToBack?: (id: string) => void;
+  onDeleteItems?: (ids: string[]) => void;
 }
 
 export interface PropertiesPanelProps {

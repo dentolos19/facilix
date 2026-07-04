@@ -400,6 +400,75 @@ function Page() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const deleteItems = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    saveSnapshot();
+    const idSet = new Set(ids);
+    setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => !idSet.has(item.id))));
+    setSelectedItemId((prev) => (prev && idSet.has(prev) ? null : prev));
+    setMonitoringSelection((selection) =>
+      selection?.kind === "device" && idSet.has(selection.deviceId) ? null : selection,
+    );
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moveItemUp = useCallback((id: string) => {
+    saveSnapshot();
+    setPlacedItems((prev) => {
+      const idx = prev.findIndex((item) => item.id === id);
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return recomputeZoneLinks(next);
+    });
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moveItemDown = useCallback((id: string) => {
+    saveSnapshot();
+    setPlacedItems((prev) => {
+      const idx = prev.findIndex((item) => item.id === id);
+      if (idx <= 0) return prev;
+      const next = [...prev];
+      [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+      return recomputeZoneLinks(next);
+    });
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moveItemToFront = useCallback((id: string) => {
+    saveSnapshot();
+    setPlacedItems((prev) => {
+      const idx = prev.findIndex((item) => item.id === id);
+      if (idx === -1 || idx === prev.length - 1) return prev;
+      const item = prev[idx];
+      const next = [...prev];
+      next.splice(idx, 1);
+      next.push(item);
+      return recomputeZoneLinks(next);
+    });
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const moveItemToBack = useCallback((id: string) => {
+    saveSnapshot();
+    setPlacedItems((prev) => {
+      const idx = prev.findIndex((item) => item.id === id);
+      if (idx <= 0) return prev;
+      const item = prev[idx];
+      const next = [...prev];
+      next.splice(idx, 1);
+      next.unshift(item);
+      return recomputeZoneLinks(next);
+    });
+    setIsDirty(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Undo / Redo ──────────────────────────────────────────────────────────
 
   const handleUndo = useCallback(() => {
@@ -1162,6 +1231,11 @@ function Page() {
             ) : (
               <CanvasEditor
                 onAddItem={addPlacedItem}
+                onDeleteItems={deleteItems}
+                onMoveDown={moveItemDown}
+                onMoveToBack={moveItemToBack}
+                onMoveToFront={moveItemToFront}
+                onMoveUp={moveItemUp}
                 onSelectItem={(id) => {
                   if (editMode === "monitoring") {
                     if (id) selectMonitoringDevice(id);

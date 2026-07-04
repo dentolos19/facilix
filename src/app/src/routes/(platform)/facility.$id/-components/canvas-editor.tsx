@@ -1,13 +1,43 @@
 import type Konva from "konva";
 import { useTheme } from "next-themes";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ArrowDownToLineIcon,
+  ArrowUpToLineIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { ITEM_DEFS, PLACEABLE_ITEMS } from "../-helpers/constants";
 import { useIsomorphicLayoutEffect, useResizeObserver } from "../-helpers/hooks";
 import type { CanvasEditorProps, PlacedItem, PlacedItemType } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES } from "../-helpers/types";
 import { darkenHex, getCanvasColors, hexToRgba, lightenHex } from "../-helpers/utils";
+
+function normRect(r: { x1: number; y1: number; x2: number; y2: number }) {
+  return {
+    x: Math.min(r.x1, r.x2),
+    y: Math.min(r.y1, r.y2),
+    width: Math.abs(r.x2 - r.x1),
+    height: Math.abs(r.y2 - r.y1),
+  };
+}
+
+function hitTest(item: PlacedItem, r: { x: number; y: number; width: number; height: number }): boolean {
+  if (item.type === "Zone") {
+    return !(
+      item.x + item.width < r.x ||
+      r.x + r.width < item.x ||
+      item.y + item.height < r.y ||
+      r.y + r.height < item.y
+    );
+  }
+  const cx = item.x;
+  const cy = item.y;
+  return cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height;
+}
 
 /** Canvas that accepts drag-and-drop from the component palette. */
 export function CanvasEditor({
@@ -17,11 +47,22 @@ export function CanvasEditor({
   onAddItem,
   onUpdateItem,
   onSelectItem,
+  onMoveUp,
+  onMoveDown,
+  onMoveToFront,
+  onMoveToBack,
+  onDeleteItems,
 }: CanvasEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { resolvedTheme } = useTheme();
+
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; itemId: string } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [isMarqueeing, setIsMarqueeing] = useState(false);
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useResizeObserver(containerRef, (entry) => {
     setSize({
@@ -35,6 +76,16 @@ export function CanvasEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [resolvedTheme],
   );
+
+  const dismissContextMenu = useCallback(() => setContextMenu(null), []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const controller = new AbortController();
+    window.addEventListener("click", dismissContextMenu, { signal: controller.signal });
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape") dismissContextMenu(); }, { signal: controller.signal });
+    return () => controller.abort();
+  }, [contextMenu, dismissContextMenu]);
 
   const handleDragOver = (e: React.DragEvent) => {
     if (readOnly) return;
@@ -58,22 +109,165 @@ export function CanvasEditor({
     onAddItem(type, x - ITEM_DEFS[type].width / 2, y - ITEM_DEFS[type].height / 2);
   };
 
+  const handleBackgroundMouseDown = () => {
+    dismissContextMenu();
+    if (readOnly) {
+      onSelectItem(null);
+      return;
+    }
+    const pos = stageRef.current?.getPointerPosition();
+    if (!pos) return;
+    marqueeStartRef.current = { x: pos.x, y: pos.y };
+    setMarqueeRect({ x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y });
+    setIsMarqueeing(true);
+  };
+
+  const handleBackgroundMouseMove = () => {
+    if (!isMarqueeing) return;
+    const pos = stageRef.current?.getPointerPosition();
+    if (!pos) return;
+    setMarqueeRect((prev) => {
+      if (!prev) return { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y };
+      return { ...prev, x2: pos.x, y2: pos.y };
+    });
+  };
+
+  const handleBackgroundMouseUp = () => {
+    if (!isMarqueeing) return;
+    setIsMarqueeing(false);
+
+    const start = marqueeStartRef.current;
+    const end = stageRef.current?.getPointerPosition();
+    marqueeStartRef.current = null;
+
+    if (!start || !end) {
+      setMarqueeRect(null);
+      return;
+    }
+
+    const dx = Math.abs(end.x - start.x);
+    const dy = Math.abs(end.y - start.y);
+
+    if (dx < 4 && dy < 4) {
+      setMarqueeRect(null);
+      setSelectedItemIds(new Set());
+      onSelectItem(null);
+      return;
+    }
+
+    const r = normRect({ x1: start.x, y1: start.y, x2: end.x, y2: end.y });
+    const ids = placedItems.filter((item) => hitTest(item, r)).map((i) => i.id);
+
+    if (ids.length > 0) {
+      const newSet = new Set(ids);
+      setSelectedItemIds(newSet);
+      onSelectItem(ids[ids.length - 1]);
+    } else {
+      setSelectedItemIds(new Set());
+    }
+
+    setMarqueeRect(null);
+  };
+
+  const handleItemClick = useCallback(
+    (item: PlacedItem, e: Konva.KonvaEventObject<MouseEvent> | Konva.KonvaEventObject<TouchEvent>) => {
+      dismissContextMenu();
+      if (e.evt && "shiftKey" in e.evt && e.evt.shiftKey) {
+        setSelectedItemIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(item.id)) next.delete(item.id);
+          else next.add(item.id);
+          return next;
+        });
+      } else {
+        setSelectedItemIds(new Set([item.id]));
+      }
+      onSelectItem(item.id);
+    },
+    [dismissContextMenu, onSelectItem],
+  );
+
+  const handleItemContextMenu = useCallback(
+    (e: Konva.KonvaEventObject<PointerEvent>, item: PlacedItem) => {
+      if (readOnly) return;
+      e.evt.preventDefault();
+      dismissContextMenu();
+      setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, itemId: item.id });
+    },
+    [readOnly, dismissContextMenu],
+  );
+
+  const contextMenuItem = contextMenu ? placedItems.find((i) => i.id === contextMenu.itemId) : null;
+
+  const handleDeleteSelected = useCallback(() => {
+    const ids = Array.from(selectedItemIds);
+    if (ids.length === 0) return;
+    onDeleteItems?.(ids);
+    setSelectedItemIds(new Set());
+    dismissContextMenu();
+  }, [selectedItemIds, onDeleteItems, dismissContextMenu]);
+
+  const handleMoveUp = useCallback(() => {
+    if (contextMenu) {
+      onMoveUp?.(contextMenu.itemId);
+      dismissContextMenu();
+    }
+  }, [contextMenu, onMoveUp, dismissContextMenu]);
+
+  const handleMoveDown = useCallback(() => {
+    if (contextMenu) {
+      onMoveDown?.(contextMenu.itemId);
+      dismissContextMenu();
+    }
+  }, [contextMenu, onMoveDown, dismissContextMenu]);
+
+  const handleMoveToFront = useCallback(() => {
+    if (contextMenu) {
+      onMoveToFront?.(contextMenu.itemId);
+      dismissContextMenu();
+    }
+  }, [contextMenu, onMoveToFront, dismissContextMenu]);
+
+  const handleMoveToBack = useCallback(() => {
+    if (contextMenu) {
+      onMoveToBack?.(contextMenu.itemId);
+      dismissContextMenu();
+    }
+  }, [contextMenu, onMoveToBack, dismissContextMenu]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (readOnly) return;
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const ids = Array.from(selectedItemIds);
+        if (ids.length > 0) {
+          onDeleteItems?.(ids);
+          setSelectedItemIds(new Set());
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedItemIds, readOnly, onDeleteItems]);
+
   return (
-    <div className="h-full w-full" onDragOver={handleDragOver} onDrop={handleDrop} ref={containerRef}>
+    <div className="relative h-full w-full" onDragOver={handleDragOver} onDrop={handleDrop} ref={containerRef}>
       {size.width > 0 && size.height > 0 && (
         <Stage height={size.height} ref={stageRef} width={size.width}>
           <Layer>
-            {/* Background fill — click to deselect */}
             <Rect
               fill={colors.background}
               height={size.height}
-              onClick={() => onSelectItem(null)}
-              onTap={() => onSelectItem(null)}
+              onMouseDown={handleBackgroundMouseDown}
+              onMouseMove={handleBackgroundMouseMove}
+              onMouseUp={handleBackgroundMouseUp}
+              onTouchStart={handleBackgroundMouseDown}
+              onTouchMove={handleBackgroundMouseMove}
+              onTouchEnd={handleBackgroundMouseUp}
               width={size.width}
               x={0}
               y={0}
             />
-            {/* Border outline */}
             <Rect
               height={size.height}
               listening={false}
@@ -83,7 +277,6 @@ export function CanvasEditor({
               x={0}
               y={0}
             />
-            {/* Empty state hint */}
             {placedItems.length === 0 && (
               <Text
                 fill={colors.mutedForeground}
@@ -94,19 +287,88 @@ export function CanvasEditor({
                 y={size.height / 2 - 10}
               />
             )}
-            {/* Placed items */}
             {placedItems.map((item) => (
               <PlacedShape
+                isMultiSelected={selectedItemIds.has(item.id)}
                 isSelected={item.id === selectedItemId}
                 item={item}
                 key={item.id}
-                onSelectItem={onSelectItem}
+                onContextMenu={(e) => handleItemContextMenu(e, item)}
+                onSelectItem={(e) => handleItemClick(item, e)}
                 onUpdateItem={onUpdateItem}
                 readOnly={readOnly}
               />
             ))}
+            {marqueeRect && isMarqueeing && (
+              <Rect
+                dash={[4, 4]}
+                fill="rgba(59, 130, 246, 0.08)"
+                height={Math.abs(marqueeRect.y2 - marqueeRect.y1)}
+                listening={false}
+                stroke="rgba(59, 130, 246, 0.5)"
+                strokeWidth={1}
+                width={Math.abs(marqueeRect.x2 - marqueeRect.x1)}
+                x={Math.min(marqueeRect.x1, marqueeRect.x2)}
+                y={Math.min(marqueeRect.y1, marqueeRect.y2)}
+              />
+            )}
           </Layer>
         </Stage>
+      )}
+      {contextMenu && (
+        <div
+          className="z-50 min-w-40 rounded-none border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y }}
+        >
+          {contextMenuItem && (
+            <div className="border-muted/40 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground border-b">
+              {contextMenuItem.name || contextMenuItem.type}
+            </div>
+          )}
+          <div
+            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            onClick={handleMoveUp}
+          >
+            <ArrowUpIcon className="size-3.5" />
+            Move Up
+          </div>
+          <div
+            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            onClick={handleMoveDown}
+          >
+            <ArrowDownIcon className="size-3.5" />
+            Move Down
+          </div>
+          <div className="-mx-0 h-px bg-border" />
+          <div
+            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            onClick={handleMoveToFront}
+          >
+            <ArrowUpToLineIcon className="size-3.5" />
+            Bring to Front
+          </div>
+          <div
+            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            onClick={handleMoveToBack}
+          >
+            <ArrowDownToLineIcon className="size-3.5" />
+            Send to Back
+          </div>
+          <div className="-mx-0 h-px bg-border" />
+          <div
+            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-destructive/10 text-destructive hover:text-destructive"
+            onClick={handleDeleteSelected}
+          >
+            <Trash2Icon className="size-3.5" />
+            Delete
+            {selectedItemIds.size > 1 && (
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {selectedItemIds.size}
+              </span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -116,30 +378,29 @@ export function CanvasEditor({
 function PlacedShape({
   item,
   isSelected,
+  isMultiSelected,
   readOnly = false,
   onUpdateItem,
   onSelectItem,
+  onContextMenu,
 }: {
   item: PlacedItem;
   isSelected: boolean;
+  isMultiSelected?: boolean;
   readOnly?: boolean;
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
-  onSelectItem: (id: string | null) => void;
+  onSelectItem: (e: Konva.KonvaEventObject<MouseEvent> | Konva.KonvaEventObject<TouchEvent>) => void;
+  onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }) {
   const def = { ...ITEM_DEFS[item.type], width: item.width, height: item.height };
   const [dragging, setDragging] = useState(false);
   const zoneRef = useRef<Konva.Group>(null);
   const trRef = useRef<Konva.Transformer>(null);
 
-  // Resolve dynamic color from props (falls back to ITEM_DEFS)
   const itemColor = String(item.props.iconColor ?? def.stroke);
   const fillColor = item.type === "Zone" ? hexToRgba(itemColor, 0.08) : itemColor;
   const strokeColor = darkenHex(itemColor, 0.15);
   const iconShape = String(item.props.iconShape ?? DEFAULT_ICON_SHAPES[item.type]);
-
-  const handleClick = () => {
-    onSelectItem(item.id);
-  };
 
   const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
     setDragging(false);
@@ -149,7 +410,6 @@ function PlacedShape({
     });
   };
 
-  // ── Zone resize transformer ────────────────────────────────────────
   useIsomorphicLayoutEffect(() => {
     if (item.type !== "Zone" || !isSelected || readOnly) return;
     if (zoneRef.current && trRef.current) {
@@ -163,7 +423,6 @@ function PlacedShape({
     if (!node) return;
     const scaleX = node.scaleX();
     const scaleY = node.scaleY();
-    // Reset scale to 1 — we apply the final dimensions directly
     node.scaleX(1);
     node.scaleY(1);
     onUpdateItem(item.id, {
@@ -174,10 +433,9 @@ function PlacedShape({
     });
   }, [item.id, onUpdateItem]);
 
-  const selectStroke = isSelected ? 2 : dragging ? 2 : 1;
-  const selectWidth = isSelected ? 2 : dragging ? 2 : 1;
-
-  const R = def.width / 2; // outer radius for circle-based components
+  const showFocus = isSelected || isMultiSelected || dragging;
+  const focusStroke = isSelected ? 2 : dragging ? 2 : 0;
+  const R = def.width / 2;
 
   switch (item.type) {
     case "Zone":
@@ -187,7 +445,8 @@ function PlacedShape({
             draggable={!readOnly}
             height={def.height}
             name={`placed-${item.id}`}
-            onClick={handleClick}
+            onClick={onSelectItem}
+            onContextMenu={onContextMenu}
             onDragEnd={
               readOnly
                 ? undefined
@@ -200,7 +459,7 @@ function PlacedShape({
                   }
             }
             onDragStart={readOnly ? undefined : () => setDragging(true)}
-            onTap={handleClick}
+            onTap={onSelectItem}
             ref={zoneRef}
             width={def.width}
             x={item.x}
@@ -210,8 +469,16 @@ function PlacedShape({
               cornerRadius={2}
               fill={isSelected ? hexToRgba(itemColor, 0.15) : fillColor}
               height={def.height}
-              stroke={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : strokeColor}
-              strokeWidth={selectStroke}
+              stroke={
+                isSelected
+                  ? lightenHex(itemColor, 0.2)
+                  : isMultiSelected
+                    ? itemColor
+                    : dragging
+                      ? lightenHex(itemColor, 0.2)
+                      : strokeColor
+              }
+              strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
               width={def.width}
             />
             <Text
@@ -222,6 +489,16 @@ function PlacedShape({
               x={8}
               y={6}
             />
+            {isMultiSelected && !isSelected && (
+              <Rect
+                dash={[3, 2]}
+                height={def.height}
+                listening={false}
+                stroke={itemColor}
+                strokeWidth={1}
+                width={def.width}
+              />
+            )}
             {isSelected && !readOnly && (
               <Rect
                 cornerRadius={1}
@@ -258,10 +535,11 @@ function PlacedShape({
         <Group
           draggable={!readOnly}
           name={`placed-${item.id}`}
-          onClick={handleClick}
+          onClick={onSelectItem}
+          onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragStart={readOnly ? undefined : () => setDragging(true)}
-          onTap={handleClick}
+          onTap={onSelectItem}
           x={item.x}
           y={item.y}
         >
@@ -269,13 +547,13 @@ function PlacedShape({
             <>
               <Rect
                 fill={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : fillColor}
-                height={def.height + (isSelected ? 8 : 0)}
+                height={def.height + (showFocus ? 8 : 0)}
                 rotation={45}
                 stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
-                width={def.width + (isSelected ? 8 : 0)}
-                x={-(def.width + (isSelected ? 8 : 0)) / 2}
-                y={-(def.height + (isSelected ? 8 : 0)) / 2}
+                strokeWidth={focusStroke || 1}
+                width={def.width + (showFocus ? 8 : 0)}
+                x={-(def.width + (showFocus ? 8 : 0)) / 2}
+                y={-(def.height + (showFocus ? 8 : 0)) / 2}
               />
               <Text
                 fill="#fff"
@@ -286,6 +564,19 @@ function PlacedShape({
                 x={-5}
                 y={-6}
               />
+              {isMultiSelected && !isSelected && (
+                <Rect
+                  dash={[3, 3]}
+                  height={def.height + 16}
+                  listening={false}
+                  rotation={45}
+                  stroke={itemColor}
+                  strokeWidth={1}
+                  width={def.width + 16}
+                  x={-(def.width + 16) / 2}
+                  y={-(def.height + 16) / 2}
+                />
+              )}
               {isSelected && (
                 <Rect
                   dash={[3, 3]}
@@ -303,26 +594,27 @@ function PlacedShape({
           )}
           {iconShape === "pin" && (
             <>
-              {/* Map pin shape */}
               <Circle
                 fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (isSelected ? 4 : 0)}
+                radius={R + (showFocus ? 4 : 0)}
                 stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
+                strokeWidth={focusStroke || 1}
                 y={-4}
               />
-              {/* Pin point triangle via a small rect */}
               <Rect
                 fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
                 height={8}
                 rotation={45}
                 stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
+                strokeWidth={focusStroke || 1}
                 width={8}
                 x={-4}
                 y={R - 8}
               />
               <Circle fill="#fff" radius={R * 0.35} y={-4} />
+              {isMultiSelected && !isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} y={-4} />
+              )}
               {isSelected && (
                 <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} y={-4} />
               )}
@@ -332,11 +624,10 @@ function PlacedShape({
             <>
               <Circle
                 fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (isSelected ? 4 : 0)}
+                radius={R + (showFocus ? 4 : 0)}
                 stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
+                strokeWidth={focusStroke || 1}
               />
-              {/* Star: 5 small triangles arranged in a star pattern */}
               {[0, 72, 144, 216, 288].map((angle, i) => {
                 const outerR = R * 0.55;
                 const innerR = R * 0.25;
@@ -351,6 +642,9 @@ function PlacedShape({
                 x={-7}
                 y={-9}
               />
+              {isMultiSelected && !isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
+              )}
               {isSelected && (
                 <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
               )}
@@ -360,14 +654,15 @@ function PlacedShape({
             <>
               <Circle
                 fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (isSelected ? 4 : 0)}
+                radius={R + (showFocus ? 4 : 0)}
                 stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
+                strokeWidth={focusStroke || 1}
               />
-              {/* Flag pole */}
               <Rect fill="#fff" height={R * 0.8} width={2} x={-R * 0.2} y={-R * 0.4} />
-              {/* Flag body */}
               <Rect fill="#fff" height={R * 0.4} width={R * 0.45} x={-R * 0.15} y={-R * 0.4} />
+              {isMultiSelected && !isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
+              )}
               {isSelected && (
                 <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
               )}
@@ -377,9 +672,9 @@ function PlacedShape({
             <>
               <Circle
                 fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (isSelected ? 4 : 0)}
+                radius={R + (showFocus ? 4 : 0)}
                 stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={selectWidth}
+                strokeWidth={focusStroke || 1}
               />
               <Text
                 fill="#fff"
@@ -390,6 +685,9 @@ function PlacedShape({
                 x={-5}
                 y={-6}
               />
+              {isMultiSelected && !isSelected && (
+                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
+              )}
               {isSelected && (
                 <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
               )}
@@ -403,22 +701,22 @@ function PlacedShape({
         <Group
           draggable={!readOnly}
           name={`placed-${item.id}`}
-          onClick={handleClick}
+          onClick={onSelectItem}
+          onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragStart={readOnly ? undefined : () => setDragging(true)}
-          onTap={handleClick}
+          onTap={onSelectItem}
           x={item.x}
           y={item.y}
         >
           <Circle
             fill={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : fillColor}
-            radius={R + (isSelected ? 4 : 0)}
+            radius={R + (showFocus ? 4 : 0)}
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
-            strokeWidth={selectStroke}
+            strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
           {iconShape === "camera" && (
             <>
-              {/* Camera body */}
               <Rect
                 cornerRadius={2}
                 fill={
@@ -433,20 +731,17 @@ function PlacedShape({
                 x={-R * 0.45}
                 y={-R * 0.35}
               />
-              {/* Camera lens */}
               <Circle
                 fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
                 radius={R * 0.25}
                 stroke={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
                 strokeWidth={1}
               />
-              {/* Flash / indicator dot */}
               <Circle fill="#fbbf24" radius={2} x={R * 0.3} y={-R * 0.25} />
             </>
           )}
           {iconShape === "eye" && (
             <>
-              {/* Eye outer shape - horizontal ellipse via scaled circle */}
               <Rect
                 cornerRadius={R * 0.5}
                 fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
@@ -455,15 +750,12 @@ function PlacedShape({
                 x={-R * 0.45}
                 y={-R * 0.275}
               />
-              {/* Iris */}
               <Circle fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)} radius={R * 0.22} />
-              {/* Pupil */}
               <Circle fill={isSelected ? darkenHex(itemColor, 0.4) : "#1a1a2e"} radius={R * 0.1} />
             </>
           )}
           {iconShape === "video" && (
             <>
-              {/* Video camera body */}
               <Rect
                 cornerRadius={2}
                 fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
@@ -472,7 +764,6 @@ function PlacedShape({
                 x={-R * 0.15}
                 y={-R * 0.325}
               />
-              {/* Lens triangle (pointing right) */}
               <Rect
                 fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
                 height={R * 0.35}
@@ -481,13 +772,11 @@ function PlacedShape({
                 x={-R * 0.1}
                 y={-R * 0.05}
               />
-              {/* Recording dot */}
               <Circle fill="#ef4444" radius={2.5} x={R * 0.25} y={-R * 0.2} />
             </>
           )}
           {iconShape === "monitoring" && (
             <>
-              {/* Monitor body */}
               <Rect
                 cornerRadius={2}
                 fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
@@ -496,7 +785,6 @@ function PlacedShape({
                 x={-R * 0.425}
                 y={-R * 0.4}
               />
-              {/* Screen */}
               <Rect
                 cornerRadius={1}
                 fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
@@ -505,10 +793,12 @@ function PlacedShape({
                 x={-R * 0.325}
                 y={-R * 0.35}
               />
-              {/* Stand */}
               <Rect fill="#fff" height={3} width={R * 0.3} x={-R * 0.15} y={R * 0.05} />
               <Rect fill="#fff" height={2} width={R * 0.5} x={-R * 0.25} y={R * 0.15} />
             </>
+          )}
+          {isMultiSelected && !isSelected && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
           )}
           {isSelected && !readOnly && (
             <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
@@ -521,18 +811,19 @@ function PlacedShape({
         <Group
           draggable={!readOnly}
           name={`placed-${item.id}`}
-          onClick={handleClick}
+          onClick={onSelectItem}
+          onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragStart={readOnly ? undefined : () => setDragging(true)}
-          onTap={handleClick}
+          onTap={onSelectItem}
           x={item.x}
           y={item.y}
         >
           <Circle
             fill={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : fillColor}
-            radius={R + (isSelected ? 4 : 0)}
+            radius={R + (showFocus ? 4 : 0)}
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
-            strokeWidth={selectStroke}
+            strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
           {iconShape === "wifi" && (
             <>
@@ -552,11 +843,8 @@ function PlacedShape({
           )}
           {iconShape === "thermometer" && (
             <>
-              {/* Thermometer body */}
               <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.7} width={R * 0.25} x={-R * 0.125} y={-R * 0.5} />
-              {/* Bulb */}
               <Circle fill="#fff" radius={R * 0.18} y={R * 0.05} />
-              {/* Mercury */}
               <Rect
                 cornerRadius={R * 0.1}
                 fill={isSelected ? itemColor : lightenHex(itemColor, 0.3)}
@@ -570,15 +858,12 @@ function PlacedShape({
           )}
           {iconShape === "droplet" && (
             <>
-              {/* Water droplet */}
               <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.55} width={R * 0.4} x={-R * 0.2} y={-R * 0.15} />
-              {/* Droplet top point - approximated with a small rect */}
               <Rect fill="#fff" height={R * 0.3} rotation={45} width={R * 0.3} x={-R * 0.05} y={-R * 0.45} />
             </>
           )}
           {iconShape === "wind" && (
             <>
-              {/* Wind lines */}
               <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.6} x={-R * 0.3} y={-R * 0.25} />
               <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.45} x={-R * 0.15} y={-R * 0.05} />
               <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.55} x={-R * 0.25} y={R * 0.15} />
@@ -586,7 +871,6 @@ function PlacedShape({
           )}
           {iconShape === "activity" && (
             <>
-              {/* Activity/pulse line */}
               <Rect fill="#fff" height={2} width={R * 0.3} x={-R * 0.4} y={0} />
               <Rect fill="#fff" height={2} rotation={-50} width={R * 0.15} x={-R * 0.1} y={-R * 0.15} />
               <Rect fill="#fff" height={2} rotation={50} width={R * 0.35} x={-R * 0.05} y={R * 0.05} />
@@ -595,9 +879,7 @@ function PlacedShape({
           )}
           {iconShape === "sun" && (
             <>
-              {/* Sun center */}
               <Circle fill="#fff" radius={R * 0.22} />
-              {/* Sun rays */}
               {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
                 const innerDist = R * 0.32;
                 const outerDist = R * 0.5;
@@ -615,6 +897,9 @@ function PlacedShape({
               })}
             </>
           )}
+          {isMultiSelected && !isSelected && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
+          )}
           {isSelected && !readOnly && (
             <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
           )}
@@ -626,18 +911,19 @@ function PlacedShape({
         <Group
           draggable={!readOnly}
           name={`placed-${item.id}`}
-          onClick={handleClick}
+          onClick={onSelectItem}
+          onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragStart={readOnly ? undefined : () => setDragging(true)}
-          onTap={handleClick}
+          onTap={onSelectItem}
           x={item.x}
           y={item.y}
         >
           <Circle
             fill={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : fillColor}
-            radius={R + (isSelected ? 4 : 0)}
+            radius={R + (showFocus ? 4 : 0)}
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
-            strokeWidth={selectStroke}
+            strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
           {iconShape === "exclamation" && (
             <>
@@ -647,11 +933,8 @@ function PlacedShape({
           )}
           {iconShape === "antenna" && (
             <>
-              {/* Antenna pole */}
               <Rect fill="#fff" height={R * 0.6} width={2} x={-1} y={-R * 0.35} />
-              {/* Antenna base */}
               <Rect fill="#fff" height={2} width={R * 0.4} x={-R * 0.2} y={R * 0.15} />
-              {/* Signal arcs */}
               <Arc
                 angle={60}
                 fill="transparent"
@@ -674,7 +957,6 @@ function PlacedShape({
           )}
           {iconShape === "signal-bars" && (
             <>
-              {/* Signal bars - ascending height */}
               <Rect fill="#fff" height={R * 0.15} width={R * 0.12} x={-R * 0.35} y={R * 0.15} />
               <Rect fill="#fff" height={R * 0.28} width={R * 0.12} x={-R * 0.18} y={R * 0.02} />
               <Rect fill="#fff" height={R * 0.42} width={R * 0.12} x={-R * 0.01} y={-R * 0.12} />
@@ -683,11 +965,8 @@ function PlacedShape({
           )}
           {iconShape === "satellite" && (
             <>
-              {/* Satellite dish */}
               <Rect cornerRadius={R * 0.3} fill="#fff" height={R * 0.35} width={R * 0.5} x={-R * 0.25} y={-R * 0.175} />
-              {/* Antenna arm */}
               <Rect fill="#fff" height={2} rotation={-30} width={R * 0.3} x={0} y={-R * 0.05} />
-              {/* Signal waves */}
               <Arc
                 angle={40}
                 fill="transparent"
@@ -698,6 +977,9 @@ function PlacedShape({
                 strokeWidth={1.5}
               />
             </>
+          )}
+          {isMultiSelected && !isSelected && (
+            <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
           )}
           {isSelected && !readOnly && (
             <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
