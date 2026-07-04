@@ -597,30 +597,6 @@ function Page() {
     fileInputRef.current?.click();
   }, [editMode]);
 
-  const handleImportFileSelected = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    if (placedItemsRef.current.length > 0) {
-      setPendingImportFile(file);
-      setImportConfirmOpen(true);
-      return;
-    }
-
-    void processImport(file);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleConfirmImport = useCallback(() => {
-    setImportConfirmOpen(false);
-    if (pendingImportFile) {
-      const file = pendingImportFile;
-      setPendingImportFile(null);
-      void processImport(file);
-    }
-  }, [pendingImportFile]);
-
   const processImport = useCallback(async (file: File) => {
     const isJson = file.type === "application/json" || file.name.endsWith(".json");
 
@@ -682,6 +658,32 @@ function Page() {
       setIsImporting(false);
     }
   }, []);
+
+  const handleImportFileSelected = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (placedItemsRef.current.length > 0) {
+        setPendingImportFile(file);
+        setImportConfirmOpen(true);
+        return;
+      }
+
+      void processImport(file);
+    },
+    [processImport],
+  );
+
+  const handleConfirmImport = useCallback(() => {
+    setImportConfirmOpen(false);
+    if (pendingImportFile) {
+      const file = pendingImportFile;
+      setPendingImportFile(null);
+      void processImport(file);
+    }
+  }, [pendingImportFile, processImport]);
 
   // ── Auto-save (2 s debounce) ────────────────────────────────────────────
   useEffect(() => {
@@ -761,7 +763,7 @@ function Page() {
       setSelectedItemId(monitoringDeviceId);
       setEditMode("edit");
     }
-  }, [editMode, isDirty, handleSave, monitoringStatus, monitoringDeviceId, selectedItemId]);
+  }, [editMode, isDirty, handleSave, monitoringStatus, monitoringDeviceId, selectedItemId, setEditMode]);
 
   const handleConfirmEdit = useCallback(async () => {
     setEditConfirmOpen(false);
@@ -777,7 +779,7 @@ function Page() {
     } finally {
       setIsMonitoringChanging(false);
     }
-  }, [facilityId, monitoringDeviceId]);
+  }, [facilityId, monitoringDeviceId, setEditMode]);
 
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
   useHotkeys([

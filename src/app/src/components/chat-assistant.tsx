@@ -322,7 +322,7 @@ export function ChatAssistant({
         <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-medium">Facility assistant</h2>
-            <p className="text-muted-foreground truncate text-[11px]">Read-only</p>
+            <p className="text-muted-foreground truncate text-[11px]">Powered by Qwen</p>
           </div>
           {groupedMessages.length > 0 ? (
             <Button aria-label="Clear chat" onClick={clear} size="icon-sm" variant="ghost">
@@ -428,7 +428,7 @@ export function ChatAssistant({
                   value={input}
                 />
                 <InputGroupAddon align="block-end">
-                  <span className="text-[10px] font-normal">Read-only assistant</span>
+                  <span className="text-[10px] font-normal">Powered by Qwen</span>
                   <div className="ml-auto flex items-center gap-1">
                     {hideHeader && groupedMessages.length > 0 ? (
                       <InputGroupButton aria-label="Clear chat" onClick={clear} size="icon-xs" variant="ghost">

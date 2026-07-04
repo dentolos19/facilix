@@ -270,7 +270,7 @@ function Home() {
       <footer className="border-border border-t">
         <div className="text-muted-foreground mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-xs">
           <span>© {new Date().getFullYear()} Dennise Catolos. All rights reserved.</span>
-          <span className="hidden sm:inline">Made with Alibaba Cloud and Qwen</span>
+          <span className="hidden sm:inline">Nanyang Polytechnic x SCCCI</span>
         </div>
       </footer>
     </div>
