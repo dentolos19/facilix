@@ -4,7 +4,9 @@ import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
+  DownloadIcon,
   EyeIcon,
+  ImagePlusIcon,
   Loader2,
   MessageCircleIcon,
   PencilIcon,
@@ -44,6 +46,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/componen
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
+import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/facility-layout";
 import {
   type FacilityEventRow,
   type FacilityEventView,
@@ -128,6 +131,9 @@ function Page() {
   const [settings, setSettings] = useState<FacilitySettings>({ globalEvents: { enabledLogTypes: [] } });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isGeneratingLayout, setIsGeneratingLayout] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // ── D1-backed facility events (filtered by settings for global events panel) ─────
   const [facilityEvents, setFacilityEvents] = useState<FacilityEventRow[]>([]);
@@ -475,6 +481,84 @@ function Page() {
     [facilityId, facilityName],
   );
 
+  const handleExport = useCallback(() => {
+    const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
+    const document = createFacilityLayoutDocument(facilityName, placedItemsRef.current, {
+      width: canvasRect?.width ?? 0,
+      height: canvasRect?.height ?? 0,
+    });
+    const blob = new Blob([`${JSON.stringify(document, null, 2)}\n`], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    const safeName = facilityName
+      .trim()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase();
+    link.href = url;
+    link.download = `${safeName || "facility"}-layout.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Facility layout exported");
+  }, [facilityName]);
+
+  const handleChooseLayoutImage = useCallback(() => {
+    if (editMode !== "edit") {
+      toast.info("Switch to Edit mode before importing a facility layout");
+      return;
+    }
+    imageInputRef.current?.click();
+  }, [editMode]);
+
+  const handleImportLayoutImage = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const image = event.target.files?.[0];
+    event.target.value = "";
+    if (!image) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type)) {
+      toast.error("Choose a JPEG, PNG, or WebP image");
+      return;
+    }
+    if (image.size > 8 * 1024 * 1024) {
+      toast.error("The image must be smaller than 8 MB");
+      return;
+    }
+
+    const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
+    const formData = new FormData();
+    formData.append("image", image);
+    formData.append("canvasWidth", String(Math.round(canvasRect?.width ?? 1000)));
+    formData.append("canvasHeight", String(Math.round(canvasRect?.height ?? 700)));
+
+    setIsGeneratingLayout(true);
+    try {
+      const response = await fetch("/api/facility-layout", { method: "POST", body: formData });
+      const payload = (await response.json().catch(() => null)) as
+        | (FacilityLayoutDocument & { error?: never })
+        | {
+            error?: string;
+          }
+        | null;
+      if (!response.ok || !payload || !("items" in payload)) {
+        throw new Error(payload?.error || "Failed to generate the facility layout.");
+      }
+
+      saveSnapshot();
+      setPlacedItems(payload.items);
+      setSelectedItemId(null);
+      setMonitoringSelection(null);
+      setIsDirty(true);
+      toast.success(`Built a layout with ${payload.items.length} items`, {
+        description: "Review the result on the canvas. You can use Undo to restore the previous layout.",
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate the facility layout.");
+    } finally {
+      setIsGeneratingLayout(false);
+    }
+    // saveSnapshot intentionally reads the latest items from placedItemsRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Auto-save (2 s debounce) ────────────────────────────────────────────
   useEffect(() => {
     if (!isDirty || editMode !== "edit" || isSaving) return;
@@ -577,11 +661,19 @@ function Page() {
     { hotkey: "Mod+Shift+Z", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
     { hotkey: "Mod+Y", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
     { hotkey: "Mod+S", callback: () => handleSave(), options: { enabled: editMode === "edit" } },
+    { hotkey: "Mod+Shift+E", callback: handleExport },
   ]);
 
   return (
     <div className="flex h-dvh w-dvw flex-col overflow-hidden">
       {/* ── Menubar ── */}
+      <input
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleImportLayoutImage}
+        ref={imageInputRef}
+        type="file"
+      />
       <Menubar className="shrink-0 rounded-none border-x-0 border-t-0">
         <MenubarMenu>
           <MenubarTrigger>File</MenubarTrigger>
@@ -594,7 +686,12 @@ function Page() {
                 <MenubarSeparator />
               </>
             )}
-            <MenubarItem>
+            <MenubarItem disabled={isGeneratingLayout} onClick={handleChooseLayoutImage}>
+              {isGeneratingLayout ? <Loader2 className="animate-spin" /> : <ImagePlusIcon />}
+              {isGeneratingLayout ? "Building layout…" : "Build layout from image…"}
+            </MenubarItem>
+            <MenubarItem onClick={handleExport}>
+              <DownloadIcon />
               Export… <MenubarShortcut>⇧⌘E</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
@@ -970,7 +1067,7 @@ function Page() {
 
         {/* Center panel — Konva canvas (live in monitoring, editable in edit) */}
         <ResizablePanel defaultSize={56} minSize={30}>
-          <div className="relative h-full w-full">
+          <div className="relative h-full w-full" ref={canvasAreaRef}>
             {isLoading ? (
               <div className="bg-background flex h-full w-full items-center justify-center">
                 <span className="text-muted-foreground/50 text-xs">Loading facility…</span>

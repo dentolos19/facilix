@@ -180,6 +180,71 @@ export async function summarizeImage(
   );
 }
 
+/**
+ * Convert a floor plan, site plan, sketch, or facility photo into the JSON
+ * consumed by the facility canvas. The caller validates and normalizes the
+ * model response before it reaches editor state.
+ */
+export async function generateFacilityLayoutFromImage(
+  imageBytes: Uint8Array | ArrayBuffer,
+  mimeType: string,
+  target: { width: number; height: number },
+): Promise<string | null> {
+  const prompt = `Analyze this facility image and build a practical 2D facility layout for a ${target.width} by ${target.height} pixel canvas.
+
+Identify labeled or visually distinct rooms and operational areas as Zone rectangles. Add Marker items for important labeled points that are not rooms. Add CCTV, Sensor, or Signal items only when the image clearly shows or labels those devices.
+
+Return ONLY valid JSON with this exact top-level shape:
+{
+  "facilityName": "Name inferred from the image, or Imported facility",
+  "items": [
+    {
+      "id": "zone-1",
+      "type": "Zone",
+      "x": 20,
+      "y": 20,
+      "width": 300,
+      "height": 180,
+      "zoneId": null,
+      "name": "Loading Bay",
+      "status": "—",
+      "notes": "Optional short explanation",
+      "props": { "iconColor": "#3b82f6" }
+    },
+    {
+      "id": "camera-1",
+      "type": "CCTV",
+      "x": 80,
+      "y": 70,
+      "width": 36,
+      "height": 36,
+      "zoneId": "zone-1",
+      "name": "Loading Bay Camera",
+      "status": "unknown",
+      "notes": "",
+      "props": {}
+    }
+  ]
+}
+
+Rules:
+- type must be exactly Zone, Marker, CCTV, Sensor, or Signal.
+- Keep every item within the target canvas.
+- Use the image's relative geometry and adjacency; do not stack zones on top of each other unless the image does.
+- Use unique string IDs. Set each device's zoneId to the containing Zone ID when applicable.
+- Prefer a useful simplified layout over invented detail.
+- Do not include markdown or commentary.`;
+
+  const url = bytesToDataUrl(imageBytes, mimeType);
+  return chatCompletionWithJson(
+    [
+      { type: "text", text: prompt },
+      { type: "image_url", image_url: { url } },
+    ],
+    { maxTokens: 5000 },
+  );
+}
+
 // ─── Scene alert analysis ────────────────────────────────────────────────
 
 /** Evidence of a scene match, with optional bounding box. */
