@@ -3,7 +3,7 @@ import { env } from "cloudflare:workers";
 
 import { generateFacilityLayoutFromImage } from "#/lib/ai";
 import { getSession } from "#/lib/auth/guard";
-import { parseGeneratedFacilityLayout } from "#/lib/facility-layout";
+import { parseGeneratedFacilityLayout } from "#/lib/layouts";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -14,7 +14,7 @@ function dimension(value: FormDataEntryValue | null, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export const Route = createFileRoute("/api/facility-layout")({
+export const Route = createFileRoute("/api/layouts")({
   server: {
     handlers: {
       POST: async ({ request }) => {

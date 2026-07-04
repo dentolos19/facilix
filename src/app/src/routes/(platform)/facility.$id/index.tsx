@@ -1,7 +1,7 @@
 "use client";
 
 import { useHotkeys } from "@tanstack/react-hotkeys";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   BarChart3,
   DownloadIcon,
@@ -46,7 +46,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/componen
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
-import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/facility-layout";
+import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/layouts";
 import {
   type FacilityEventRow,
   type FacilityEventView,
@@ -79,6 +79,9 @@ import {
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
   component: Page,
+  validateSearch: (search: Record<string, unknown>): { mode?: "monitor" | "edit" } => ({
+    mode: search.mode === "edit" ? "edit" : "monitor",
+  }),
 });
 
 function Field({
@@ -117,9 +120,16 @@ function monitoringStatusLabel(status: MonitoringStatus): string {
 }
 
 function Page() {
-  const navigate = useNavigate();
+  const navigate = Route.useNavigate();
   const { id: facilityId } = Route.useParams();
-  const [editMode, setEditMode] = useState<EditMode>("monitoring");
+  const { mode } = Route.useSearch();
+  const editMode: EditMode = mode === "edit" ? "edit" : "monitoring";
+  const setEditMode = useCallback(
+    (value: EditMode) => {
+      navigate({ search: { mode: value === "edit" ? "edit" : undefined }, replace: true });
+    },
+    [navigate],
+  );
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
   const [facilityName, setFacilityName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -531,7 +541,7 @@ function Page() {
 
     setIsGeneratingLayout(true);
     try {
-      const response = await fetch("/api/facility-layout", { method: "POST", body: formData });
+      const response = await fetch("/api/layouts", { method: "POST", body: formData });
       const payload = (await response.json().catch(() => null)) as
         | (FacilityLayoutDocument & { error?: never })
         | {
@@ -686,13 +696,15 @@ function Page() {
                 <MenubarSeparator />
               </>
             )}
-            <MenubarItem disabled={isGeneratingLayout} onClick={handleChooseLayoutImage}>
-              {isGeneratingLayout ? <Loader2 className="animate-spin" /> : <ImagePlusIcon />}
-              {isGeneratingLayout ? "Building layout…" : "Build layout from image…"}
-            </MenubarItem>
+            {editMode === "edit" && (
+              <MenubarItem disabled={isGeneratingLayout} onClick={handleChooseLayoutImage}>
+                {isGeneratingLayout ? <Loader2 className="animate-spin" /> : <ImagePlusIcon />}
+                {isGeneratingLayout ? "Importing…" : "Import"}
+              </MenubarItem>
+            )}
             <MenubarItem onClick={handleExport}>
               <DownloadIcon />
-              Export… <MenubarShortcut>⇧⌘E</MenubarShortcut>
+              Export <MenubarShortcut>⇧⌘E</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem

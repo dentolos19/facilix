@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { FACILITY_LAYOUT_FORMAT, parseGeneratedFacilityLayout } from "./facility-layout";
+import { FACILITY_LAYOUT_FORMAT, parseGeneratedFacilityLayout } from "./layouts";
 
 describe("parseGeneratedFacilityLayout", () => {
   test("normalizes model JSON and remaps zone references", () => {
