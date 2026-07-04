@@ -25,7 +25,7 @@ const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 /** Model id to request. Falls back to `OPENROUTER_MODEL` then to Qwen3.6 35B A3B. */
 function resolveModel(): string {
   const m = env.OPENROUTER_MODEL;
-  return m && m.length > 0 ? m : "qwen/qwen3.6-35b-a3b";
+  return m && m.length > 0 ? m : "openrouter/auto";
 }
 
 function baseUrl(): string {
@@ -95,15 +95,22 @@ function bytesToDataUrl(bytes: Uint8Array | ArrayBuffer, mime: string): string {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
+function resolveProvider(model: string): string | undefined {
+  return model.startsWith("qwen/") ? "alibaba" : undefined;
+}
+
 /** Internal: call OpenRouter and pull the assistant text out. */
 async function chatCompletion(parts: ContentPart[], options: { maxTokens?: number }): Promise<string | null> {
-  const request: ChatRequest = {
-    model: resolveModel(),
+  const model = resolveModel();
+  const request: ChatRequest & { provider?: string } = {
+    model,
     messages: [{ role: "user", content: parts }],
     max_tokens: options.maxTokens ?? 200,
     temperature: 0.2,
     stream: false,
   };
+  const provider = resolveProvider(model);
+  if (provider) request.provider = provider;
 
   const response = await fetch(`${baseUrl()}/chat/completions`, {
     method: "POST",
@@ -279,13 +286,16 @@ ${descriptionList}${contextSuffix}`;
  * Falls back to extracting JSON from markdown code blocks.
  */
 async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens?: number }): Promise<string | null> {
-  const request: ChatRequest = {
-    model: resolveModel(),
+  const model = resolveModel();
+  const request: ChatRequest & { provider?: string } = {
+    model,
     messages: [{ role: "user", content: parts }],
     max_tokens: options.maxTokens ?? 1000,
     temperature: 0.1,
     stream: false,
   };
+  const provider = resolveProvider(model);
+  if (provider) request.provider = provider;
 
   const response = await fetch(`${baseUrl()}/chat/completions`, {
     method: "POST",
