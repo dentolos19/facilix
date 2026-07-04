@@ -1,8 +1,9 @@
 "use client";
 
-import { fetchServerSentEvents, useChat, type UIMessage } from "@tanstack/ai-react";
+import { type UIMessage } from "@tanstack/ai-react";
 import { BotIcon, SearchIcon, SendIcon, SquareIcon, TrashIcon, UserIcon, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { Streamdown } from "streamdown";
 
 import { Bubble, BubbleContent } from "#/components/ui/bubble";
 import { Button } from "#/components/ui/button";
@@ -19,6 +20,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "#/components/ui/message-scroller";
+import { useFacilityChat } from "#/hooks/use-chat";
 import { cn } from "#/lib/utils";
 
 const SUGGESTED_QUESTIONS = [
@@ -73,7 +75,9 @@ function ChatMessage({ message }: { message: UIMessage }) {
                 key={`${message.id}-text-${index}`}
                 variant={isUser ? "default" : "outline"}
               >
-                <BubbleContent className="whitespace-pre-wrap">{part.content}</BubbleContent>
+                <BubbleContent className="prose prose-sm dark:prose-invert max-w-none">
+                  <Streamdown>{part.content}</Streamdown>
+                </BubbleContent>
               </Bubble>
             );
           }
@@ -106,12 +110,7 @@ export function ChatAssistant({
   hideHeader?: boolean;
 }) {
   const [input, setInput] = useState("");
-  const connection = useMemo(() => fetchServerSentEvents("/api/chat"), []);
-  const { messages, sendMessage, isLoading, error, stop, clear } = useChat({
-    connection,
-    forwardedProps: { facilityId },
-    id: `chat-${facilityId}`,
-  });
+  const { messages, sendMessage, isLoading, error, stop, clear } = useFacilityChat(facilityId);
 
   async function submit(question: string) {
     const value = question.trim();
