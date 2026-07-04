@@ -52,7 +52,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "#/componen
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
-import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/layouts";
 import {
   type FacilityEventRow,
   type FacilityEventView,
@@ -62,6 +61,7 @@ import {
 import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
+import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/layouts";
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
 import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
@@ -813,7 +813,11 @@ function Page() {
             )}
             {editMode === "edit" && (
               <MenubarItem disabled={isImporting} onClick={handleImportClick}>
-                {isImporting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ImagePlusIcon className="mr-2 size-4" />}
+                {isImporting ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                ) : (
+                  <ImagePlusIcon className="mr-2 size-4" />
+                )}
                 {isImporting ? "Importing…" : "Import"}
               </MenubarItem>
             )}
@@ -1181,7 +1185,14 @@ function Page() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => { setImportConfirmOpen(false); setPendingImportFile(null); }} size="sm" variant="outline">
+            <Button
+              onClick={() => {
+                setImportConfirmOpen(false);
+                setPendingImportFile(null);
+              }}
+              size="sm"
+              variant="outline"
+            >
               Cancel
             </Button>
             <Button onClick={handleConfirmImport} size="sm" variant="default">
@@ -1254,9 +1265,9 @@ function Page() {
               />
             )}
             {isImporting && (
-              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
-                <Loader2 className="size-8 animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Importing facility layout…</span>
+              <div className="bg-background/80 absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+                <Loader2 className="text-primary size-8 animate-spin" />
+                <span className="text-muted-foreground text-sm">Importing facility layout…</span>
               </div>
             )}
           </div>

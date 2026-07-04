@@ -20,8 +20,7 @@ export const localChatPersistence: ChatClientPersistence = {
       const stored: Array<UIMessage> = JSON.parse(raw);
       return stored.map((message) => ({
         ...message,
-        createdAt:
-          typeof message.createdAt === "string" ? new Date(message.createdAt) : message.createdAt,
+        createdAt: typeof message.createdAt === "string" ? new Date(message.createdAt) : message.createdAt,
       }));
     } catch {
       return null;

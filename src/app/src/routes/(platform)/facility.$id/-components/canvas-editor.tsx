@@ -1,14 +1,8 @@
 import type Konva from "konva";
+import { ArrowDownIcon, ArrowUpIcon, ArrowDownToLineIcon, ArrowUpToLineIcon, Trash2Icon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  ArrowDownToLineIcon,
-  ArrowUpToLineIcon,
-  Trash2Icon,
-} from "lucide-react";
 
 import { ITEM_DEFS, PLACEABLE_ITEMS } from "../-helpers/constants";
 import { useIsomorphicLayoutEffect, useResizeObserver } from "../-helpers/hooks";
@@ -89,7 +83,13 @@ export function CanvasEditor({
     if (!contextMenu) return;
     const controller = new AbortController();
     window.addEventListener("click", dismissContextMenu, { signal: controller.signal });
-    window.addEventListener("keydown", (e) => { if (e.key === "Escape") dismissContextMenu(); }, { signal: controller.signal });
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") dismissContextMenu();
+      },
+      { signal: controller.signal },
+    );
     return () => controller.abort();
   }, [contextMenu, dismissContextMenu]);
 
@@ -284,9 +284,7 @@ export function CanvasEditor({
       multiDragRef.current = {
         initialPointer: pos,
         initialPositions: new Map(
-          placedItems
-            .filter((i) => selectedItemIds.has(i.id))
-            .map((i) => [i.id, { x: i.x, y: i.y }]),
+          placedItems.filter((i) => selectedItemIds.has(i.id)).map((i) => [i.id, { x: i.x, y: i.y }]),
         ),
       };
     },
@@ -444,53 +442,53 @@ export function CanvasEditor({
       )}
       {contextMenu && (
         <div
-          className="z-50 min-w-40 rounded-none border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
+          className="bg-popover text-popover-foreground ring-foreground/10 z-50 min-w-40 rounded-none border shadow-md ring-1"
           onClick={(e) => e.stopPropagation()}
           style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y }}
         >
           {contextMenuItem && (
-            <div className="border-muted/40 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground border-b">
+            <div className="border-muted/40 text-muted-foreground border-b px-2.5 py-1.5 text-[11px] font-medium">
               {contextMenuItem.name || contextMenuItem.type}
             </div>
           )}
           <div
-            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
             onClick={handleMoveUp}
           >
             <ArrowUpIcon className="size-3.5" />
             Move Up
           </div>
           <div
-            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
             onClick={handleMoveDown}
           >
             <ArrowDownIcon className="size-3.5" />
             Move Down
           </div>
-          <div className="-mx-0 h-px bg-border" />
+          <div className="bg-border -mx-0 h-px" />
           <div
-            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
             onClick={handleMoveToFront}
           >
             <ArrowUpToLineIcon className="size-3.5" />
             Bring to Front
           </div>
           <div
-            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
             onClick={handleMoveToBack}
           >
             <ArrowDownToLineIcon className="size-3.5" />
             Send to Back
           </div>
-          <div className="-mx-0 h-px bg-border" />
+          <div className="bg-border -mx-0 h-px" />
           <div
-            className="group/ctx-item flex cursor-default select-none items-center gap-2 px-2 py-1.5 text-xs hover:bg-destructive/10 text-destructive hover:text-destructive"
+            className="group/ctx-item hover:bg-destructive/10 text-destructive hover:text-destructive flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
             onClick={handleDeleteSelected}
           >
             <Trash2Icon className="size-3.5" />
             Delete
             {selectedItemIds.size > 1 && (
-              <span className="ml-auto text-[10px] text-muted-foreground">{selectedItemIds.size}</span>
+              <span className="text-muted-foreground ml-auto text-[10px]">{selectedItemIds.size}</span>
             )}
           </div>
         </div>

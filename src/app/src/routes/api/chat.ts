@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 
 import { createChatAdapter } from "#/lib/ai";
 import { getSession } from "#/lib/auth/guard";
-import { createDatabase, schema } from "#/lib/database";
 import { createChatTools } from "#/lib/chat";
+import { createDatabase, schema } from "#/lib/database";
 
 export const Route = createFileRoute("/api/chat")({
   server: {

@@ -1,4 +1,11 @@
-import { AlertTriangleIcon, ChevronDownIcon, FileTextIcon, InfoIcon, Loader2Icon, OctagonAlertIcon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  ChevronDownIcon,
+  FileTextIcon,
+  InfoIcon,
+  Loader2Icon,
+  OctagonAlertIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { FacilityEventView } from "#/lib/functions/events";
@@ -88,7 +95,7 @@ function LogRow({ event }: { event: FacilityEventView }) {
 
   return (
     <button
-      className="border-border bg-background flex gap-3 rounded-none border p-2.5 text-left hover:bg-muted/30 transition-colors"
+      className="border-border bg-background hover:bg-muted/30 flex gap-3 rounded-none border p-2.5 text-left transition-colors"
       onClick={() => hasData && setExpanded(!expanded)}
       type="button"
     >
@@ -97,11 +104,11 @@ function LogRow({ event }: { event: FacilityEventView }) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
             <span className="text-foreground/80 truncate text-[11px] font-medium">{event.type}</span>
             <span className="text-muted-foreground/50 shrink-0 text-[10px]">{event.deviceName}</span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex shrink-0 items-center gap-1.5">
             <span className="text-muted-foreground/50 text-[10px] tabular-nums">
               {new Date(event.createdAt).toLocaleString()}
             </span>
@@ -166,7 +173,13 @@ function formatValue(key: string, value: unknown): string {
     if (key === "signalRssiDbm") return `${value} dBm`;
     return key.includes("Id") || key === "segmentId" || key === "assetId"
       ? String(value).slice(0, 12) + (String(value).length > 12 ? "..." : "")
-      : String(key.includes("Count") ? value : typeof value === "number" && !Number.isInteger(value) ? value.toFixed(2) : value);
+      : String(
+          key.includes("Count")
+            ? value
+            : typeof value === "number" && !Number.isInteger(value)
+              ? value.toFixed(2)
+              : value,
+        );
   }
 
   if (typeof value === "string") {

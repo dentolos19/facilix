@@ -1,5 +1,5 @@
-import { fetchServerSentEvents } from "@tanstack/ai-react";
 import { ChatClient, type ConnectionStatus, type UIMessage } from "@tanstack/ai-client";
+import { fetchServerSentEvents } from "@tanstack/ai-react";
 import { createStore } from "@tanstack/react-store";
 
 import { localChatPersistence } from "#/lib/chat/persistence";

@@ -1087,8 +1087,8 @@ function ManageHeaderShell({
         <div className="min-w-0">
           <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Manage"}</h1>
           <p className="text-muted-foreground/60 truncate text-[11px]">
-{activeTab === "dashboard"
-  ? "Operational overview and device health"
+            {activeTab === "dashboard"
+              ? "Operational overview and device health"
               : activeTab === "feed"
                 ? "Live facility feeds"
                 : activeTab === "logs"

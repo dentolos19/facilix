@@ -161,11 +161,13 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
 
     const withAttachments = await attachEventAttachments(db, filtered);
 
-    return withAttachments.map((ev): FacilityEventView => ({
-      ...ev,
-      deviceName: ev.deviceId ? (deviceNameMap.get(ev.deviceId) ?? "Unknown Device") : "System",
-      deviceType: "",
-    }));
+    return withAttachments.map(
+      (ev): FacilityEventView => ({
+        ...ev,
+        deviceName: ev.deviceId ? (deviceNameMap.get(ev.deviceId) ?? "Unknown Device") : "System",
+        deviceType: "",
+      }),
+    );
   });
 
 /**
