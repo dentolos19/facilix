@@ -94,7 +94,7 @@ export function GlobalEventsPanel({
                   )}
                 </div>
                 <span className="text-muted-foreground/70">{event.message}</span>
-                <span className="text-muted-foreground/40">{new Date(event.createdAt).toLocaleTimeString()}</span>
+                <span className="text-muted-foreground/40">{new Date(event.createdAt).toLocaleString()}</span>
               </button>
             );
           })}

@@ -39,6 +39,11 @@ function hitTest(item: PlacedItem, r: { x: number; y: number; width: number; hei
   return cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height;
 }
 
+type MultiDragState = {
+  initialPointer: { x: number; y: number };
+  initialPositions: Map<string, { x: number; y: number }>;
+};
+
 /** Canvas that accepts drag-and-drop from the component palette. */
 export function CanvasEditor({
   readOnly = false,
@@ -55,12 +60,13 @@ export function CanvasEditor({
 }: CanvasEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
+  const marqueeRef = useRef<Konva.Rect>(null);
+  const multiDragRef = useRef<MultiDragState | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const { resolvedTheme } = useTheme();
 
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; itemId: string } | null>(null);
-  const [marqueeRect, setMarqueeRect] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [isMarqueeing, setIsMarqueeing] = useState(false);
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -118,38 +124,53 @@ export function CanvasEditor({
     const pos = stageRef.current?.getPointerPosition();
     if (!pos) return;
     marqueeStartRef.current = { x: pos.x, y: pos.y };
-    setMarqueeRect({ x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y });
+
+    if (marqueeRef.current) {
+      marqueeRef.current.visible(true);
+      marqueeRef.current.x(pos.x);
+      marqueeRef.current.y(pos.y);
+      marqueeRef.current.width(0);
+      marqueeRef.current.height(0);
+      marqueeRef.current.getLayer()?.batchDraw();
+    }
     setIsMarqueeing(true);
   };
 
   const handleBackgroundMouseMove = () => {
     if (!isMarqueeing) return;
     const pos = stageRef.current?.getPointerPosition();
-    if (!pos) return;
-    setMarqueeRect((prev) => {
-      if (!prev) return { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y };
-      return { ...prev, x2: pos.x, y2: pos.y };
-    });
+    if (!pos || !marqueeStartRef.current || !marqueeRef.current) return;
+    const start = marqueeStartRef.current;
+    const x = Math.min(pos.x, start.x);
+    const y = Math.min(pos.y, start.y);
+    const w = Math.abs(pos.x - start.x);
+    const h = Math.abs(pos.y - start.y);
+    marqueeRef.current.x(x);
+    marqueeRef.current.y(y);
+    marqueeRef.current.width(w);
+    marqueeRef.current.height(h);
+    marqueeRef.current.getLayer()?.batchDraw();
   };
 
   const handleBackgroundMouseUp = () => {
     if (!isMarqueeing) return;
     setIsMarqueeing(false);
 
+    if (marqueeRef.current) {
+      marqueeRef.current.visible(false);
+      marqueeRef.current.getLayer()?.batchDraw();
+    }
+
     const start = marqueeStartRef.current;
     const end = stageRef.current?.getPointerPosition();
     marqueeStartRef.current = null;
 
-    if (!start || !end) {
-      setMarqueeRect(null);
-      return;
-    }
+    if (!start || !end) return;
 
     const dx = Math.abs(end.x - start.x);
     const dy = Math.abs(end.y - start.y);
 
     if (dx < 4 && dy < 4) {
-      setMarqueeRect(null);
       setSelectedItemIds(new Set());
       onSelectItem(null);
       return;
@@ -165,8 +186,6 @@ export function CanvasEditor({
     } else {
       setSelectedItemIds(new Set());
     }
-
-    setMarqueeRect(null);
   };
 
   const handleItemClick = useCallback(
@@ -238,6 +257,8 @@ export function CanvasEditor({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (readOnly) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.key === "Delete" || e.key === "Backspace") {
         const ids = Array.from(selectedItemIds);
         if (ids.length > 0) {
@@ -250,20 +271,123 @@ export function CanvasEditor({
     return () => window.removeEventListener("keydown", handler);
   }, [selectedItemIds, readOnly, onDeleteItems]);
 
+  const handleMultiDragStart = useCallback(
+    (item: PlacedItem) => {
+      if (selectedItemIds.size <= 1 || !selectedItemIds.has(item.id)) {
+        multiDragRef.current = null;
+        return;
+      }
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      multiDragRef.current = {
+        initialPointer: pos,
+        initialPositions: new Map(
+          placedItems
+            .filter((i) => selectedItemIds.has(i.id))
+            .map((i) => [i.id, { x: i.x, y: i.y }]),
+        ),
+      };
+    },
+    [selectedItemIds, placedItems],
+  );
+
+  const handleMultiDragMove = useCallback(
+    (item: PlacedItem) => {
+      const state = multiDragRef.current;
+      if (!state) return;
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      const dx = pos.x - state.initialPointer.x;
+      const dy = pos.y - state.initialPointer.y;
+      const layer = stage.getLayers()[0];
+      if (!layer) return;
+      selectedItemIds.forEach((id) => {
+        if (id === item.id) return;
+        const start = state.initialPositions.get(id);
+        if (!start) return;
+        const group = layer.findOne(`.placed-${id}`);
+        if (group) {
+          group.x(start.x + dx);
+          group.y(start.y + dy);
+        }
+      });
+      layer.batchDraw();
+    },
+    [selectedItemIds],
+  );
+
+  const handleDragEndWrapper = useCallback(
+    (item: PlacedItem, e: Konva.KonvaEventObject<DragEvent>) => {
+      const state = multiDragRef.current;
+      if (!state) {
+        onUpdateItem(item.id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()) });
+        return;
+      }
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      const dx = pos.x - state.initialPointer.x;
+      const dy = pos.y - state.initialPointer.y;
+      state.initialPositions.forEach((start, id) => {
+        if (id === item.id) {
+          onUpdateItem(id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()) });
+        } else {
+          onUpdateItem(id, { x: Math.round(start.x + dx), y: Math.round(start.y + dy) });
+        }
+      });
+      multiDragRef.current = null;
+    },
+    [onUpdateItem],
+  );
+
+  const handleZoneDragEnd = useCallback(
+    (item: PlacedItem, e: Konva.KonvaEventObject<DragEvent>) => {
+      const state = multiDragRef.current;
+      if (!state) {
+        onUpdateItem(item.id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()) });
+        return;
+      }
+      const stage = stageRef.current;
+      if (!stage) return;
+      const pos = stage.getPointerPosition();
+      if (!pos) return;
+      const dx = pos.x - state.initialPointer.x;
+      const dy = pos.y - state.initialPointer.y;
+      state.initialPositions.forEach((start, id) => {
+        if (id === item.id) {
+          onUpdateItem(id, { x: Math.round(e.target.x()), y: Math.round(e.target.y()) });
+        } else {
+          onUpdateItem(id, { x: Math.round(start.x + dx), y: Math.round(start.y + dy) });
+        }
+      });
+      multiDragRef.current = null;
+    },
+    [onUpdateItem],
+  );
+
   return (
     <div className="relative h-full w-full" onDragOver={handleDragOver} onDrop={handleDrop} ref={containerRef}>
       {size.width > 0 && size.height > 0 && (
-        <Stage height={size.height} ref={stageRef} width={size.width}>
+        <Stage
+          height={size.height}
+          onMouseMove={handleBackgroundMouseMove}
+          onMouseUp={handleBackgroundMouseUp}
+          onTouchMove={handleBackgroundMouseMove}
+          onTouchEnd={handleBackgroundMouseUp}
+          ref={stageRef}
+          width={size.width}
+        >
           <Layer>
             <Rect
               fill={colors.background}
               height={size.height}
               onMouseDown={handleBackgroundMouseDown}
-              onMouseMove={handleBackgroundMouseMove}
-              onMouseUp={handleBackgroundMouseUp}
               onTouchStart={handleBackgroundMouseDown}
-              onTouchMove={handleBackgroundMouseMove}
-              onTouchEnd={handleBackgroundMouseUp}
               width={size.width}
               x={0}
               y={0}
@@ -294,24 +418,27 @@ export function CanvasEditor({
                 item={item}
                 key={item.id}
                 onContextMenu={(e) => handleItemContextMenu(e, item)}
+                onDragEnd={(e) => handleDragEndWrapper(item, e)}
+                onDragMove={() => handleMultiDragMove(item)}
+                onDragStart={() => handleMultiDragStart(item)}
                 onSelectItem={(e) => handleItemClick(item, e)}
                 onUpdateItem={onUpdateItem}
+                onZoneDragEnd={(e) => handleZoneDragEnd(item, e)}
                 readOnly={readOnly}
               />
             ))}
-            {marqueeRect && isMarqueeing && (
-              <Rect
-                dash={[4, 4]}
-                fill="rgba(59, 130, 246, 0.08)"
-                height={Math.abs(marqueeRect.y2 - marqueeRect.y1)}
-                listening={false}
-                stroke="rgba(59, 130, 246, 0.5)"
-                strokeWidth={1}
-                width={Math.abs(marqueeRect.x2 - marqueeRect.x1)}
-                x={Math.min(marqueeRect.x1, marqueeRect.x2)}
-                y={Math.min(marqueeRect.y1, marqueeRect.y2)}
-              />
-            )}
+          </Layer>
+          {/* Marquee overlay layer — kept separate so batchDraw() only redraws this layer during selection drag, not the items layer. */}
+          <Layer>
+            <Rect
+              dash={[4, 4]}
+              fill="rgba(59, 130, 246, 0.08)"
+              listening={false}
+              ref={marqueeRef}
+              stroke="rgba(59, 130, 246, 0.5)"
+              strokeWidth={1}
+              visible={false}
+            />
           </Layer>
         </Stage>
       )}
@@ -363,9 +490,7 @@ export function CanvasEditor({
             <Trash2Icon className="size-3.5" />
             Delete
             {selectedItemIds.size > 1 && (
-              <span className="ml-auto text-[10px] text-muted-foreground">
-                {selectedItemIds.size}
-              </span>
+              <span className="ml-auto text-[10px] text-muted-foreground">{selectedItemIds.size}</span>
             )}
           </div>
         </div>
@@ -383,6 +508,10 @@ function PlacedShape({
   onUpdateItem,
   onSelectItem,
   onContextMenu,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onZoneDragEnd,
 }: {
   item: PlacedItem;
   isSelected: boolean;
@@ -391,6 +520,10 @@ function PlacedShape({
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
   onSelectItem: (e: Konva.KonvaEventObject<MouseEvent> | Konva.KonvaEventObject<TouchEvent>) => void;
   onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  onDragStart?: () => void;
+  onDragMove?: () => void;
+  onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onZoneDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
 }) {
   const def = { ...ITEM_DEFS[item.type], width: item.width, height: item.height };
   const [dragging, setDragging] = useState(false);
@@ -402,13 +535,30 @@ function PlacedShape({
   const strokeColor = darkenHex(itemColor, 0.15);
   const iconShape = String(item.props.iconShape ?? DEFAULT_ICON_SHAPES[item.type]);
 
-  const handleDragEnd = (e: Konva.KonvaEventObject<DragEvent>) => {
-    setDragging(false);
-    onUpdateItem(item.id, {
-      x: Math.round(e.target.x()),
-      y: Math.round(e.target.y()),
-    });
-  };
+  const handleDragStart = useCallback(() => {
+    setDragging(true);
+    onDragStart?.();
+  }, [onDragStart]);
+
+  const handleDragMove = useCallback(() => {
+    onDragMove?.();
+  }, [onDragMove]);
+
+  const handleDragEnd = useCallback(
+    (e: Konva.KonvaEventObject<DragEvent>) => {
+      setDragging(false);
+      onDragEnd?.(e);
+    },
+    [onDragEnd],
+  );
+
+  const handleZoneDragEndInner = useCallback(
+    (e: Konva.KonvaEventObject<DragEvent>) => {
+      setDragging(false);
+      onZoneDragEnd?.(e);
+    },
+    [onZoneDragEnd],
+  );
 
   useIsomorphicLayoutEffect(() => {
     if (item.type !== "Zone" || !isSelected || readOnly) return;
@@ -447,18 +597,9 @@ function PlacedShape({
             name={`placed-${item.id}`}
             onClick={onSelectItem}
             onContextMenu={onContextMenu}
-            onDragEnd={
-              readOnly
-                ? undefined
-                : (e) => {
-                    setDragging(false);
-                    onUpdateItem(item.id, {
-                      x: Math.round(e.target.x()),
-                      y: Math.round(e.target.y()),
-                    });
-                  }
-            }
-            onDragStart={readOnly ? undefined : () => setDragging(true)}
+            onDragEnd={readOnly ? undefined : handleZoneDragEndInner}
+            onDragMove={readOnly ? undefined : handleDragMove}
+            onDragStart={readOnly ? undefined : handleDragStart}
             onTap={onSelectItem}
             ref={zoneRef}
             width={def.width}
@@ -538,7 +679,8 @@ function PlacedShape({
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onDragMove={readOnly ? undefined : handleDragMove}
+          onDragStart={readOnly ? undefined : handleDragStart}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}
@@ -704,7 +846,8 @@ function PlacedShape({
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onDragMove={readOnly ? undefined : handleDragMove}
+          onDragStart={readOnly ? undefined : handleDragStart}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}
@@ -814,7 +957,8 @@ function PlacedShape({
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onDragMove={readOnly ? undefined : handleDragMove}
+          onDragStart={readOnly ? undefined : handleDragStart}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}
@@ -914,7 +1058,8 @@ function PlacedShape({
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
           onDragEnd={readOnly ? undefined : handleDragEnd}
-          onDragStart={readOnly ? undefined : () => setDragging(true)}
+          onDragMove={readOnly ? undefined : handleDragMove}
+          onDragStart={readOnly ? undefined : handleDragStart}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}

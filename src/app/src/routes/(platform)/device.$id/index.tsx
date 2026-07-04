@@ -6,7 +6,7 @@ import type { DeviceDetail } from "#/lib/functions/facility";
 import { getDevice } from "#/lib/functions/facility";
 
 import { CctvDeviceDetail } from "./-components/cctv-device";
-import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-detail-layout";
+import { DeviceDetailLayout, DeviceDetailSidebar } from "./-components/device-details";
 import { SensorDeviceDetail } from "./-components/sensor-device";
 
 export const Route = createFileRoute("/(platform)/device/$id/")({

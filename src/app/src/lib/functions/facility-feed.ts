@@ -15,6 +15,7 @@ export interface FeedCctvDevice {
   streamUrl: string;
   streamPath: string;
   deviceId: string;
+  zoneName: string | null;
 }
 
 export interface FeedSensorDevice {
@@ -30,6 +31,7 @@ export interface FeedSensorDevice {
   signalRssiDbm: number | null;
   sensorStatus: string;
   timestamp: string;
+  zoneName: string | null;
 }
 
 export interface FeedGridLayoutItem {
@@ -66,10 +68,13 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
 
-    const [facility, devices] = await Promise.all([
+    const [facility, devices, zones] = await Promise.all([
       db.select().from(schema.facility).where(eq(schema.facility.id, data.facilityId)).limit(1),
       db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, data.facilityId)),
+      db.select().from(schema.facilityZone).where(eq(schema.facilityZone.facilityId, data.facilityId)),
     ]);
+
+    const zoneNameMap = new Map(zones.map((z) => [z.id, z.name]));
 
     const facilityName = facility[0]?.name ?? "Unknown Facility";
     const facilityData = (facility[0]?.data as unknown as Record<string, unknown>) ?? {};
@@ -88,6 +93,7 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
           streamUrl: String(props.streamUrl ?? ""),
           streamPath: String(props.streamPath ?? ""),
           deviceId: String(props.deviceId ?? ""),
+          zoneName: d.zoneId ? (zoneNameMap.get(d.zoneId) ?? null) : null,
         };
       });
 
@@ -124,6 +130,7 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
         signalRssiDbm: reading?.signalRssiDbm ?? null,
         sensorStatus: reading?.status ?? "unknown",
         timestamp: reading?.timestamp ? new Date(reading.timestamp).toISOString() : "",
+        zoneName: d.zoneId ? (zoneNameMap.get(d.zoneId) ?? null) : null,
       };
     });
 

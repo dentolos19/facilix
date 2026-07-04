@@ -10,8 +10,8 @@ import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-pl
 import { Route as DeviceRoute } from "../index";
 import { CctvPlaybackTab } from "./cctv-playback";
 import { CctvPredictionsTab } from "./cctv-predictions";
-import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-detail-layout";
-import { DeviceEventsTab } from "./device-events-tab";
+import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-details";
+import { DeviceLogs } from "./device-logs";
 
 const TABS = [
   { id: "live", label: "Live" },
@@ -61,7 +61,7 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
           streamName={streamName}
         />
       )}
-      {activeTab === "logs" && <DeviceEventsTab device={device} />}
+      {activeTab === "logs" && <DeviceLogs device={device} />}
       {activeTab === "playback" && <CctvPlaybackTab device={device} />}
       {activeTab === "predictions" && <CctvPredictionsTab device={device} />}
     </DeviceDetailShell>

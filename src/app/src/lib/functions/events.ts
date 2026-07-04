@@ -126,13 +126,20 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
     const db = createDatabase(env.DATABASE);
     const limit = Math.min(Math.max(1, data.limit ?? 200), 500);
 
-    // Load facility settings for filtering
-    const [facRow] = await db
-      .select({ settings: schema.facility.settings })
-      .from(schema.facility)
-      .where(eq(schema.facility.id, data.facilityId))
-      .limit(1);
-    const settings = normalizeFacilitySettings(facRow?.settings ?? undefined);
+    const [facRow, devices] = await Promise.all([
+      db
+        .select({ settings: schema.facility.settings })
+        .from(schema.facility)
+        .where(eq(schema.facility.id, data.facilityId))
+        .limit(1),
+      db
+        .select({ id: schema.facilityDevice.id, name: schema.facilityDevice.name })
+        .from(schema.facilityDevice)
+        .where(eq(schema.facilityDevice.facilityId, data.facilityId)),
+    ]);
+
+    const deviceNameMap = new Map(devices.map((d) => [d.id, d.name]));
+    const settings = normalizeFacilitySettings(facRow[0]?.settings ?? undefined);
 
     const conditions = [eq(schema.facilityEvent.facilityId, data.facilityId)];
 
@@ -145,15 +152,20 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
       .from(schema.facilityEvent)
       .where(and(...conditions))
       .orderBy(desc(schema.facilityEvent.createdAt))
-      .limit(limit * 3); // Fetch more to account for filtering
+      .limit(limit * 3);
 
-    // Filter by settings
     const filtered = rows
       .map(toRow)
       .filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings))
       .slice(0, limit);
 
-    return attachEventAttachments(db, filtered);
+    const withAttachments = await attachEventAttachments(db, filtered);
+
+    return withAttachments.map((ev): FacilityEventView => ({
+      ...ev,
+      deviceName: ev.deviceId ? (deviceNameMap.get(ev.deviceId) ?? "Unknown Device") : "System",
+      deviceType: "",
+    }));
   });
 
 /**

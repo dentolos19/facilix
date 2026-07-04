@@ -5,6 +5,7 @@ import {
   BatteryIcon,
   GripVerticalIcon,
   Loader2Icon,
+  MapPinIcon,
   RefreshCwIcon,
   VideoIcon,
   WifiIcon,
@@ -116,6 +117,12 @@ function CctvFeedCard({ device }: { device: FeedCctvDevice }) {
       <div className="feed-drag-handle border-border flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing">
         <VideoIcon className="text-muted-foreground/60 size-3" />
         <span className="text-foreground truncate text-[11px] font-medium">{device.name}</span>
+        {device.zoneName && (
+          <span className="text-muted-foreground/50 flex items-center gap-0.5 text-[10px]">
+            <MapPinIcon className="size-2.5" />
+            {device.zoneName}
+          </span>
+        )}
         <GripVerticalIcon className="text-muted-foreground/40 ml-auto size-3.5 shrink-0" />
       </div>
       <div className="min-h-0 flex-1">
@@ -141,6 +148,12 @@ function SensorFeedCard({ device }: { device: FeedSensorDevice }) {
       <div className="feed-drag-handle border-border flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing">
         <ActivityIcon className="text-muted-foreground/60 size-3" />
         <span className="text-foreground truncate text-[11px] font-medium">{device.name}</span>
+        {device.zoneName && (
+          <span className="text-muted-foreground/50 flex items-center gap-0.5 text-[10px]">
+            <MapPinIcon className="size-2.5" />
+            {device.zoneName}
+          </span>
+        )}
         <GripVerticalIcon className="text-muted-foreground/40 ml-auto size-3.5 shrink-0" />
       </div>
       <div className="min-h-0 flex-1 p-3">
@@ -313,7 +326,7 @@ export function FacilityFeedTab({ facilityId }: FeedTabProps) {
   return (
     <div className="flex h-full min-h-0 flex-col" ref={containerRef}>
       {/* Grid */}
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-auto">
         {mounted && (
           <ResponsiveGridLayout
             width={width}

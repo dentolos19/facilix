@@ -7,14 +7,10 @@ import {
   AlertTriangleIcon,
   ArrowLeftIcon,
   BarChart3Icon,
-  CircleCheckIcon,
-  EyeIcon,
   HeartPulseIcon,
-  InfoIcon,
   MonitorIcon,
   RefreshCwIcon,
   ScanEyeIcon,
-  ShieldAlertIcon,
   TrendingDownIcon,
   TrendingUpIcon,
   VideoIcon,
@@ -46,6 +42,7 @@ import { getFacilityAnalytics } from "#/lib/functions/analytics";
 import { cn } from "#/lib/utils";
 
 import { FacilityFeedTab } from "./-components/feed-tab";
+import { FacilityLogsTab } from "./-components/logs-tab";
 
 // ─── Route ──────────────────────────────────────────────────────────────────
 
@@ -176,52 +173,6 @@ function KpiCard({
         )}
       </CardContent>
     </Card>
-  );
-}
-
-// ─── Insight Card ───────────────────────────────────────────────────────────
-
-function InsightCard({ insight }: { insight: FacilityAnalytics["insights"][number] }) {
-  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-    positive: CircleCheckIcon,
-    info: InfoIcon,
-    warn: AlertTriangleIcon,
-    critical: ShieldAlertIcon,
-  };
-  const Icon = iconMap[insight.severity] ?? InfoIcon;
-
-  return (
-    <div className="border-border bg-card flex gap-3 rounded-none border p-3 text-xs">
-      <Icon
-        className={cn(
-          "mt-0.5 size-4 shrink-0",
-          insight.severity === "positive" && "text-emerald-500",
-          insight.severity === "info" && "text-muted-foreground",
-          insight.severity === "warn" && "text-amber-500",
-          insight.severity === "critical" && "text-destructive",
-        )}
-      />
-      <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-foreground font-medium">{insight.title}</span>
-          <SeverityBadge severity={insight.severity} />
-        </div>
-        <p className="text-muted-foreground">{insight.description}</p>
-        {insight.evidence.length > 0 && (
-          <ul className="mt-0.5 flex flex-col gap-0.5">
-            {insight.evidence.map((item, i) => (
-              <li className="text-muted-foreground/80 flex items-center gap-1.5" key={i}>
-                <span className="bg-muted-foreground/30 size-1 rounded-full" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        )}
-        {insight.recommendedAction && (
-          <p className="text-muted-foreground/70 mt-0.5 italic">{insight.recommendedAction}</p>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -550,7 +501,7 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
 
 function LoadingSkeleton() {
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-6">
+    <div className="min-h-0 flex-1 overflow-auto p-4">
       <div className="flex flex-col gap-6">
         {/* KPI skeleton */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
@@ -656,8 +607,9 @@ function EmptyState() {
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "analytics", label: "Analytics" },
+  { id: "dashboard", label: "Dashboard" },
   { id: "feed", label: "Feed" },
+  { id: "logs", label: "Logs" },
   { id: "chat", label: "Chat" },
 ];
 
@@ -665,10 +617,10 @@ function Page() {
   const { id: facilityId } = Route.useParams();
   const { tab } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const activeTab = TABS.some((t) => t.id === tab) ? tab! : "analytics";
+  const activeTab = TABS.some((t) => t.id === tab) ? tab! : "dashboard";
 
   const setActiveTab = (id: string) => {
-    navigate({ search: { tab: id === "analytics" ? undefined : id }, replace: true });
+    navigate({ search: { tab: id === "dashboard" ? undefined : id }, replace: true });
   };
 
   const [data, setData] = useState<FacilityAnalytics | null>(null);
@@ -704,7 +656,7 @@ function Page() {
   );
 
   useEffect(() => {
-    if (activeTab === "analytics") {
+    if (activeTab === "dashboard") {
       fetchAnalytics(range);
     }
   }, [activeTab, range, fetchAnalytics]);
@@ -726,7 +678,7 @@ function Page() {
   }, []);
 
   // ── Loading (analytics tab only) ──────────────────────────────────────
-  if (activeTab === "analytics" && isLoading && !data) {
+  if (activeTab === "dashboard" && isLoading && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
         <ManageHeaderShell
@@ -746,7 +698,7 @@ function Page() {
   }
 
   // ── Error (analytics tab only) ────────────────────────────────────────
-  if (activeTab === "analytics" && error && !data) {
+  if (activeTab === "dashboard" && error && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
         <ManageHeaderShell
@@ -766,7 +718,7 @@ function Page() {
   }
 
   // ── Empty state for analytics tab ─────────────────────────────────────
-  if (activeTab === "analytics" && !data) {
+  if (activeTab === "dashboard" && !data) {
     return (
       <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
         <ManageHeaderShell
@@ -802,6 +754,28 @@ function Page() {
         />
         <div className="min-h-0 flex-1 overflow-hidden">
           <FacilityFeedTab facilityId={facilityId} key={feedKey} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Logs tab ─────────────────────────────────────────────────────────
+  if (activeTab === "logs") {
+    return (
+      <div className="flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+        <ManageHeaderShell
+          facilityId={facilityId}
+          facilityName={data?.facilityName}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isRefreshing={isRefreshing}
+          lastUpdated={lastUpdated}
+          range={range}
+          onRangeChange={handleRangeChange}
+          onRefresh={handleRefresh}
+        />
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          <FacilityLogsTab facilityId={facilityId} />
         </div>
       </div>
     );
@@ -929,7 +903,7 @@ function Page() {
         onRefresh={handleRefresh}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto p-6">
+      <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="flex flex-col gap-6">
           {/* ── KPI Cards ──────────────────────────────────────────────── */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
@@ -937,24 +911,6 @@ function Page() {
               <KpiCard key={i} {...kpi} />
             ))}
           </div>
-
-          {/* ── AI Insights ────────────────────────────────────────────── */}
-          {data && data.insights.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <EyeIcon className="text-muted-foreground size-4" />
-                  AI Insights
-                </CardTitle>
-                <CardDescription>Deterministic operational insights generated from facility data</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {data.insights.map((insight) => (
-                  <InsightCard insight={insight} key={insight.id} />
-                ))}
-              </CardContent>
-            </Card>
-          )}
 
           {/* ── Charts Section ─────────────────────────────────────────── */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -1131,18 +1087,20 @@ function ManageHeaderShell({
         <div className="min-w-0">
           <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Manage"}</h1>
           <p className="text-muted-foreground/60 truncate text-[11px]">
-            {activeTab === "analytics"
-              ? "Operational analytics and AI insights"
+{activeTab === "dashboard"
+  ? "Operational overview and device health"
               : activeTab === "feed"
                 ? "Live facility feeds"
-                : "Ask questions across facility data and media"}
-            {activeTab === "analytics" && lastUpdated && (
+                : activeTab === "logs"
+                  ? "Event logs across all devices"
+                  : "Ask questions across facility data and media"}
+            {activeTab === "dashboard" && lastUpdated && (
               <span className="ml-2">· Updated {formatTimestamp(lastUpdated.toISOString())}</span>
             )}
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {activeTab === "analytics" && (
+          {activeTab === "dashboard" && (
             <ToggleGroup onValueChange={(v) => v && onRangeChange(v)} size="sm" type="single" value={range}>
               <ToggleGroupItem value="24h">24h</ToggleGroupItem>
               <ToggleGroupItem value="7d">7d</ToggleGroupItem>
