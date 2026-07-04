@@ -3,18 +3,24 @@
 import { useHotkeys } from "@tanstack/react-hotkeys";
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  AlertTriangleIcon,
+  ArrowLeftIcon,
   BarChart3,
   DownloadIcon,
   EyeIcon,
+  FileJsonIcon,
   ImagePlusIcon,
   Loader2,
   MessageCircleIcon,
   PencilIcon,
   PlayIcon,
+  Redo2Icon,
   Save,
   SettingsIcon,
   SquareIcon,
   TerminalIcon,
+  Trash2Icon,
+  Undo2Icon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -141,8 +147,10 @@ function Page() {
   const [settings, setSettings] = useState<FacilitySettings>({ globalEvents: { enabledLogTypes: [] } });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [isGeneratingLayout, setIsGeneratingLayout] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // ── D1-backed facility events (filtered by settings for global events panel) ─────
@@ -512,61 +520,98 @@ function Page() {
     toast.success("Facility layout exported");
   }, [facilityName]);
 
-  const handleChooseLayoutImage = useCallback(() => {
+  const handleImportClick = useCallback(() => {
     if (editMode !== "edit") {
-      toast.info("Switch to Edit mode before importing a facility layout");
+      toast.info("Switch to Edit mode before importing a facility layout.");
       return;
     }
-    imageInputRef.current?.click();
+    fileInputRef.current?.click();
   }, [editMode]);
 
-  const handleImportLayoutImage = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const image = event.target.files?.[0];
+  const handleImportFileSelected = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     event.target.value = "";
-    if (!image) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(image.type)) {
-      toast.error("Choose a JPEG, PNG, or WebP image");
+    if (!file) return;
+
+    if (placedItemsRef.current.length > 0) {
+      setPendingImportFile(file);
+      setImportConfirmOpen(true);
       return;
     }
-    if (image.size > 8 * 1024 * 1024) {
-      toast.error("The image must be smaller than 8 MB");
-      return;
-    }
 
-    const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
-    const formData = new FormData();
-    formData.append("image", image);
-    formData.append("canvasWidth", String(Math.round(canvasRect?.width ?? 1000)));
-    formData.append("canvasHeight", String(Math.round(canvasRect?.height ?? 700)));
-
-    setIsGeneratingLayout(true);
-    try {
-      const response = await fetch("/api/layouts", { method: "POST", body: formData });
-      const payload = (await response.json().catch(() => null)) as
-        | (FacilityLayoutDocument & { error?: never })
-        | {
-            error?: string;
-          }
-        | null;
-      if (!response.ok || !payload || !("items" in payload)) {
-        throw new Error(payload?.error || "Failed to generate the facility layout.");
-      }
-
-      saveSnapshot();
-      setPlacedItems(payload.items);
-      setSelectedItemId(null);
-      setMonitoringSelection(null);
-      setIsDirty(true);
-      toast.success(`Built a layout with ${payload.items.length} items`, {
-        description: "Review the result on the canvas. You can use Undo to restore the previous layout.",
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to generate the facility layout.");
-    } finally {
-      setIsGeneratingLayout(false);
-    }
-    // saveSnapshot intentionally reads the latest items from placedItemsRef.
+    void processImport(file);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleConfirmImport = useCallback(() => {
+    setImportConfirmOpen(false);
+    if (pendingImportFile) {
+      const file = pendingImportFile;
+      setPendingImportFile(null);
+      void processImport(file);
+    }
+  }, [pendingImportFile]);
+
+  const processImport = useCallback(async (file: File) => {
+    const isJson = file.type === "application/json" || file.name.endsWith(".json");
+
+    if (!isJson) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        toast.error("Choose an image (JPEG, PNG, WebP) or a JSON file.");
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        toast.error("The image must be smaller than 8 MB.");
+        return;
+      }
+    }
+
+    setIsImporting(true);
+    try {
+      if (isJson) {
+        const text = await file.text();
+        const parsed = JSON.parse(text) as unknown;
+        if (!parsed || typeof parsed !== "object" || !("items" in (parsed as Record<string, unknown>))) {
+          throw new Error("The JSON file does not contain a valid facility layout.");
+        }
+        saveSnapshot();
+        setPlacedItems((parsed as FacilityLayoutDocument).items);
+        setSelectedItemId(null);
+        setMonitoringSelection(null);
+        setIsDirty(true);
+        toast.success(`Imported layout with ${(parsed as FacilityLayoutDocument).items.length} items.`, {
+          description: "Review the result. You can use Undo to restore the previous layout.",
+        });
+      } else {
+        const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("canvasWidth", String(Math.round(canvasRect?.width ?? 1000)));
+        formData.append("canvasHeight", String(Math.round(canvasRect?.height ?? 700)));
+
+        const response = await fetch("/api/layouts", { method: "POST", body: formData });
+        const payload = (await response.json().catch(() => null)) as
+          | (FacilityLayoutDocument & { error?: never })
+          | { error?: string }
+          | null;
+        if (!response.ok || !payload || !("items" in payload)) {
+          throw new Error(payload?.error || "Failed to generate the facility layout.");
+        }
+
+        saveSnapshot();
+        setPlacedItems(payload.items);
+        setSelectedItemId(null);
+        setMonitoringSelection(null);
+        setIsDirty(true);
+        toast.success(`Built a layout with ${payload.items.length} items.`, {
+          description: "Review the result. You can use Undo to restore the previous layout.",
+        });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to import the facility layout.");
+    } finally {
+      setIsImporting(false);
+    }
   }, []);
 
   // ── Auto-save (2 s debounce) ────────────────────────────────────────────
@@ -678,10 +723,10 @@ function Page() {
     <div className="flex h-dvh w-dvw flex-col overflow-hidden">
       {/* ── Menubar ── */}
       <input
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,.json"
         className="hidden"
-        onChange={handleImportLayoutImage}
-        ref={imageInputRef}
+        onChange={handleImportFileSelected}
+        ref={fileInputRef}
         type="file"
       />
       <Menubar className="shrink-0 rounded-none border-x-0 border-t-0">
@@ -691,19 +736,20 @@ function Page() {
             {editMode === "edit" && (
               <>
                 <MenubarItem disabled={isSaving} onClick={() => handleSave()}>
+                  <Save className="mr-2 size-4" />
                   Save{isDirty ? " *" : ""} <MenubarShortcut>⌘S</MenubarShortcut>
                 </MenubarItem>
                 <MenubarSeparator />
               </>
             )}
             {editMode === "edit" && (
-              <MenubarItem disabled={isGeneratingLayout} onClick={handleChooseLayoutImage}>
-                {isGeneratingLayout ? <Loader2 className="animate-spin" /> : <ImagePlusIcon />}
-                {isGeneratingLayout ? "Importing…" : "Import"}
+              <MenubarItem disabled={isImporting} onClick={handleImportClick}>
+                {isImporting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ImagePlusIcon className="mr-2 size-4" />}
+                {isImporting ? "Importing…" : "Import"}
               </MenubarItem>
             )}
             <MenubarItem onClick={handleExport}>
-              <DownloadIcon />
+              <DownloadIcon className="mr-2 size-4" />
               Export <MenubarShortcut>⇧⌘E</MenubarShortcut>
             </MenubarItem>
             <MenubarSeparator />
@@ -714,6 +760,7 @@ function Page() {
               }}
               variant="destructive"
             >
+              <ArrowLeftIcon className="mr-2 size-4" />
               Back to Dashboard
             </MenubarItem>
           </MenubarContent>
@@ -724,13 +771,16 @@ function Page() {
             <MenubarTrigger>Edit</MenubarTrigger>
             <MenubarContent>
               <MenubarItem disabled={!canUndo} onClick={handleUndo}>
+                <Undo2Icon className="mr-2 size-4" />
                 Undo <MenubarShortcut>⌘Z</MenubarShortcut>
               </MenubarItem>
               <MenubarItem disabled={!canRedo} onClick={handleRedo}>
+                <Redo2Icon className="mr-2 size-4" />
                 Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
               </MenubarItem>
               <MenubarSeparator />
               <MenubarItem>
+                <Trash2Icon className="mr-2 size-4" />
                 Delete <MenubarShortcut>⌫</MenubarShortcut>
               </MenubarItem>
             </MenubarContent>
@@ -1048,6 +1098,31 @@ function Page() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Import warning dialog ── */}
+      <Dialog onOpenChange={setImportConfirmOpen} open={importConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangleIcon className="size-5 text-amber-500" />
+              Replace existing layout?
+            </DialogTitle>
+            <DialogDescription>
+              The canvas already has {placedItems.length} item{placedItems.length !== 1 ? "s" : ""}. Importing will
+              replace all of them. You can use Undo to restore the current layout if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => { setImportConfirmOpen(false); setPendingImportFile(null); }} size="sm" variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmImport} size="sm" variant="default">
+              <FileJsonIcon className="mr-1.5 size-3.5" />
+              Replace and import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Logs Dialog (all events) ── */}
       <AllEventsDialog
         events={allEvents}
@@ -1103,6 +1178,12 @@ function Page() {
                 readOnly={editMode === "monitoring"}
                 selectedItemId={editMode === "monitoring" ? monitoringDeviceId : selectedItemId}
               />
+            )}
+            {isImporting && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Importing facility layout…</span>
+              </div>
             )}
           </div>
         </ResizablePanel>
