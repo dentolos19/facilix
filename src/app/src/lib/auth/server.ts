@@ -13,6 +13,16 @@ export function createAuth(binding: D1Database) {
     emailAndPassword: {
       enabled: true,
     },
+    user: {
+      additionalFields: {
+        role: {
+          type: ["user", "admin"],
+          required: false,
+          defaultValue: "user",
+          input: false,
+        },
+      },
+    },
   });
 }
 

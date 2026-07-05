@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +68,7 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
 
     const [facility, devices, zones] = await Promise.all([
       db.select().from(schema.facility).where(eq(schema.facility.id, data.facilityId)).limit(1),
@@ -157,6 +159,7 @@ export const saveFacilityFeedLayout = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
 
     const [facility] = await db.select().from(schema.facility).where(eq(schema.facility.id, data.facilityId)).limit(1);
 

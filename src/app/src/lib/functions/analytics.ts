@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq, gte } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -299,6 +300,7 @@ export const getFacilityAnalytics = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const { facilityId, range } = data;
     const since = getSinceDate(range);
 

@@ -7,6 +7,7 @@ import { createChatAdapter } from "#/lib/ai";
 import { getSession } from "#/lib/auth/guard";
 import { createChatTools } from "#/lib/chat";
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 
 export const Route = createFileRoute("/api/chat")({
   server: {
@@ -26,6 +27,12 @@ export const Route = createFileRoute("/api/chat")({
         const facilityId = params.forwardedProps.facilityId;
         if (typeof facilityId !== "string" || facilityId.length === 0) {
           return new Response("A facility ID is required.", { status: 400 });
+        }
+
+        try {
+          await requireFacilityAccess(facilityId);
+        } catch {
+          return new Response("Access denied.", { status: 403 });
         }
 
         const db = createDatabase(env.DATABASE);

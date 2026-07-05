@@ -21,6 +21,7 @@ import {
   TerminalIcon,
   Trash2Icon,
   Undo2Icon,
+  UserPlusIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -59,6 +60,12 @@ import {
   getFacilityEvents,
 } from "#/lib/functions/events";
 import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import {
+  type FacilityMemberRow,
+  addFacilityMember,
+  getFacilityMembers,
+  removeFacilityMember,
+} from "#/lib/functions/facility-members";
 import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
 import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/layouts";
@@ -143,8 +150,12 @@ function Page() {
   const [isDirty, setIsDirty] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsName, setSettingsName] = useState("");
-  const [settingsTab, setSettingsTab] = useState<"general" | "events">("general");
+  const [settingsTab, setSettingsTab] = useState<"general" | "events" | "members">("general");
   const [settings, setSettings] = useState<FacilitySettings>({ globalEvents: { enabledLogTypes: [] } });
+  const [members, setMembers] = useState<FacilityMemberRow[]>([]);
+  const [memberEmail, setMemberEmail] = useState("");
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -745,6 +756,47 @@ function Page() {
     }
   }, [facilityId, navigate]);
 
+  const fetchMembers = useCallback(async () => {
+    setMembersLoading(true);
+    try {
+      const result = await getFacilityMembers({ data: { facilityId } });
+      setMembers(result);
+    } catch {
+      toast.error("Failed to load members");
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [facilityId]);
+
+  const handleAddMember = useCallback(async () => {
+    if (!memberEmail.trim()) return;
+    setIsAddingMember(true);
+    try {
+      await addFacilityMember({ data: { facilityId, email: memberEmail.trim() } });
+      setMemberEmail("");
+      toast.success("Member added");
+      void fetchMembers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to add member";
+      toast.error(message);
+    } finally {
+      setIsAddingMember(false);
+    }
+  }, [facilityId, memberEmail, fetchMembers]);
+
+  const handleRemoveMember = useCallback(
+    async (userId: string) => {
+      try {
+        await removeFacilityMember({ data: { facilityId, userId } });
+        toast.success("Member removed");
+        void fetchMembers();
+      } catch {
+        toast.error("Failed to remove member");
+      }
+    },
+    [facilityId, fetchMembers],
+  );
+
   // ── Edit mode guard ──────────────────────────────────────────────────────
 
   const handleEditToggle = useCallback(() => {
@@ -1015,6 +1067,7 @@ function Page() {
                 {[
                   { id: "general", label: "General" },
                   { id: "events", label: "Events" },
+                  { id: "members", label: "Members" },
                 ].map((tab) => (
                   <button
                     className={`relative flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
@@ -1023,14 +1076,80 @@ function Page() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                     key={tab.id}
-                    onClick={() => setSettingsTab(tab.id)}
+                    onClick={() => {
+                      setSettingsTab(tab.id as "general" | "events" | "members");
+                      if (tab.id === "members") fetchMembers();
+                    }}
                     type="button"
                   >
                     {tab.label}
                   </button>
                 ))}
               </div>
-              {settingsTab === "events" ? (
+              {settingsTab === "members" ? (
+                <div className="flex flex-col gap-4 p-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Label className="text-xs" htmlFor="member-email">
+                        Add member by email
+                      </Label>
+                      <Input
+                        disabled={isAddingMember}
+                        id="member-email"
+                        onChange={(e) => setMemberEmail(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddMember();
+                        }}
+                        placeholder="user@example.com"
+                        value={memberEmail}
+                      />
+                    </div>
+                    <Button disabled={!memberEmail.trim() || isAddingMember} onClick={handleAddMember} size="sm">
+                      {isAddingMember ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <UserPlusIcon className="size-4" />
+                      )}
+                      Add
+                    </Button>
+                  </div>
+                  <Separator />
+                  {membersLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="text-muted-foreground size-5 animate-spin" />
+                    </div>
+                  ) : members.length === 0 ? (
+                    <p className="text-muted-foreground py-2 text-center text-xs">No members yet</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {members.map((member) => (
+                        <div
+                          className="hover:bg-muted/50 flex items-center justify-between rounded-md px-2 py-1.5"
+                          key={member.userId}
+                        >
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-sm font-medium">{member.userName}</span>
+                            <span className="text-muted-foreground truncate text-[11px]">
+                              {member.userEmail}
+                              {member.role === "admin" && (
+                                <span className="text-primary ml-1 font-medium">(admin)</span>
+                              )}
+                            </span>
+                          </div>
+                          <Button
+                            aria-label={`Remove ${member.userName}`}
+                            onClick={() => handleRemoveMember(member.userId)}
+                            size="icon-sm"
+                            variant="ghost"
+                          >
+                            <Trash2Icon className="size-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : settingsTab === "events" ? (
                 <div className="flex flex-col gap-4 p-4">
                   <div>
                     <h4 className="font-heading text-sm font-medium">Global Events</h4>

@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 import { type FacilitySettings, normalizeFacilitySettings } from "#/lib/monitoring/logs";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ export const getFacilitySettings = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }): Promise<FacilitySettingsRow> => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const [row] = await db
       .select({ settings: schema.facility.settings })
       .from(schema.facility)
@@ -52,6 +54,7 @@ export const saveFacilitySettings = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }): Promise<FacilitySettingsRow> => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const normalized = normalizeFacilitySettings(data.settings);
 
     await db.update(schema.facility).set({ settings: normalized }).where(eq(schema.facility.id, data.facilityId));

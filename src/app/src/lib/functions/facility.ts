@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { getAccessContext, requireAccessContext, requireFacilityAccess } from "#/lib/functions/access";
 import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -66,7 +67,25 @@ export interface SaveInput {
 
 export const getFacilities = createServerFn({ method: "GET" }).handler(async () => {
   const db = createDatabase(env.DATABASE);
-  const facilities = await db.select().from(schema.facility);
+  const ctx = await getAccessContext();
+
+  if (!ctx) return [];
+
+  const facilities = ctx.isAdmin
+    ? await db.select().from(schema.facility)
+    : await db
+        .select({
+          id: schema.facility.id,
+          name: schema.facility.name,
+          data: schema.facility.data,
+          settings: schema.facility.settings,
+          createdAt: schema.facility.createdAt,
+          updatedAt: schema.facility.updatedAt,
+        })
+        .from(schema.facility)
+        .innerJoin(schema.facilityMember, eq(schema.facility.id, schema.facilityMember.facilityId))
+        .where(eq(schema.facilityMember.userId, ctx.userId));
+
   return facilities.map(toFacilityRow);
 });
 
@@ -79,6 +98,7 @@ export const createFacility = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    const ctx = await requireAccessContext();
 
     const [facility] = await db
       .insert(schema.facility)
@@ -87,6 +107,11 @@ export const createFacility = createServerFn({ method: "POST" })
         data: { version: 1, items: [] },
       })
       .returning();
+
+    await db.insert(schema.facilityMember).values({
+      facilityId: facility.id,
+      userId: ctx.userId,
+    });
 
     return toFacilityRow(facility);
   });
@@ -101,6 +126,7 @@ export const loadFacility = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.id);
 
     const [fac] = await db.select().from(schema.facility).where(eq(schema.facility.id, data.id)).limit(1);
 
@@ -156,6 +182,7 @@ export const saveFacility = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
 
     // 1. Update the facility row (name + canvas layout metadata)
     //    Preserve extra fields like analyticsFeedGrid in facility.data
@@ -301,6 +328,8 @@ export const getDevice = createServerFn({ method: "GET" })
 
     if (!device) throw new Error("Device not found");
 
+    await requireFacilityAccess(device.facilityId);
+
     const [fac] = await db
       .select({ name: schema.facility.name })
       .from(schema.facility)
@@ -330,6 +359,7 @@ export const deleteFacility = createServerFn({ method: "POST" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.id);
     await db.delete(schema.facility).where(eq(schema.facility.id, data.id));
     return { success: true };
   });

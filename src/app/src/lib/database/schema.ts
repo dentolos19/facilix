@@ -29,6 +29,9 @@ export const user = sqliteTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" }).notNull(),
   image: text("image"),
+  role: text("role", { enum: ["user", "admin"] })
+    .notNull()
+    .default("user"),
   createdAt: integer("created_at", { mode: "timestamp_ms" })
     .notNull()
     .$default(() => new Date()),
@@ -118,6 +121,22 @@ export const facility = sqliteTable("facilities", {
     .$default(() => new Date())
     .$onUpdate(() => new Date()),
 });
+
+export const facilityMember = sqliteTable(
+  "facility_members",
+  {
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facility.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$default(() => new Date()),
+  },
+  (table) => [uniqueIndex("facility_members_facility_user_idx").on(table.facilityId, table.userId)],
+);
 
 export const facilityZone = sqliteTable("facility_zones", {
   id: text("id")
@@ -343,6 +362,7 @@ export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
 export type Asset = typeof asset.$inferSelect;
 export type Facility = typeof facility.$inferSelect;
+export type FacilityMember = typeof facilityMember.$inferSelect;
 export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
 export type EventAttachment = typeof eventAttachment.$inferSelect;

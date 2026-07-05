@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ export const getLatestSensorReading = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
 
     const [reading] = await db
       .select()
@@ -80,6 +82,7 @@ export const getSensorReadingHistory = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 50), 500);
 
     const readings = await db

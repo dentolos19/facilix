@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 import { normalizeFacilitySettings, shouldShowInGlobalEvents } from "#/lib/monitoring/logs";
 import type { EventAttachmentKind, EventAttachmentRole, EventAttachmentVariant } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
@@ -124,6 +125,7 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 200), 500);
 
     const [facRow, devices] = await Promise.all([
@@ -184,6 +186,7 @@ export const getDeviceEvents = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 200), 500);
 
     // Load facility settings for filtering
@@ -231,6 +234,7 @@ export const getAllFacilityEvents = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 500), 1000);
 
     const conditions = [eq(schema.facilityEvent.facilityId, data.facilityId)];

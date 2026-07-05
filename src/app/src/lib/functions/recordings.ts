@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { and, desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess } from "#/lib/functions/access";
 import { getPlugin } from "#/lib/monitoring/plugins";
 
 /** A detection from the Roboflow workflow. */
@@ -153,6 +154,7 @@ export const getDeviceRecordings = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 50), 200);
 
     const rows = await db
@@ -194,6 +196,7 @@ export const getDevicePredictions = createServerFn({ method: "GET" })
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
+    await requireFacilityAccess(data.facilityId);
     const limit = Math.min(Math.max(1, data.limit ?? 100), 500);
 
     const rows = await db

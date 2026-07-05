@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
+import { requireFacilityAccess, getAccessContext } from "#/lib/functions/access";
 import { createLogger } from "#/lib/logs";
 import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
 
@@ -62,6 +63,7 @@ export const getMonitoringStatus = createServerFn({ method: "GET" })
     return data;
   })
   .handler(async ({ data }) => {
+    await requireFacilityAccess(data.facilityId);
     try {
       const stub = env.SERVER.getByName(data.facilityId);
       const state = await stub.getState();
@@ -83,6 +85,7 @@ export const startMonitoring = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
+    await requireFacilityAccess(data.facilityId);
     try {
       const stub = env.SERVER.getByName(data.facilityId);
       await stub.startAndWaitForPorts({
@@ -112,6 +115,7 @@ export const stopMonitoring = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
+    await requireFacilityAccess(data.facilityId);
     try {
       const stub = env.SERVER.getByName(data.facilityId);
       await stub.stop();
@@ -133,6 +137,7 @@ export const clearContainerLogs = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
+    await requireFacilityAccess(data.facilityId);
     try {
       // Clear D1 facility_events
       const db = createDatabase(env.DATABASE);
@@ -159,10 +164,30 @@ export const getMonitoringStatuses = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
+    const ctx = await getAccessContext();
+    if (!ctx || data.facilityIds.length === 0) return [];
+
+    const db = createDatabase(env.DATABASE);
+    const allowedFacilityIds = ctx.isAdmin
+      ? new Set(data.facilityIds)
+      : new Set(
+          (
+            await db
+              .select({ facilityId: schema.facilityMember.facilityId })
+              .from(schema.facilityMember)
+              .where(
+                and(
+                  eq(schema.facilityMember.userId, ctx.userId),
+                  inArray(schema.facilityMember.facilityId, data.facilityIds),
+                ),
+              )
+          ).map((member) => member.facilityId),
+        );
     const results: FacilityStatusEntry[] = [];
 
     for (const id of data.facilityIds) {
       try {
+        if (!allowedFacilityIds.has(id)) continue;
         const stub = env.SERVER.getByName(id);
         const state = await stub.getState();
         results.push({ id, status: mapContainerState(state) });
