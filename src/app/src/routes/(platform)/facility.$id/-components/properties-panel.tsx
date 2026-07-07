@@ -1,5 +1,5 @@
-import { PlusIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { PlusIcon, RefreshCwIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
 import { Button } from "#/components/ui/button";
@@ -29,13 +29,11 @@ import {
 } from "#/lib/monitoring/plugins";
 import type { SimulationStream } from "#/lib/simulation/cctv";
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
-import { FALLBACK_SIMULATION_SENSORS } from "#/lib/simulation/sensors";
+import { fetchSimulationSensors, type SimulationSensorDevice } from "#/lib/simulation/sensors";
 
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 import { CaptureSettingsSection } from "./capture-settings";
-
-const simulationEnabled = !import.meta.env?.PROD;
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
@@ -51,23 +49,99 @@ export function PropertiesPanel({
 
   // Fetch available simulation streams from the combined simulator
   const [fetchedStreams, setFetchedStreams] = useState<SimulationStream[]>([]);
+  const [streamsLoading, setStreamsLoading] = useState(false);
+  const [streamsError, setStreamsError] = useState<string | null>(null);
+
+  async function refreshSimulationStreams() {
+    setStreamsLoading(true);
+    setStreamsError(null);
+    try {
+      setFetchedStreams(await fetchSimulationStreams());
+    } catch (error) {
+      setFetchedStreams([]);
+      setStreamsError(error instanceof Error ? error.message : "Unable to load simulation streams.");
+    } finally {
+      setStreamsLoading(false);
+    }
+  }
+
   useEffect(() => {
-    if (!simulationEnabled) return;
     let ignore = false;
-    fetchSimulationStreams().then((streams) => {
-      if (!ignore) setFetchedStreams(streams);
-    });
+
+    async function loadStreams() {
+      setStreamsLoading(true);
+      setStreamsError(null);
+      try {
+        const streams = await fetchSimulationStreams();
+        if (!ignore) setFetchedStreams(streams);
+      } catch (error) {
+        if (!ignore) {
+          setFetchedStreams([]);
+          setStreamsError(error instanceof Error ? error.message : "Unable to load simulation streams.");
+        }
+      } finally {
+        if (!ignore) setStreamsLoading(false);
+      }
+    }
+
+    void loadStreams();
     return () => {
       ignore = true;
     };
   }, []);
 
   // Only use streams fetched live from the simulator (no static fallbacks)
-  const allStreams = useMemo(() => (simulationEnabled ? fetchedStreams : []), [fetchedStreams]);
+  const allStreams = fetchedStreams;
+
+  // Fetch available simulation sensor devices from the live simulator
+  const [fetchedSensorDevices, setFetchedSensorDevices] = useState<SimulationSensorDevice[]>([]);
+  const [sensorDevicesLoading, setSensorDevicesLoading] = useState(false);
+  const [sensorDevicesError, setSensorDevicesError] = useState<string | null>(null);
+
+  async function refreshSimulationSensorDevices() {
+    setSensorDevicesLoading(true);
+    setSensorDevicesError(null);
+    try {
+      setFetchedSensorDevices(await fetchSimulationSensors());
+    } catch (error) {
+      setFetchedSensorDevices([]);
+      setSensorDevicesError(error instanceof Error ? error.message : "Unable to load simulation devices.");
+    } finally {
+      setSensorDevicesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadSensorDevices() {
+      setSensorDevicesLoading(true);
+      setSensorDevicesError(null);
+      try {
+        const devices = await fetchSimulationSensors();
+        if (!ignore) setFetchedSensorDevices(devices);
+      } catch (error) {
+        if (!ignore) {
+          setFetchedSensorDevices([]);
+          setSensorDevicesError(error instanceof Error ? error.message : "Unable to load simulation devices.");
+        }
+      } finally {
+        if (!ignore) setSensorDevicesLoading(false);
+      }
+    }
+
+    void loadSensorDevices();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const allSensorDevices = fetchedSensorDevices;
 
   // Auto-select first available stream if current selection is empty
   useEffect(() => {
-    if (!simulationEnabled || !selected || selected.type !== "CCTV" || isReadOnly) return;
+    if (!selected || selected.type !== "CCTV" || isReadOnly) return;
+    if (String(selected.props.videoSource ?? "simulation") !== "simulation") return;
     const currentStream = String(selected.props.simulationStream ?? "");
     if (!currentStream && allStreams.length > 0) {
       onUpdateItem(selected.id, {
@@ -282,37 +356,66 @@ export function PropertiesPanel({
                       <Select
                         disabled={isReadOnly}
                         onValueChange={(value) => onUpdateItem(selected.id, { props: { videoSource: value } })}
-                        value={String(selected.props.videoSource ?? (simulationEnabled ? "simulation" : "rtsp"))}
+                        value={String(selected.props.videoSource ?? "simulation")}
                       >
                         <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
                           <SelectValue placeholder="Select video source" />
                         </SelectTrigger>
                         <SelectContent>
-                          {simulationEnabled && <SelectItem value="simulation">Simulation</SelectItem>}
+                          <SelectItem value="simulation">Simulation</SelectItem>
                           <SelectItem value="rtsp">Stream (RTSP)</SelectItem>
                           <SelectItem value="rtmp">Stream (RTMP)</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
-                    {simulationEnabled && String(selected.props.videoSource ?? "simulation") === "simulation" ? (
+                    {String(selected.props.videoSource ?? "simulation") === "simulation" ? (
                       <>
                         <Field label="Simulation Stream">
-                          <Select
-                            disabled={isReadOnly}
-                            onValueChange={(value) => onUpdateItem(selected.id, { props: { simulationStream: value } })}
-                            value={String(selected.props.simulationStream ?? "")}
-                          >
-                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
-                              <SelectValue placeholder="Select a video file" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {allStreams.map((s) => (
-                                <SelectItem key={s.name} value={s.name}>
-                                  {s.label ?? s.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-2">
+                            <Select
+                              disabled={isReadOnly || allStreams.length === 0}
+                              onValueChange={(value) =>
+                                onUpdateItem(selected.id, { props: { simulationStream: value } })
+                              }
+                              value={
+                                allStreams.some((stream) => stream.name === selected.props.simulationStream)
+                                  ? String(selected.props.simulationStream)
+                                  : ""
+                              }
+                            >
+                              <SelectTrigger
+                                className={`w-full ${isReadOnly || allStreams.length === 0 ? "pointer-events-none opacity-60" : ""}`}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    streamsLoading
+                                      ? "Loading simulation streams..."
+                                      : allStreams.length === 0
+                                        ? "No simulation streams available"
+                                        : "Select a video file"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allStreams.map((s) => (
+                                  <SelectItem key={s.name} value={s.name}>
+                                    {s.label ?? s.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              aria-label="Refresh simulation streams"
+                              disabled={streamsLoading}
+                              onClick={() => void refreshSimulationStreams()}
+                              size="icon-sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              <RefreshCwIcon className={`size-3.5 ${streamsLoading ? "animate-spin" : ""}`} />
+                            </Button>
+                          </div>
+                          {streamsError && <p className="text-destructive text-[10px]">{streamsError}</p>}
                         </Field>
                       </>
                     ) : (
@@ -378,48 +481,73 @@ export function PropertiesPanel({
                       <Select
                         disabled={isReadOnly}
                         onValueChange={(value) => onUpdateItem(selected.id, { props: { sensorDataSource: value } })}
-                        value={String(
-                          selected.props.sensorDataSource ?? (simulationEnabled ? "simulation" : "http-pull"),
-                        )}
+                        value={String(selected.props.sensorDataSource ?? "simulation")}
                       >
                         <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
                           <SelectValue placeholder="Select data source" />
                         </SelectTrigger>
                         <SelectContent>
-                          {simulationEnabled && <SelectItem value="simulation">Simulation</SelectItem>}
+                          <SelectItem value="simulation">Simulation</SelectItem>
                           <SelectItem value="http-pull">HTTP Pull</SelectItem>
                           <SelectItem value="http-push">HTTP Push / Ingest</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
 
-                    {simulationEnabled && String(selected.props.sensorDataSource ?? "simulation") === "simulation" ? (
+                    {String(selected.props.sensorDataSource ?? "simulation") === "simulation" ? (
                       <>
                         <Field label="Simulation Device">
-                          <Select
-                            disabled={isReadOnly}
-                            onValueChange={(value) => {
-                              const device = FALLBACK_SIMULATION_SENSORS.find((s) => s.deviceId === value);
-                              onUpdateItem(selected.id, {
-                                props: {
-                                  simulationDeviceId: value,
-                                  sensorType: device?.sensorType ?? "",
-                                },
-                              });
-                            }}
-                            value={String(selected.props.simulationDeviceId ?? "")}
-                          >
-                            <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
-                              <SelectValue placeholder="Select a sensor device" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {FALLBACK_SIMULATION_SENSORS.map((s) => (
-                                <SelectItem key={s.deviceId} value={s.deviceId}>
-                                  {s.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex gap-2">
+                            <Select
+                              disabled={isReadOnly || allSensorDevices.length === 0}
+                              onValueChange={(value) => {
+                                const device = allSensorDevices.find((s) => s.deviceId === value);
+                                onUpdateItem(selected.id, {
+                                  props: {
+                                    simulationDeviceId: value,
+                                    sensorType: device?.sensorType ?? "",
+                                  },
+                                });
+                              }}
+                              value={
+                                allSensorDevices.some((device) => device.deviceId === selected.props.simulationDeviceId)
+                                  ? String(selected.props.simulationDeviceId)
+                                  : ""
+                              }
+                            >
+                              <SelectTrigger
+                                className={`w-full ${isReadOnly || allSensorDevices.length === 0 ? "pointer-events-none opacity-60" : ""}`}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    sensorDevicesLoading
+                                      ? "Loading simulation devices..."
+                                      : allSensorDevices.length === 0
+                                        ? "No simulation devices available"
+                                        : "Select a sensor device"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {allSensorDevices.map((s) => (
+                                  <SelectItem key={s.deviceId} value={s.deviceId}>
+                                    {s.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              aria-label="Refresh simulation devices"
+                              disabled={sensorDevicesLoading}
+                              onClick={() => void refreshSimulationSensorDevices()}
+                              size="icon-sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              <RefreshCwIcon className={`size-3.5 ${sensorDevicesLoading ? "animate-spin" : ""}`} />
+                            </Button>
+                          </div>
+                          {sensorDevicesError && <p className="text-destructive text-[10px]">{sensorDevicesError}</p>}
                         </Field>
                         <Field label="Poll Interval (s)">
                           <Input

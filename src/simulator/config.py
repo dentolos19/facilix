@@ -17,14 +17,20 @@ SAMPLES_DIR = os.environ.get("SIMULATOR_SAMPLES_DIR", "/samples")
 # Path to the video manifest JSON
 VIDEOS_MANIFEST = os.environ.get("SIMULATOR_VIDEOS_MANIFEST", "/samples/videos.json")
 
-# MediaMTX hostname (container name in compose)
-MEDIAMTX_HOST = os.environ.get("MEDIAMTX_HOST", "mediamtx")
+# MediaMTX hostname (container name in compose, localhost when bundled)
+MEDIAMTX_HOST = os.environ.get("MEDIAMTX_HOST", "localhost")
 
 # RTSP target port inside MediaMTX
 MEDIAMTX_RTSP_PORT = int(os.environ.get("MEDIAMTX_RTSP_PORT", "8554"))
 
 # RTMP target port inside MediaMTX
 MEDIAMTX_RTMP_PORT = int(os.environ.get("MEDIAMTX_RTMP_PORT", "1935"))
+
+# Browser-facing HLS endpoint served by bundled MediaMTX.
+MEDIAMTX_HLS_URL = os.environ.get("MEDIAMTX_HLS_URL", "http://localhost:8888")
+
+# Low-latency HLS can block while MediaMTX waits for parts to become available.
+MEDIAMTX_HLS_TIMEOUT_SECONDS = int(os.environ.get("MEDIAMTX_HLS_TIMEOUT_SECONDS", "30"))
 
 # How often to check whether FFmpeg processes are alive (seconds)
 HEALTH_CHECK_INTERVAL = int(os.environ.get("SIMULATOR_HEALTH_CHECK_INTERVAL", "15"))
@@ -62,6 +68,14 @@ SENSOR_PAYLOAD_FORMAT = os.environ.get("SENSOR_PAYLOAD_FORMAT", "facilix")
 # ---------------------------------------------------------------------------
 # Shared
 # ---------------------------------------------------------------------------
+
+# Comma-separated origins allowed to call the simulator from a browser.
+DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://localhost:3001,http://localhost:5173,https://local.dennise.me,https://facilix.dennise.me"
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("SIMULATOR_CORS_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+    if origin.strip()
+]
 
 # Log level for the app
 LOG_LEVEL = os.environ.get("SIMULATOR_LOG_LEVEL", "info")

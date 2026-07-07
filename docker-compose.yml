@@ -1,36 +1,19 @@
 services:
-  media:
-    image: bluenviron/mediamtx:latest
-    container_name: facilix-media
-    restart: unless-stopped
-    ports:
-      - "3003:8554" # RTSP
-      - "3004:1935" # RTMP
-      - "3005:8888" # HLS
-      - "3006:8889" # WebRTC
-      - "3007:9997" # API
-    volumes:
-      - ./src/simulator/mediamtx.yml:/mediamtx.yml:ro
-
   simulator:
     build:
-      context: ./src/simulator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/simulator/Dockerfile
     container_name: facilix-simulator
     restart: unless-stopped
-    depends_on:
-      - media
     ports:
-      - "3002:8000" # HTTP
+      - "3002:8000" # HTTP API + HLS
+      - "3003:8554" # RTSP
     volumes:
       - ./samples:/samples:ro
     environment:
       SIMULATOR_VIDEOS_DIR: /samples
       SIMULATOR_SAMPLES_DIR: /samples
       SIMULATOR_VIDEOS_MANIFEST: /samples/videos.json
-      MEDIAMTX_HOST: media
-      MEDIAMTX_RTSP_PORT: "8554"
-      MEDIAMTX_RTMP_PORT: "1935"
       SIMULATOR_LOG_LEVEL: info
       SENSOR_DEFAULT_INTERVAL_SECONDS: "5"
       SENSOR_HISTORY_LIMIT: "500"

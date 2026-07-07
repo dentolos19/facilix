@@ -32,11 +32,11 @@ export interface SimulationStreamsResponse {
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
-  return import.meta.env?.VITE_CCTV_SIMULATOR_API_URL ?? "http://localhost:3002";
+  return import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002";
 }
 
 function getHlsBase(): string {
-  return import.meta.env?.VITE_CCTV_HLS_BASE_URL ?? "http://localhost:3005";
+  return import.meta.env?.VITE_SIMULATION_HLS_URL ?? "http://localhost:3002/hls";
 }
 
 // ---------------------------------------------------------------------------

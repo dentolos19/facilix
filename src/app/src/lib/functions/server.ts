@@ -10,9 +10,10 @@ import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/typ
 const log = createLogger("server-functions");
 
 /** Origin the monitoring container uses to call back to the Worker API. */
-const APP_ORIGIN = env.APP_ORIGIN ?? "https://facilix.dennise.me";
-const SIMULATION_SENSOR_API =
-  (env as { SIMULATION_SENSOR_API?: string }).SIMULATION_SENSOR_API ?? "http://host.docker.internal:3002";
+const APP_URL = env.APP_URL ?? "https://facilix.dennise.me";
+
+/** Simulator base URL (API + HLS) passed to the monitoring container. */
+const SIMULATOR_URL = (env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix-simulator.fly.dev";
 
 /** Roboflow API configuration passed to the container for video processing. */
 const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
@@ -92,9 +93,9 @@ export const startMonitoring = createServerFn({ method: "POST" })
         startOptions: {
           envVars: {
             FACILITY_ID: data.facilityId,
-            APP_ORIGIN: APP_ORIGIN,
+            APP_URL: APP_URL,
             SERVER_SECRET: env.SERVER_SECRET ?? "",
-            SIMULATION_SENSOR_API,
+            SIMULATOR_URL,
             ROBOFLOW_API_KEY,
             ROBOFLOW_API_BASE,
           },

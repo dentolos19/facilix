@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Spinner } from "#/components/ui/spinner";
 import { useSession } from "#/lib/auth/client";
 import { requireSession } from "#/lib/auth/guard";
+import { SimulationProvider } from "#/lib/simulation/context";
 
 export const Route = createFileRoute("/(platform)")({
   beforeLoad: async ({ context }) => {
@@ -41,5 +42,9 @@ function Layout() {
     return null;
   }
 
-  return <Outlet />;
+  return (
+    <SimulationProvider>
+      <Outlet />
+    </SimulationProvider>
+  );
 }

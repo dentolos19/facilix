@@ -8,8 +8,8 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 jobs:
-  deploy:
-    name: Deploy
+  deploy-app:
+    name: Deploy App
     environment: Production
     runs-on: ubuntu-latest
     env:
@@ -33,6 +33,9 @@ jobs:
 
       - name: Build Project
         working-directory: src/app
+        env:
+          VITE_SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
+          VITE_SIMULATION_HLS_URL: ${{ vars.VITE_SIMULATION_HLS_URL }}
         run: bun run build
 
       - name: Migrate Database
@@ -42,8 +45,7 @@ jobs:
       - name: Upload Secrets
         working-directory: src/app
         run: |
-          # App
-          echo "${{ vars.APP_ORIGIN }}" | bun wrangler secret put APP_ORIGIN
+          echo "${{ vars.APP_URL }}" | bun wrangler secret put APP_URL
           echo "${{ secrets.SERVER_SECRET }}" | bun wrangler secret put SERVER_SECRET
           echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
@@ -52,7 +54,28 @@ jobs:
           echo "${{ vars.OPENROUTER_REFERER }}" | bun wrangler secret put OPENROUTER_REFERER
           echo "${{ vars.OPENROUTER_MODEL }}" | bun wrangler secret put OPENROUTER_MODEL
           echo "${{ secrets.ROBOFLOW_API_KEY }}" | bun wrangler secret put ROBOFLOW_API_KEY
+          echo "${{ vars.VITE_SIMULATOR_API_URL }}" | bun wrangler secret put VITE_SIMULATOR_API_URL
+          echo "${{ vars.VITE_SIMULATION_HLS_URL }}" | bun wrangler secret put VITE_SIMULATION_HLS_URL
+          echo "${{ vars.SIMULATOR_URL }}" | bun wrangler secret put SIMULATOR_URL
 
-      - name: Deploy to Cloudflare
+      - name: Deploy App to Cloudflare
         working-directory: src/app
         run: bun run deploy
+
+  deploy-simulator:
+    name: Deploy Simulator
+    environment: Production
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+
+      - name: Deploy Simulator to Fly
+        run: flyctl deploy --remote-only

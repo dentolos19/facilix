@@ -72,6 +72,9 @@ import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
 import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
+import { fetchSimulationStreams } from "#/lib/simulation/cctv";
+import { useSimulationSettings } from "#/lib/simulation/context";
+import { fetchSimulationSensors } from "#/lib/simulation/sensors";
 
 import { AllEventsDialog } from "./-components/all-events-dialog";
 import { CanvasEditor } from "./-components/canvas-editor";
@@ -137,6 +140,7 @@ function Page() {
   const { id: facilityId } = Route.useParams();
   const { mode } = Route.useSearch();
   const editMode: EditMode = mode === "edit" ? "edit" : "monitoring";
+  const { simulationEnabled } = useSimulationSettings();
   const setEditMode = useCallback(
     (value: EditMode) => {
       navigate({ search: { mode: value === "edit" ? "edit" : undefined }, replace: true });
@@ -317,31 +321,81 @@ function Page() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
-  const addPlacedItem = useCallback((type: PlacedItemType, x: number, y: number) => {
-    saveSnapshot();
-    const id = crypto.randomUUID();
-    const size = DEFAULT_SIZES[type];
-    setPlacedItems((prev) =>
-      recomputeZoneLinks([
-        ...prev,
-        {
-          id,
-          type,
-          x,
-          y,
-          width: size.width,
-          height: size.height,
-          zoneId: null,
-          name: type,
-          status: "unknown",
-          notes: "",
-          props: { ...DEFAULT_PROPS[type] },
-        },
-      ]),
-    );
-    setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const addPlacedItem = useCallback(
+    (type: PlacedItemType, x: number, y: number) => {
+      saveSnapshot();
+      const id = crypto.randomUUID();
+      const size = DEFAULT_SIZES[type];
+
+      const defaultProps = { ...DEFAULT_PROPS[type] };
+      if (type === "CCTV" && !simulationEnabled) {
+        defaultProps.videoSource = "rtsp";
+      }
+      if (type === "Sensor" && !simulationEnabled) {
+        defaultProps.sensorDataSource = "http-pull";
+      }
+
+      setPlacedItems((prev) =>
+        recomputeZoneLinks([
+          ...prev,
+          {
+            id,
+            type,
+            x,
+            y,
+            width: size.width,
+            height: size.height,
+            zoneId: null,
+            name: type,
+            status: "unknown",
+            notes: "",
+            props: defaultProps,
+          },
+        ]),
+      );
+      setIsDirty(true);
+
+      // Fire-and-forget: auto-select first available simulation source.
+      if (type === "CCTV" && simulationEnabled) {
+        fetchSimulationStreams().then((streams) => {
+          if (streams.length > 0) {
+            setPlacedItems((prev) =>
+              recomputeZoneLinks(
+                prev.map((item) =>
+                  item.id === id && !item.props.simulationStream
+                    ? { ...item, props: { ...item.props, simulationStream: streams[0].name } }
+                    : item,
+                ),
+              ),
+            );
+          }
+        });
+      }
+      if (type === "Sensor" && simulationEnabled) {
+        fetchSimulationSensors().then((devices) => {
+          if (devices.length > 0) {
+            setPlacedItems((prev) =>
+              recomputeZoneLinks(
+                prev.map((item) =>
+                  item.id === id && !item.props.simulationDeviceId
+                    ? {
+                        ...item,
+                        props: {
+                          ...item.props,
+                          simulationDeviceId: devices[0].deviceId,
+                          sensorType: devices[0].sensorType,
+                        },
+                      }
+                    : item,
+                ),
+              ),
+            );
+          }
+        });
+      }
+    },
+    [simulationEnabled],
+  );
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);

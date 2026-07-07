@@ -14,7 +14,7 @@ const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 /**
  * Resolve a CCTV device's stream URL based on its video source.
  *
- * - "simulation": build RTSP URL from env.CCTV_SIMULATION_RTSP_BASE + stream name.
+ * - "simulation": build RTSP URL from env.SIMULATION_RTSP_URL + stream name.
  * - "rtsp"/"rtmp"/"http": use the raw streamUrl as-is.
  * - Returns empty string if the required fields are missing.
  */
@@ -146,7 +146,7 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
 
   const devices = await db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, facilityId));
 
-  const simulationRtspBase = String(env.CCTV_SIMULATION_RTSP_BASE ?? "rtsp://localhost:3003");
+  const simulationRtspBase = String(env.SIMULATION_RTSP_URL ?? "rtsp://localhost:3003");
 
   return Response.json({
     facilityId,

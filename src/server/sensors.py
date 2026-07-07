@@ -7,7 +7,7 @@ import time
 
 import httpx
 
-from config import SIMULATION_SENSOR_API, SIMULATION_SENSOR_API_FALLBACKS
+from config import SIMULATOR_URL, SIMULATION_SENSOR_API_FALLBACKS
 from utils import get_http_client
 from api import post_event
 
@@ -111,7 +111,7 @@ async def read_sensor(
 
     if data_source == "simulation" and simulation_device_id:
         client = get_http_client()
-        bases = [SIMULATION_SENSOR_API, *SIMULATION_SENSOR_API_FALLBACKS.split(",")]
+        bases = [SIMULATOR_URL, *SIMULATION_SENSOR_API_FALLBACKS.split(",")]
         seen: set[str] = set()
         last_error = "simulation_unreachable"
 

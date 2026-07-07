@@ -4,21 +4,22 @@
 # Logging
 logLevel: info
 
-# Authentication — allow all for local development
+# Authentication — allow anonymous publish/read/playback while keeping the
+# control API limited to localhost.
 authMethod: internal
 authInternalUsers:
   - user: any
-    pass: ""
+    pass:
     ips: []
     permissions:
       - action: publish
-        path: ""
+        path:
       - action: read
-        path: ""
+        path:
       - action: playback
-        path: ""
+        path:
   - user: any
-    pass: ""
+    pass:
     ips: ["127.0.0.1", "::1"]
     permissions:
       - action: api
@@ -40,6 +41,7 @@ rtmpAddress: :1935
 # HLS server (browser playback via hls.js / video.js)
 hls: true
 hlsAddress: :8888
+hlsDirectory: /app/hls
 hlsVariant: lowLatency
 hlsSegmentCount: 7
 hlsSegmentDuration: 1s

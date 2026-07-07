@@ -1,0 +1,20 @@
+app = "facilix"
+primary_region = "sin"
+
+[build]
+dockerfile = "src/simulator/Dockerfile"
+
+[env]
+SIMULATOR_LOG_LEVEL = "info"
+
+[[services]]
+internal_port = 8000
+protocol = "tcp"
+
+[[services.ports]]
+handlers = ["http"]
+port = 80
+
+[[services.ports]]
+handlers = ["tls"]
+port = 443

@@ -24,6 +24,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import urllib.error
+import urllib.parse
+import urllib.request
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -123,7 +126,7 @@ app = fastapi.FastAPI(
 # origins so the browser can fetch stream/sensor data directly.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -134,6 +137,27 @@ app.add_middleware(
 app.include_router(cctv_module.router)
 app.include_router(cctv_module.health_router)
 app.include_router(sensor_router)
+
+
+@app.get("/hls/{hls_path:path}")
+def proxy_hls(hls_path: str, request: fastapi.Request) -> fastapi.Response:
+    """Proxy MediaMTX HLS output through FastAPI for one public HTTP port."""
+    if ".." in hls_path.split("/"):
+        raise fastapi.HTTPException(status_code=400, detail="Invalid HLS path")
+
+    encoded_path = urllib.parse.quote(hls_path, safe="/.")
+    upstream_url = f"{config.MEDIAMTX_HLS_URL.rstrip('/')}/{encoded_path}"
+    if request.url.query:
+        upstream_url = f"{upstream_url}?{request.url.query}"
+
+    try:
+        with urllib.request.urlopen(upstream_url, timeout=config.MEDIAMTX_HLS_TIMEOUT_SECONDS) as res:
+            content_type = res.headers.get("content-type", "application/octet-stream")
+            return fastapi.Response(content=res.read(), media_type=content_type, status_code=res.status)
+    except urllib.error.HTTPError as exc:
+        raise fastapi.HTTPException(status_code=exc.code, detail="HLS resource unavailable") from exc
+    except urllib.error.URLError as exc:
+        raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS endpoint unavailable") from exc
 
 
 # ---------------------------------------------------------------------------

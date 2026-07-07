@@ -1,0 +1,19 @@
+# Environment files
+node_modules/
+.git/
+.venv/
+.next/
+dist/
+build/
+__pycache__/
+*.pyc
+
+# User files
+.env*
+!.env*.template
+
+# Miscellaneous files
+.DS_Store
+Desktop.ini
+Thumbs.db
+!.gitkeep

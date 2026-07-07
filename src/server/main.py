@@ -21,13 +21,12 @@ from fastapi import FastAPI, HTTPException, Query, Request
 
 from api import post_event
 from config import (
-    APP_ORIGIN,
+    APP_URL,
     CONFIG_READY,
     FACILITY_ID,
     SERVER_SECRET,
     LOG_LEVEL,
-    SIMULATION_HLS_BASE,
-    SIMULATION_SENSOR_API,
+    SIMULATOR_URL,
 )
 from monitoring import startup_monitoring
 from network import log_stream_rewrite_config
@@ -50,9 +49,9 @@ def log_config_warnings() -> None:
             missing.append("SERVER_SECRET")
         log.warning("missing env vars: %s — monitoring will idle", ", ".join(missing))
 
-    if APP_ORIGIN.startswith("http://localhost") or APP_ORIGIN.startswith("http://127.0.0.1"):
+    if APP_URL.startswith("http://localhost") or APP_URL.startswith("http://127.0.0.1"):
         log.warning(
-            "APP_ORIGIN points at localhost. Inside a container this is unreachable. "
+            "APP_URL points at localhost. Inside a container this is unreachable. "
             "Use the deployed Worker URL, a Cloudflare Tunnel URL, or host.docker.internal."
         )
 
@@ -64,10 +63,9 @@ async def on_startup() -> None:
     log_config_warnings()
     log.info("monitoring starting for facility %s", label)
     log.info(
-        "config: APP_ORIGIN=%s, SIMULATION_HLS_BASE=%s, SIMULATION_SENSOR_API=%s, LOG_LEVEL=%s",
-        APP_ORIGIN,
-        SIMULATION_HLS_BASE,
-        SIMULATION_SENSOR_API,
+        "config: APP_URL=%s, SIMULATOR_URL=%s, LOG_LEVEL=%s",
+        APP_URL,
+        SIMULATOR_URL,
         LOG_LEVEL,
     )
     if CONFIG_READY:

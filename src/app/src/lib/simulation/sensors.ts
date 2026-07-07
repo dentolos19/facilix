@@ -45,7 +45,7 @@ export interface NormalizedReading {
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
-  return import.meta.env?.VITE_SENSOR_SIMULATOR_API_URL ?? "http://localhost:3002";
+  return import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002";
 }
 
 // ---------------------------------------------------------------------------
