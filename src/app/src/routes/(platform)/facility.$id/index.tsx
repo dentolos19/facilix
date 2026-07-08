@@ -328,12 +328,6 @@ function Page() {
       const size = DEFAULT_SIZES[type];
 
       const defaultProps = { ...DEFAULT_PROPS[type] };
-      if (type === "CCTV" && !simulationEnabled) {
-        defaultProps.videoSource = "rtsp";
-      }
-      if (type === "Sensor" && !simulationEnabled) {
-        defaultProps.sensorDataSource = "http-pull";
-      }
 
       setPlacedItems((prev) =>
         recomputeZoneLinks([

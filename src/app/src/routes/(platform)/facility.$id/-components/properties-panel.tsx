@@ -1,8 +1,9 @@
-import { PlusIcon, RefreshCwIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, PlusIcon, RefreshCwIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
 import { Button } from "#/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "#/components/ui/collapsible";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { ScrollArea } from "#/components/ui/scroll-area";
@@ -33,7 +34,7 @@ import { fetchSimulationSensors, type SimulationSensorDevice } from "#/lib/simul
 
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
-import { CaptureSettingsSection } from "./capture-settings";
+
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
@@ -433,24 +434,32 @@ export function PropertiesPanel({
                         />
                       </Field>
                     )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
 
-            {selected.type === "CCTV" && (
-              <AccordionItem value="capture-settings">
-                <AccordionTrigger>Capture Settings</AccordionTrigger>
-                <AccordionContent>
-                  <CaptureSettingsSection
-                    capture={selected.props.capture}
-                    isReadOnly={isReadOnly}
-                    onChange={(next) =>
-                      onUpdateItem(selected.id, {
-                        props: { capture: next as unknown as import("../-helpers/types").JsonValue },
-                      })
-                    }
-                  />
+                    <Field label="Segment Duration">
+                      <Input
+                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                        max={300}
+                        min={5}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          const durationSec = Number.isFinite(v) && v >= 5 ? v : 30;
+                          onUpdateItem(selected.id, {
+                            props: {
+                              capture: { segments: { durationSec } } as unknown as import("../-helpers/types").JsonValue,
+                            },
+                          });
+                        }}
+                        readOnly={isReadOnly}
+                        step={1}
+                        type="number"
+                        value={String(
+                          ((selected.props.capture as unknown as { segments?: { durationSec?: number } })?.segments
+                            ?.durationSec) ?? 30,
+                        )}
+                      />
+                      <p className="text-muted-foreground/60 text-[10px]">Length of each recorded clip (5–300 s). Default: 30 s.</p>
+                    </Field>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             )}
@@ -951,15 +960,17 @@ function PluginCard({
   onRemove: () => void;
 }) {
   return (
-    <div className="border-border bg-muted/10 flex flex-col gap-2 rounded-none border p-2">
-      <div className="border-border bg-muted/30 text-muted-foreground -mx-2 -mt-2 flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase">
+    <Collapsible className="border-border bg-muted/10 flex flex-col rounded-none border">
+      <div className="border-border bg-muted/30 text-muted-foreground flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase">
         <span>{plugin.category}</span>
         <span>{plugin.kind === "segment-understanding" ? "Roboflow + vision review" : "Roboflow workflow"}</span>
       </div>
-      <div className="flex items-start justify-between gap-2">
+      <CollapsibleTrigger className="group/collapsible flex w-full items-start justify-between gap-2 p-2 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <ShieldAlertIcon className="text-foreground/70 size-3.5" />
+            <ChevronDownIcon className="text-muted-foreground/50 hidden size-3 shrink-0 group-data-[state=closed]/collapsible:inline" />
+            <ChevronUpIcon className="text-muted-foreground/50 hidden size-3 shrink-0 group-data-[state=open]/collapsible:inline" />
+            <ShieldAlertIcon className="text-foreground/70 size-3.5 shrink-0" />
             <p className="text-foreground/90 truncate text-[11px] font-medium">{plugin.name}</p>
           </div>
           <p className="text-muted-foreground/70 mt-0.5 text-[10px] leading-snug">{plugin.description}</p>
@@ -969,7 +980,10 @@ function PluginCard({
             <Button
               aria-label={`Remove ${plugin.name}`}
               className="text-muted-foreground/70 hover:text-destructive"
-              onClick={onRemove}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
               size="icon-xs"
               variant="ghost"
             >
@@ -977,105 +991,109 @@ function PluginCard({
             </Button>
           )}
         </div>
-      </div>
+      </CollapsibleTrigger>
 
-      <div className="grid grid-cols-2 gap-2 border-y py-2">
-        <div className="min-w-0">
-          <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
-          <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
-        </div>
-        <div className="min-w-0 border-l pl-2">
-          <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
-          <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
-        </div>
-      </div>
+      <CollapsibleContent>
+        <div className="flex flex-col gap-2 p-2 pt-0">
+          <div className="grid grid-cols-2 gap-2 border-y py-2">
+            <div className="min-w-0">
+              <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
+              <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
+            </div>
+            <div className="min-w-0 border-l pl-2">
+              <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
+              <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
+            </div>
+          </div>
 
-      {/* Enable switch */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-foreground/80 text-[11px] font-medium">Enabled</p>
-          <p className="text-muted-foreground/60 text-[10px]">Run analysis and raise alerts.</p>
-        </div>
-        <Switch
-          aria-label={`Enable ${plugin.name}`}
-          checked={config.enabled}
-          disabled={isReadOnly}
-          onCheckedChange={(checked) => onChange((c) => ({ ...c, enabled: checked }))}
-          size="sm"
-        />
-      </div>
-
-      <WorkflowInputConfig config={config} isReadOnly={isReadOnly} onChange={onChange} plugin={plugin} />
-
-      {plugin.kind === "segment-understanding" && config.kind === "segment-understanding" && (
-        <SegmentAnalysisConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
-      )}
-
-      {plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection" && (
-        <DetectionPluginConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
-      )}
-
-      <div className="border-border flex flex-col gap-2 border-t pt-2">
-        <div>
-          <p className="text-foreground/80 text-[11px] font-medium">Event evidence</p>
-          <p className="text-muted-foreground/60 text-[10px]">
-            Attach reviewable evidence when this plugin raises an alert.
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground text-[10px]">Source video clip</span>
-          <Switch
-            aria-label={`Attach video for ${plugin.name}`}
-            checked={config.evidence.attachVideo}
-            disabled={isReadOnly}
-            onCheckedChange={(checked) =>
-              onChange((current) => ({
-                ...current,
-                evidence: { ...current.evidence, attachVideo: checked },
-              }))
-            }
-            size="sm"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground text-[10px]">Annotated frames</span>
-          <Switch
-            aria-label={`Attach annotated frames for ${plugin.name}`}
-            checked={config.evidence.attachAnnotatedFrames}
-            disabled={isReadOnly}
-            onCheckedChange={(checked) =>
-              onChange((current) => ({
-                ...current,
-                evidence: { ...current.evidence, attachAnnotatedFrames: checked },
-              }))
-            }
-            size="sm"
-          />
-        </div>
-        {config.evidence.attachAnnotatedFrames && (
-          <Field label="Maximum annotated images">
-            <Input
-              className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-              max={3}
-              min={1}
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                onChange((current) => ({
-                  ...current,
-                  evidence: {
-                    ...current.evidence,
-                    maxAnnotatedFrames: Number.isFinite(value) ? Math.max(1, Math.min(3, value)) : 3,
-                  },
-                }));
-              }}
-              readOnly={isReadOnly}
-              type="number"
-              value={String(config.evidence.maxAnnotatedFrames)}
+          {/* Enable switch */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-foreground/80 text-[11px] font-medium">Enabled</p>
+              <p className="text-muted-foreground/60 text-[10px]">Run analysis and raise alerts.</p>
+            </div>
+            <Switch
+              aria-label={`Enable ${plugin.name}`}
+              checked={config.enabled}
+              disabled={isReadOnly}
+              onCheckedChange={(checked) => onChange((c) => ({ ...c, enabled: checked }))}
+              size="sm"
             />
-          </Field>
-        )}
-      </div>
-    </div>
+          </div>
+
+          <WorkflowInputConfig config={config} isReadOnly={isReadOnly} onChange={onChange} plugin={plugin} />
+
+          {plugin.kind === "segment-understanding" && config.kind === "segment-understanding" && (
+            <SegmentAnalysisConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
+          )}
+
+          {plugin.kind === "workflow-object-detection" && config.kind === "workflow-object-detection" && (
+            <DetectionPluginConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
+          )}
+
+          <div className="border-border flex flex-col gap-2 border-t pt-2">
+            <div>
+              <p className="text-foreground/80 text-[11px] font-medium">Event evidence</p>
+              <p className="text-muted-foreground/60 text-[10px]">
+                Attach reviewable evidence when this plugin raises an alert.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground text-[10px]">Source video clip</span>
+              <Switch
+                aria-label={`Attach video for ${plugin.name}`}
+                checked={config.evidence.attachVideo}
+                disabled={isReadOnly}
+                onCheckedChange={(checked) =>
+                  onChange((current) => ({
+                    ...current,
+                    evidence: { ...current.evidence, attachVideo: checked },
+                  }))
+                }
+                size="sm"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground text-[10px]">Annotated frames</span>
+              <Switch
+                aria-label={`Attach annotated frames for ${plugin.name}`}
+                checked={config.evidence.attachAnnotatedFrames}
+                disabled={isReadOnly}
+                onCheckedChange={(checked) =>
+                  onChange((current) => ({
+                    ...current,
+                    evidence: { ...current.evidence, attachAnnotatedFrames: checked },
+                  }))
+                }
+                size="sm"
+              />
+            </div>
+            {config.evidence.attachAnnotatedFrames && (
+              <Field label="Maximum annotated images">
+                <Input
+                  className={isReadOnly ? "pointer-events-none opacity-60" : ""}
+                  max={3}
+                  min={1}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    onChange((current) => ({
+                      ...current,
+                      evidence: {
+                        ...current.evidence,
+                        maxAnnotatedFrames: Number.isFinite(value) ? Math.max(1, Math.min(3, value)) : 3,
+                      },
+                    }));
+                  }}
+                  readOnly={isReadOnly}
+                  type="number"
+                  value={String(config.evidence.maxAnnotatedFrames)}
+                />
+              </Field>
+            )}
+          </div>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
