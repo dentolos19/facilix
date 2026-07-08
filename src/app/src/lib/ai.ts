@@ -45,7 +45,10 @@ function requireApiKey(): string {
 /** TanStack AI adapter configured with the same OpenRouter model and credentials. */
 export function createChatAdapter() {
   const model = resolveModel() as Parameters<typeof createOpenRouterText>[0];
-  return createOpenRouterText(model, requireApiKey());
+  const config: Record<string, string> = {};
+  if (env.OPENROUTER_REFERER) config.httpReferer = env.OPENROUTER_REFERER;
+  if (env.OPENROUTER_TITLE) config.appTitle = env.OPENROUTER_TITLE;
+  return createOpenRouterText(model, requireApiKey(), config);
 }
 
 function attributionHeaders(): Record<string, string> {
