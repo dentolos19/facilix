@@ -73,7 +73,6 @@ import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs
 import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
-import { useSimulationSettings } from "#/lib/simulation/context";
 import { fetchSimulationSensors } from "#/lib/simulation/sensors";
 
 import { AllEventsDialog } from "./-components/all-events-dialog";
@@ -140,7 +139,6 @@ function Page() {
   const { id: facilityId } = Route.useParams();
   const { mode } = Route.useSearch();
   const editMode: EditMode = mode === "edit" ? "edit" : "monitoring";
-  const { simulationEnabled } = useSimulationSettings();
   const setEditMode = useCallback(
     (value: EditMode) => {
       navigate({ search: { mode: value === "edit" ? "edit" : undefined }, replace: true });
@@ -350,7 +348,7 @@ function Page() {
       setIsDirty(true);
 
       // Fire-and-forget: auto-select first available simulation source.
-      if (type === "CCTV" && simulationEnabled) {
+      if (type === "CCTV") {
         fetchSimulationStreams().then((streams) => {
           if (streams.length > 0) {
             setPlacedItems((prev) =>
@@ -365,7 +363,7 @@ function Page() {
           }
         });
       }
-      if (type === "Sensor" && simulationEnabled) {
+      if (type === "Sensor") {
         fetchSimulationSensors().then((devices) => {
           if (devices.length > 0) {
             setPlacedItems((prev) =>
@@ -388,7 +386,7 @@ function Page() {
         });
       }
     },
-    [simulationEnabled],
+    [],
   );
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
