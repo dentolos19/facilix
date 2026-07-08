@@ -4,7 +4,10 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { getAccessContext, requireAccessContext, requireFacilityAccess } from "#/lib/functions/access";
+import { createLogger } from "#/lib/logs";
 import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/routes/(platform)/facility.$id/-helpers/types";
+
+const log = createLogger("facility");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -350,7 +353,12 @@ export const getDevice = createServerFn({ method: "GET" })
   });
 
 /**
- * Delete a facility and all its related zones, devices, and logs (cascade).
+ * Delete a facility and all related data:
+ *   - D1 rows owned by this facility (members, zones, devices, events,
+ *     attachments, segments, sensor readings, idempotency keys, prediction outputs)
+ *   - R2 objects for assets that are no longer referenced by any other row
+ *   - Observer Durable Object storage for this facility
+ *   - Monitoring container for this facility
  */
 export const deleteFacility = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => {
@@ -360,6 +368,96 @@ export const deleteFacility = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
     await requireFacilityAccess(data.id);
-    await db.delete(schema.facility).where(eq(schema.facility.id, data.id));
+
+    // 1. Collect facility-owned asset IDs before deleting any rows
+    const [segments, predictions, events] = await Promise.all([
+      db
+        .select({ assetId: schema.videoSegment.assetId })
+        .from(schema.videoSegment)
+        .where(eq(schema.videoSegment.facilityId, data.id)),
+      db
+        .select({
+          beforeAssetId: schema.predictionOutput.beforeAssetId,
+          afterAssetId: schema.predictionOutput.afterAssetId,
+        })
+        .from(schema.predictionOutput)
+        .where(eq(schema.predictionOutput.facilityId, data.id)),
+      db
+        .select({ assetId: schema.eventAttachment.assetId })
+        .from(schema.eventAttachment)
+        .innerJoin(schema.facilityEvent, eq(schema.eventAttachment.eventId, schema.facilityEvent.id))
+        .where(eq(schema.facilityEvent.facilityId, data.id)),
+    ]);
+
+    const facilityAssetIds = new Set<string>();
+    for (const s of segments) facilityAssetIds.add(s.assetId);
+    for (const p of predictions) {
+      facilityAssetIds.add(p.beforeAssetId);
+      facilityAssetIds.add(p.afterAssetId);
+    }
+    for (const a of events) facilityAssetIds.add(a.assetId);
+
+    // 2. Delete facility-owned rows in dependency order (batch = transactional)
+    await env.DATABASE.batch([
+      env.DATABASE.prepare("DELETE FROM prediction_outputs WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare(
+        "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM facility_events WHERE facility_id = ?)",
+      ).bind(data.id),
+      env.DATABASE.prepare("DELETE FROM facility_events WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM sensor_readings WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM video_segments WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM idempotency_keys WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM facility_devices WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM facility_zones WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM facility_members WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM facilities WHERE id = ?").bind(data.id),
+    ]);
+
+    // 3. Delete orphan R2 objects and asset rows (only when no longer referenced)
+    if (facilityAssetIds.size > 0) {
+      const ids = [...facilityAssetIds];
+
+      const [remainingSegments, remainingBefore, remainingAfter, remainingAttachments] = await Promise.all([
+        db.select({ assetId: schema.videoSegment.assetId }).from(schema.videoSegment).where(inArray(schema.videoSegment.assetId, ids)),
+        db.select({ assetId: schema.predictionOutput.beforeAssetId }).from(schema.predictionOutput).where(inArray(schema.predictionOutput.beforeAssetId, ids)),
+        db.select({ assetId: schema.predictionOutput.afterAssetId }).from(schema.predictionOutput).where(inArray(schema.predictionOutput.afterAssetId, ids)),
+        db.select({ assetId: schema.eventAttachment.assetId }).from(schema.eventAttachment).where(inArray(schema.eventAttachment.assetId, ids)),
+      ]);
+
+      const referenced = new Set<string>();
+      for (const r of remainingSegments) referenced.add(r.assetId);
+      for (const r of remainingBefore) referenced.add(r.assetId);
+      for (const r of remainingAfter) referenced.add(r.assetId);
+      for (const r of remainingAttachments) referenced.add(r.assetId);
+
+      const orphanAssetIds = ids.filter((id) => !referenced.has(id));
+
+      if (orphanAssetIds.length > 0) {
+        // Delete R2 objects in batches of up to 1000
+        for (let i = 0; i < orphanAssetIds.length; i += 1000) {
+          await env.BUCKET.delete(orphanAssetIds.slice(i, i + 1000));
+        }
+
+        // Delete asset rows
+        await db.delete(schema.asset).where(inArray(schema.asset.id, orphanAssetIds));
+      }
+    }
+
+    // 4. Clear Observer DO storage for this facility
+    try {
+      const observer = env.OBSERVER.getByName(data.id);
+      await observer.deleteAllStorage();
+    } catch (err) {
+      log.warn("Observer deleteAllStorage failed (non-fatal)", { error: String(err), facilityId: data.id });
+    }
+
+    // 5. Stop monitoring container
+    try {
+      const server = env.SERVER.getByName(data.id);
+      await server.stop();
+    } catch {
+      // Container may not exist or already stopped — non-fatal
+    }
+
     return { success: true };
   });

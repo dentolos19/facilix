@@ -361,6 +361,27 @@ export class Observer extends DurableObject<Env> {
     return { success: true };
   }
 
+  /**
+   * Delete ALL storage for this Observer instance and broadcast empty state.
+   *
+   * Unlike clearEvents(), this calls ctx.storage.deleteAll() which removes
+   * all DO SQLite storage including any internal metadata and alarms.
+   * After this call the DO will fully cease to exist on its next shutdown.
+   */
+  async deleteAllStorage(): Promise<{ success: boolean }> {
+    const before = this.ctx.storage.sql.exec<{ cnt: number }>("SELECT COUNT(*) AS cnt FROM observations");
+    const countBefore = before.one().cnt;
+
+    await this.ctx.storage.deleteAll();
+    this.lastCleanup = 0;
+
+    this.broadcast({ type: "snapshot", events: [] });
+
+    log.info("Observer storage deleted", { deletedEvents: countBefore });
+
+    return { success: true };
+  }
+
   // ── Alarms ───────────────────────────────────────────────────────────
 
   /**
