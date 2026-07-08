@@ -311,43 +311,6 @@ export function PropertiesPanel({
             </AccordionItem>
 
             {/* ── Section 2: Data Source (varies by component type) ── */}
-            {selected.type === "Marker" && (
-              <AccordionItem value="data-source">
-                <AccordionTrigger>Data Source</AccordionTrigger>
-                <AccordionContent>
-                  <div className="flex flex-col gap-2">
-                    <Field label="Label">
-                      <Input
-                        className={isReadOnly ? "pointer-events-none opacity-60" : ""}
-                        onChange={(e) => onUpdateItem(selected.id, { props: { label: e.target.value } })}
-                        placeholder="Short display text"
-                        readOnly={isReadOnly}
-                        value={String(selected.props.label ?? "")}
-                      />
-                    </Field>
-                    <Field label="Marker Type">
-                      <Select
-                        disabled={isReadOnly}
-                        onValueChange={(value) => onUpdateItem(selected.id, { props: { markerType: value } })}
-                        value={String(selected.props.markerType ?? "")}
-                      >
-                        <SelectTrigger className={isReadOnly ? "pointer-events-none opacity-60" : ""}>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="info">Info</SelectItem>
-                          <SelectItem value="warning">Warning</SelectItem>
-                          <SelectItem value="alert">Alert</SelectItem>
-                          <SelectItem value="danger">Danger</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-
             {selected.type === "CCTV" && (
               <AccordionItem value="data-source">
                 <AccordionTrigger>Data Source</AccordionTrigger>

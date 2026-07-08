@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
-  Bell,
   Brain,
   Camera,
   ChevronRight,
@@ -51,12 +50,7 @@ const features = [
       "Define network gateways, communication zones, and coverage areas. Visualize signal strength and device connectivity across the facility.",
     icon: Wifi,
   },
-  {
-    title: "Alert Markers",
-    description:
-      "Place alert markers for security incidents, equipment faults, or safety hazards. Escalate and route notifications to the right team.",
-    icon: Bell,
-  },
+
 ];
 
 const steps = [
@@ -144,7 +138,7 @@ function Home() {
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed md:text-lg">
-            Upload your floorplan, place virtual CCTV cameras, sensors, gateways, and alert markers — then simulate
+            Upload your floorplan, place virtual CCTV cameras, sensors, and gateways — then simulate
             real-time device statuses, environmental readings, and security events in a living digital twin of your
             facility.
           </p>

@@ -2,7 +2,7 @@ import type Konva from "konva";
 import { ArrowDownIcon, ArrowUpIcon, ArrowDownToLineIcon, ArrowUpToLineIcon, Trash2Icon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Arc, Circle, Group, Layer, Rect, Stage, Text, Transformer } from "react-konva";
+import { Circle, Group, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
 
 import { ITEM_DEFS, PLACEABLE_ITEMS } from "../-helpers/constants";
 import { useIsomorphicLayoutEffect, useResizeObserver } from "../-helpers/hooks";
@@ -31,6 +31,59 @@ function hitTest(item: PlacedItem, r: { x: number; y: number; width: number; hei
   const cx = item.x;
   const cy = item.y;
   return cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height;
+}
+
+const CANVAS_ICON_PATHS = {
+  camera: [
+    "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z",
+    "M12 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
+  ],
+  eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z", "M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0"],
+  video: [
+    "M23 7l-7 5 7 5V7z",
+    "M3 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z",
+  ],
+  monitoring: ["M20 3H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z", "M8 21h8", "M12 17v4"],
+  wifi: ["M5 13a10 10 0 0 1 14 0", "M8.5 16.5a5 5 0 0 1 7 0", "M12 20h.01"],
+  thermometer: ["M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4 4 0 1 0 5 0z"],
+  droplet: ["M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0L12 2.69z"],
+  wind: ["M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2", "M9.6 4.6A2 2 0 1 1 11 8H2", "M12.6 19.4A2 2 0 1 0 14 16H2"],
+  activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
+  sun: [
+    "M12 8a4 4 0 1 0 0 8a4 4 0 0 0 0-8",
+    "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41",
+  ],
+  exclamation: ["M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z", "M12 9v4", "M12 17h.01"],
+  antenna: ["M4.9 19.1C1 15.2 1 8.8 4.9 4.9", "M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5", "M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5", "M19.1 4.9c3.9 3.9 3.9 10.3 0 14.2", "M9 18l3-9 3 9", "M10.5 14h3"],
+  "signal-bars": ["M2 20h.01", "M7 20v-4", "M12 20v-8", "M17 20V8", "M22 20V4"],
+  satellite: ["M13 7 9 3 5 7l4 4", "M17 11l4 4-4 4-4-4", "M8 12l4 4", "M16 8l4 4"],
+} as const satisfies Record<string, readonly string[]>;
+
+type CanvasIconName = keyof typeof CANVAS_ICON_PATHS;
+
+function isCanvasIconName(value: string): value is CanvasIconName {
+  return value in CANVAS_ICON_PATHS;
+}
+
+function CanvasItemIcon({ name }: { name: CanvasIconName }) {
+  const scale = 0.72;
+
+  return (
+    <Group x={-12 * scale} y={-12 * scale} scaleX={scale} scaleY={scale}>
+      {CANVAS_ICON_PATHS[name].map((data, index) => (
+        <Path
+          data={data}
+          fill="transparent"
+          key={`${name}-${index}`}
+          lineCap="round"
+          lineJoin="round"
+          stroke="#fff"
+          strokeScaleEnabled={false}
+          strokeWidth={2.15}
+        />
+      ))}
+    </Group>
+  );
 }
 
 type MultiDragState = {
@@ -532,6 +585,7 @@ function PlacedShape({
   const fillColor = item.type === "Zone" ? hexToRgba(itemColor, 0.08) : itemColor;
   const strokeColor = darkenHex(itemColor, 0.15);
   const iconShape = String(item.props.iconShape ?? DEFAULT_ICON_SHAPES[item.type]);
+  const iconName = isCanvasIconName(iconShape) ? iconShape : DEFAULT_ICON_SHAPES[item.type];
 
   const handleDragStart = useCallback(() => {
     setDragging(true);
@@ -669,173 +723,6 @@ function PlacedShape({
         </>
       );
 
-    case "Marker":
-      return (
-        <Group
-          draggable={!readOnly}
-          name={`placed-${item.id}`}
-          onClick={onSelectItem}
-          onContextMenu={onContextMenu}
-          onDragEnd={readOnly ? undefined : handleDragEnd}
-          onDragMove={readOnly ? undefined : handleDragMove}
-          onDragStart={readOnly ? undefined : handleDragStart}
-          onTap={onSelectItem}
-          x={item.x}
-          y={item.y}
-        >
-          {iconShape === "diamond" && (
-            <>
-              <Rect
-                fill={isSelected ? lightenHex(itemColor, 0.2) : dragging ? lightenHex(itemColor, 0.2) : fillColor}
-                height={def.height + (showFocus ? 8 : 0)}
-                rotation={45}
-                stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-                width={def.width + (showFocus ? 8 : 0)}
-                x={-(def.width + (showFocus ? 8 : 0)) / 2}
-                y={-(def.height + (showFocus ? 8 : 0)) / 2}
-              />
-              <Text
-                fill="#fff"
-                fontFamily="Geist Variable, sans-serif"
-                fontSize={11}
-                fontStyle="bold"
-                text={item.props.label ? String(item.props.label).charAt(0).toUpperCase() : "M"}
-                x={-5}
-                y={-6}
-              />
-              {isMultiSelected && !isSelected && (
-                <Rect
-                  dash={[3, 3]}
-                  height={def.height + 16}
-                  listening={false}
-                  rotation={45}
-                  stroke={itemColor}
-                  strokeWidth={1}
-                  width={def.width + 16}
-                  x={-(def.width + 16) / 2}
-                  y={-(def.height + 16) / 2}
-                />
-              )}
-              {isSelected && (
-                <Rect
-                  dash={[3, 3]}
-                  height={def.height + 14}
-                  listening={false}
-                  rotation={45}
-                  stroke={itemColor}
-                  strokeWidth={1}
-                  width={def.width + 14}
-                  x={-(def.width + 14) / 2}
-                  y={-(def.height + 14) / 2}
-                />
-              )}
-            </>
-          )}
-          {iconShape === "pin" && (
-            <>
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (showFocus ? 4 : 0)}
-                stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-                y={-4}
-              />
-              <Rect
-                fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                height={8}
-                rotation={45}
-                stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-                width={8}
-                x={-4}
-                y={R - 8}
-              />
-              <Circle fill="#fff" radius={R * 0.35} y={-4} />
-              {isMultiSelected && !isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} y={-4} />
-              )}
-              {isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} y={-4} />
-              )}
-            </>
-          )}
-          {iconShape === "star" && (
-            <>
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (showFocus ? 4 : 0)}
-                stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-              />
-              {[0, 72, 144, 216, 288].map((angle, i) => {
-                const outerR = R * 0.55;
-                const innerR = R * 0.25;
-                return <Rect fill="#fff" height={innerR} key={i} rotation={angle} width={2} x={-1} y={-outerR} />;
-              })}
-              <Text
-                fill="#fff"
-                fontFamily="Geist Variable, sans-serif"
-                fontSize={14}
-                fontStyle="bold"
-                text="★"
-                x={-7}
-                y={-9}
-              />
-              {isMultiSelected && !isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
-              )}
-              {isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
-              )}
-            </>
-          )}
-          {iconShape === "flag" && (
-            <>
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (showFocus ? 4 : 0)}
-                stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-              />
-              <Rect fill="#fff" height={R * 0.8} width={2} x={-R * 0.2} y={-R * 0.4} />
-              <Rect fill="#fff" height={R * 0.4} width={R * 0.45} x={-R * 0.15} y={-R * 0.4} />
-              {isMultiSelected && !isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
-              )}
-              {isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
-              )}
-            </>
-          )}
-          {iconShape === "circle" && (
-            <>
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.2) : fillColor}
-                radius={R + (showFocus ? 4 : 0)}
-                stroke={isSelected ? itemColor : strokeColor}
-                strokeWidth={focusStroke || 1}
-              />
-              <Text
-                fill="#fff"
-                fontFamily="Geist Variable, sans-serif"
-                fontSize={11}
-                fontStyle="bold"
-                text={item.props.label ? String(item.props.label).charAt(0).toUpperCase() : "M"}
-                x={-5}
-                y={-6}
-              />
-              {isMultiSelected && !isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
-              )}
-              {isSelected && (
-                <Circle dash={[3, 3]} listening={false} radius={R + 6} stroke={itemColor} strokeWidth={1} />
-              )}
-            </>
-          )}
-        </Group>
-      );
-
     case "CCTV":
       return (
         <Group
@@ -856,88 +743,7 @@ function PlacedShape({
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
             strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
-          {iconShape === "camera" && (
-            <>
-              <Rect
-                cornerRadius={2}
-                fill={
-                  isSelected
-                    ? darkenHex(itemColor, 0.35)
-                    : dragging
-                      ? darkenHex(itemColor, 0.3)
-                      : darkenHex(itemColor, 0.25)
-                }
-                height={R * 0.7}
-                width={R * 0.9}
-                x={-R * 0.45}
-                y={-R * 0.35}
-              />
-              <Circle
-                fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
-                radius={R * 0.25}
-                stroke={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
-                strokeWidth={1}
-              />
-              <Circle fill="#fbbf24" radius={2} x={R * 0.3} y={-R * 0.25} />
-            </>
-          )}
-          {iconShape === "eye" && (
-            <>
-              <Rect
-                cornerRadius={R * 0.5}
-                fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
-                height={R * 0.55}
-                width={R * 0.9}
-                x={-R * 0.45}
-                y={-R * 0.275}
-              />
-              <Circle fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)} radius={R * 0.22} />
-              <Circle fill={isSelected ? darkenHex(itemColor, 0.4) : "#1a1a2e"} radius={R * 0.1} />
-            </>
-          )}
-          {iconShape === "video" && (
-            <>
-              <Rect
-                cornerRadius={2}
-                fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
-                height={R * 0.65}
-                width={R * 0.65}
-                x={-R * 0.15}
-                y={-R * 0.325}
-              />
-              <Rect
-                fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
-                height={R * 0.35}
-                rotation={45}
-                width={R * 0.35}
-                x={-R * 0.1}
-                y={-R * 0.05}
-              />
-              <Circle fill="#ef4444" radius={2.5} x={R * 0.25} y={-R * 0.2} />
-            </>
-          )}
-          {iconShape === "monitoring" && (
-            <>
-              <Rect
-                cornerRadius={2}
-                fill={isSelected ? darkenHex(itemColor, 0.35) : darkenHex(itemColor, 0.25)}
-                height={R * 0.6}
-                width={R * 0.85}
-                x={-R * 0.425}
-                y={-R * 0.4}
-              />
-              <Rect
-                cornerRadius={1}
-                fill={isSelected ? lightenHex(itemColor, 0.4) : lightenHex(itemColor, 0.3)}
-                height={R * 0.4}
-                width={R * 0.65}
-                x={-R * 0.325}
-                y={-R * 0.35}
-              />
-              <Rect fill="#fff" height={3} width={R * 0.3} x={-R * 0.15} y={R * 0.05} />
-              <Rect fill="#fff" height={2} width={R * 0.5} x={-R * 0.25} y={R * 0.15} />
-            </>
-          )}
+          <CanvasItemIcon name={iconName} />
           {isMultiSelected && !isSelected && (
             <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
           )}
@@ -967,78 +773,7 @@ function PlacedShape({
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
             strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
-          {iconShape === "wifi" && (
-            <>
-              {[R * 0.35, R * 0.22, R * 0.1].map((r, i) => (
-                <Arc
-                  angle={90}
-                  fill="#fff"
-                  innerRadius={r * 0.5}
-                  key={i}
-                  outerRadius={r}
-                  rotation={-45 + i * 22}
-                  x={0}
-                  y={0}
-                />
-              ))}
-            </>
-          )}
-          {iconShape === "thermometer" && (
-            <>
-              <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.7} width={R * 0.25} x={-R * 0.125} y={-R * 0.5} />
-              <Circle fill="#fff" radius={R * 0.18} y={R * 0.05} />
-              <Rect
-                cornerRadius={R * 0.1}
-                fill={isSelected ? itemColor : lightenHex(itemColor, 0.3)}
-                height={R * 0.4}
-                width={R * 0.12}
-                x={-R * 0.06}
-                y={-R * 0.2}
-              />
-              <Circle fill={isSelected ? itemColor : lightenHex(itemColor, 0.3)} radius={R * 0.12} y={R * 0.05} />
-            </>
-          )}
-          {iconShape === "droplet" && (
-            <>
-              <Rect cornerRadius={R * 0.15} fill="#fff" height={R * 0.55} width={R * 0.4} x={-R * 0.2} y={-R * 0.15} />
-              <Rect fill="#fff" height={R * 0.3} rotation={45} width={R * 0.3} x={-R * 0.05} y={-R * 0.45} />
-            </>
-          )}
-          {iconShape === "wind" && (
-            <>
-              <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.6} x={-R * 0.3} y={-R * 0.25} />
-              <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.45} x={-R * 0.15} y={-R * 0.05} />
-              <Rect cornerRadius={2} fill="#fff" height={2.5} width={R * 0.55} x={-R * 0.25} y={R * 0.15} />
-            </>
-          )}
-          {iconShape === "activity" && (
-            <>
-              <Rect fill="#fff" height={2} width={R * 0.3} x={-R * 0.4} y={0} />
-              <Rect fill="#fff" height={2} rotation={-50} width={R * 0.15} x={-R * 0.1} y={-R * 0.15} />
-              <Rect fill="#fff" height={2} rotation={50} width={R * 0.35} x={-R * 0.05} y={R * 0.05} />
-              <Rect fill="#fff" height={2} width={R * 0.3} x={R * 0.15} y={0} />
-            </>
-          )}
-          {iconShape === "sun" && (
-            <>
-              <Circle fill="#fff" radius={R * 0.22} />
-              {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
-                const innerDist = R * 0.32;
-                const outerDist = R * 0.5;
-                return (
-                  <Rect
-                    fill="#fff"
-                    height={1.5}
-                    key={i}
-                    rotation={angle}
-                    width={outerDist - innerDist}
-                    x={innerDist}
-                    y={-0.75}
-                  />
-                );
-              })}
-            </>
-          )}
+          <CanvasItemIcon name={iconName} />
           {isMultiSelected && !isSelected && (
             <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
           )}
@@ -1068,59 +803,7 @@ function PlacedShape({
             stroke={isSelected ? itemColor : dragging ? itemColor : strokeColor}
             strokeWidth={focusStroke || (isMultiSelected ? 1.5 : 1)}
           />
-          {iconShape === "exclamation" && (
-            <>
-              <Rect cornerRadius={1} fill="#fff" height={R * 0.6} width={R * 0.2} x={-R * 0.1} y={-R * 0.5} />
-              <Circle fill="#fff" radius={R * 0.1} x={0} y={R * 0.25} />
-            </>
-          )}
-          {iconShape === "antenna" && (
-            <>
-              <Rect fill="#fff" height={R * 0.6} width={2} x={-1} y={-R * 0.35} />
-              <Rect fill="#fff" height={2} width={R * 0.4} x={-R * 0.2} y={R * 0.15} />
-              <Arc
-                angle={60}
-                fill="transparent"
-                innerRadius={R * 0.25}
-                outerRadius={R * 0.35}
-                rotation={-30}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-              <Arc
-                angle={60}
-                fill="transparent"
-                innerRadius={R * 0.4}
-                outerRadius={R * 0.5}
-                rotation={-30}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-            </>
-          )}
-          {iconShape === "signal-bars" && (
-            <>
-              <Rect fill="#fff" height={R * 0.15} width={R * 0.12} x={-R * 0.35} y={R * 0.15} />
-              <Rect fill="#fff" height={R * 0.28} width={R * 0.12} x={-R * 0.18} y={R * 0.02} />
-              <Rect fill="#fff" height={R * 0.42} width={R * 0.12} x={-R * 0.01} y={-R * 0.12} />
-              <Rect fill="#fff" height={R * 0.55} width={R * 0.12} x={R * 0.16} y={-R * 0.25} />
-            </>
-          )}
-          {iconShape === "satellite" && (
-            <>
-              <Rect cornerRadius={R * 0.3} fill="#fff" height={R * 0.35} width={R * 0.5} x={-R * 0.25} y={-R * 0.175} />
-              <Rect fill="#fff" height={2} rotation={-30} width={R * 0.3} x={0} y={-R * 0.05} />
-              <Arc
-                angle={40}
-                fill="transparent"
-                innerRadius={R * 0.3}
-                outerRadius={R * 0.4}
-                rotation={-20}
-                stroke="#fff"
-                strokeWidth={1.5}
-              />
-            </>
-          )}
+          <CanvasItemIcon name={iconName} />
           {isMultiSelected && !isSelected && (
             <Circle dash={[3, 3]} listening={false} radius={R + 8} stroke={itemColor} strokeWidth={1} />
           )}

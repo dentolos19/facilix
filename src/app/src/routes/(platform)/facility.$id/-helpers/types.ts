@@ -7,20 +7,18 @@ export type JsonValue = string | number | boolean | null | JsonValue[] | { [key:
 /** A plain JSON object — the typical shape of `data` columns. */
 export type JsonObject = { [key: string]: JsonValue };
 
-export type PlacedItemType = "Zone" | "Marker" | "CCTV" | "Sensor" | "Signal";
+export type PlacedItemType = "Zone" | "CCTV" | "Sensor" | "Signal";
 
 /** Available icon shapes per component type. */
-export type MarkerShape = "diamond" | "pin" | "star" | "flag" | "circle";
 export type CctvShape = "camera" | "eye" | "video" | "monitoring";
 export type SensorShape = "wifi" | "thermometer" | "droplet" | "wind" | "activity" | "sun";
 export type SignalShape = "exclamation" | "antenna" | "signal-bars" | "satellite";
 
-export type IconShape = MarkerShape | CctvShape | SensorShape | SignalShape;
+export type IconShape = CctvShape | SensorShape | SignalShape;
 
 /** Default icon shape for each component type. */
 export const DEFAULT_ICON_SHAPES: Record<PlacedItemType, IconShape> = {
-  Zone: "diamond", // unused for zones but needed for type completeness
-  Marker: "diamond",
+  Zone: "camera", // unused for zones but needed for type completeness
   CCTV: "camera",
   Sensor: "wifi",
   Signal: "exclamation",
@@ -28,13 +26,6 @@ export const DEFAULT_ICON_SHAPES: Record<PlacedItemType, IconShape> = {
 
 /** Available icon shapes for each non-zone component type. */
 export const ICON_SHAPE_OPTIONS: Record<string, { value: IconShape; label: string }[]> = {
-  Marker: [
-    { value: "diamond", label: "Diamond" },
-    { value: "pin", label: "Pin" },
-    { value: "star", label: "Star" },
-    { value: "flag", label: "Flag" },
-    { value: "circle", label: "Circle" },
-  ],
   CCTV: [
     { value: "camera", label: "Camera" },
     { value: "eye", label: "Eye" },
@@ -103,7 +94,6 @@ export interface CanvasItemLayout {
 /** Type-specific properties by device kind. */
 export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
   Zone: { iconColor: "#3b82f6" },
-  Marker: { label: "", iconColor: "#f59e0b", markerType: "info", iconShape: "diamond" },
   CCTV: {
     videoSource: "simulation",
     simulationStream: "b0",
@@ -136,7 +126,6 @@ export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
 /** Default width/height for each item type (canvas layout defaults). */
 export const DEFAULT_SIZES: Record<PlacedItemType, { width: number; height: number }> = {
   Zone: { width: 140, height: 90 },
-  Marker: { width: 36, height: 36 },
   CCTV: { width: 36, height: 36 },
   Sensor: { width: 36, height: 36 },
   Signal: { width: 36, height: 36 },

@@ -22,7 +22,7 @@ export interface FacilityLayoutDocument {
   items: PlacedItem[];
 }
 
-const ITEM_TYPES = new Set<PlacedItemType>(["Zone", "Marker", "CCTV", "Sensor", "Signal"]);
+const ITEM_TYPES = new Set<PlacedItemType>(["Zone", "CCTV", "Sensor", "Signal"]);
 const FORBIDDEN_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function finiteNumber(value: unknown, fallback: number): number {

@@ -192,7 +192,7 @@ export async function generateFacilityLayoutFromImage(
 ): Promise<string | null> {
   const prompt = `Analyze this facility image and build a practical 2D facility layout for a ${target.width} by ${target.height} pixel canvas.
 
-Identify labeled or visually distinct rooms and operational areas as Zone rectangles. Add Marker items for important labeled points that are not rooms. Add CCTV, Sensor, or Signal items only when the image clearly shows or labels those devices.
+Identify labeled or visually distinct rooms and operational areas as Zone rectangles. Add CCTV, Sensor, or Signal items only when the image clearly shows or labels those devices.
 
 Return ONLY valid JSON with this exact top-level shape:
 {
@@ -228,7 +228,7 @@ Return ONLY valid JSON with this exact top-level shape:
 }
 
 Rules:
-- type must be exactly Zone, Marker, CCTV, Sensor, or Signal.
+- type must be exactly Zone, CCTV, Sensor, or Signal.
 - Keep every item within the target canvas.
 - Use the image's relative geometry and adjacency; do not stack zones on top of each other unless the image does.
 - Use unique string IDs. Set each device's zoneId to the containing Zone ID when applicable.
