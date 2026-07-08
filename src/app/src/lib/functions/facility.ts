@@ -119,6 +119,87 @@ export const createFacility = createServerFn({ method: "POST" })
     return toFacilityRow(facility);
   });
 
+export const duplicateFacility = createServerFn({ method: "POST" })
+  .validator((data: { id: string }) => {
+    if (!data.id) throw new Error("Facility ID is required");
+    return data;
+  })
+  .handler(async ({ data }) => {
+    const db = createDatabase(env.DATABASE);
+    const ctx = await requireAccessContext();
+    await requireFacilityAccess(data.id);
+
+    const [source] = await db
+      .select()
+      .from(schema.facility)
+      .where(eq(schema.facility.id, data.id))
+      .limit(1);
+
+    if (!source) throw new Error("Facility not found");
+
+    const [sourceZones, sourceDevices] = await Promise.all([
+      db.select().from(schema.facilityZone).where(eq(schema.facilityZone.facilityId, data.id)),
+      db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, data.id)),
+    ]);
+
+    const idMap = new Map<string, string>();
+    const allItems = [...sourceZones.map((z) => z.id), ...sourceDevices.map((d) => d.id)];
+    for (const oldId of allItems) {
+      idMap.set(oldId, crypto.randomUUID());
+    }
+
+    const remappedData: CanvasLayoutData = {
+      version: 1,
+      items: source.data.items.map((item) => ({
+        ...item,
+        id: idMap.get(item.id) ?? crypto.randomUUID(),
+      })),
+    };
+
+    const [newFacility] = await db
+      .insert(schema.facility)
+      .values({
+        name: `${source.name} (Copy)`,
+        data: remappedData,
+        settings: source.settings,
+      })
+      .returning();
+
+    const newZones = sourceZones.map((z) => ({
+      id: idMap.get(z.id) ?? crypto.randomUUID(),
+      facilityId: newFacility.id,
+      name: z.name,
+      data: z.data,
+      notes: z.notes,
+    }));
+
+    if (newZones.length > 0) {
+      await db.insert(schema.facilityZone).values(newZones);
+    }
+
+    const newDevices = sourceDevices.map((d) => ({
+      id: idMap.get(d.id) ?? crypto.randomUUID(),
+      facilityId: newFacility.id,
+      zoneId: d.zoneId ? (idMap.get(d.zoneId) ?? null) : null,
+      name: d.name,
+      type: d.type,
+      status: d.status,
+      data: d.data,
+      notes: d.notes,
+    }));
+
+    if (newDevices.length > 0) {
+      await db.insert(schema.facilityDevice).values(newDevices);
+    }
+
+    await db.insert(schema.facilityMember).values({
+      facilityId: newFacility.id,
+      userId: ctx.userId,
+    });
+
+    return toFacilityRow(newFacility);
+  });
+
 /**
  * Load the full editor state for a facility.
  */

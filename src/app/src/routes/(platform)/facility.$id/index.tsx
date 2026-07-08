@@ -6,6 +6,7 @@ import {
   AlertTriangleIcon,
   ArrowLeftIcon,
   BarChart3,
+  CopyIcon,
   DownloadIcon,
   ExternalLinkIcon,
   EyeIcon,
@@ -61,7 +62,7 @@ import {
   getAllFacilityEvents,
   getFacilityEvents,
 } from "#/lib/functions/events";
-import { deleteFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import { deleteFacility, duplicateFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import {
   type FacilityMemberRow,
   addFacilityMember,
@@ -96,8 +97,8 @@ import {
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
   component: Page,
-  validateSearch: (search: Record<string, unknown>): { mode?: "monitor" | "edit" } => ({
-    mode: search.mode === "edit" ? "edit" : "monitor",
+  validateSearch: (search: Record<string, unknown>): { mode?: "edit" } => ({
+    ...(search.mode === "edit" ? { mode: "edit" as const } : {}),
   }),
 });
 
@@ -162,6 +163,7 @@ function Page() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
@@ -657,6 +659,20 @@ function Page() {
     fileInputRef.current?.click();
   }, [editMode]);
 
+  const handleDuplicate = useCallback(async () => {
+    setIsDuplicating(true);
+    try {
+      const result = await duplicateFacility({ data: { id: facilityId } });
+      toast.success(`Duplicated as "${result.name}"`);
+      navigate({ to: "/facility/$id", params: { id: result.id }, search: { mode: "edit" } });
+    } catch (err) {
+      toast.error("Failed to duplicate facility");
+      console.error(err);
+    } finally {
+      setIsDuplicating(false);
+    }
+  }, [facilityId, navigate]);
+
   const processImport = useCallback(async (file: File) => {
     const isJson = file.type === "application/json" || file.name.endsWith(".json");
 
@@ -885,10 +901,8 @@ function Page() {
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
   useHotkeys([
     { hotkey: "Mod+Z", callback: () => handleUndo(), options: { enabled: editMode === "edit" && canUndo } },
-    { hotkey: "Mod+Shift+Z", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
     { hotkey: "Mod+Y", callback: () => handleRedo(), options: { enabled: editMode === "edit" && canRedo } },
     { hotkey: "Mod+S", callback: () => handleSave(), options: { enabled: editMode === "edit" } },
-    { hotkey: "Mod+Shift+E", callback: handleExport },
   ]);
 
   return (
@@ -911,8 +925,18 @@ function Page() {
                   <Save className="mr-2 size-4" />
                   Save{isDirty ? " *" : ""} <MenubarShortcut>⌘S</MenubarShortcut>
                 </MenubarItem>
+                <MenubarItem disabled={isDuplicating} onClick={handleDuplicate}>
+                  <CopyIcon className="mr-2 size-4" />
+                  {isDuplicating ? "Duplicating…" : "Duplicate"}
+                </MenubarItem>
                 <MenubarSeparator />
               </>
+            )}
+            {editMode !== "edit" && (
+              <MenubarItem disabled={isDuplicating} onClick={handleDuplicate}>
+                <CopyIcon className="mr-2 size-4" />
+                {isDuplicating ? "Duplicating…" : "Duplicate"}
+              </MenubarItem>
             )}
             {editMode === "edit" && (
               <MenubarItem disabled={isImporting} onClick={handleImportClick}>
@@ -926,7 +950,7 @@ function Page() {
             )}
             <MenubarItem onClick={handleExport}>
               <DownloadIcon className="mr-2 size-4" />
-              Export <MenubarShortcut>⇧⌘E</MenubarShortcut>
+              Export
             </MenubarItem>
             <MenubarSeparator />
             <MenubarItem
