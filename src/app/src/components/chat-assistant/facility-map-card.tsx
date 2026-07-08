@@ -57,28 +57,17 @@ export function FacilityMapCard({ data }: { data: UiFacilityMap }) {
     return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
   }, [data.items]);
 
-  const highlighted = useMemo(
-    () => new Set(data.highlightedDeviceIds),
-    [data.highlightedDeviceIds],
-  );
+  const highlighted = useMemo(() => new Set(data.highlightedDeviceIds), [data.highlightedDeviceIds]);
   const hasHighlightedItems = highlighted.size > 0;
 
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(null);
 
   return (
     <>
-      <div
-        ref={containerRef}
-        className="border-border bg-muted/10 relative my-2 overflow-hidden rounded-lg border"
-      >
+      <div ref={containerRef} className="border-border bg-muted/10 relative my-2 overflow-hidden rounded-lg border">
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <span className="text-muted-foreground text-[11px] font-medium">Facility Layout</span>
-          <Button
-            aria-label="Expand map"
-            onClick={() => setExpanded(true)}
-            size="icon-xs"
-            variant="ghost"
-          >
+          <Button aria-label="Expand map" onClick={() => setExpanded(true)} size="icon-xs" variant="ghost">
             <ExpandIcon className="size-3.5" />
           </Button>
         </div>
@@ -201,9 +190,7 @@ function MapItem({
             strokeLinejoin="round"
             strokeWidth={1.5}
             transform={`translate(${cx - 14}, ${cy - 14}) scale(1.17)`}
-            className={
-              highlighted ? "text-white" : isZone ? "text-foreground/70" : "text-white"
-            }
+            className={highlighted ? "text-white" : isZone ? "text-foreground/70" : "text-white"}
           />
           <circle cx={cx + 10} cy={cy - 10} fill={statusDot} r={4} stroke="white" strokeWidth={1.5} />
         </>

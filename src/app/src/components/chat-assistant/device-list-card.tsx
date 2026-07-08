@@ -12,7 +12,9 @@ const STATUS_STYLES: Record<string, { bg: string; dot: string }> = {
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] ?? { bg: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/50" };
   return (
-    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${style.bg}`}
+    >
       <span className={`size-1.5 rounded-full ${style.dot}`} />
       {status}
     </span>
@@ -31,21 +33,21 @@ export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
 
   return (
     <div className="border-border my-2 overflow-hidden rounded-lg border">
-      <div className="flex flex-col divide-y divide-border">
+      <div className="divide-border flex flex-col divide-y">
         {data.map((device) => {
           const reading = device.latestReading;
           return (
             <div className="flex items-start gap-3 px-3 py-2.5" key={device.id}>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium leading-tight">{device.name}</span>
+                  <span className="text-sm leading-tight font-medium">{device.name}</span>
                   <StatusBadge status={device.status} />
                 </div>
                 <div className="text-muted-foreground/70 flex items-center gap-2 text-[11px]">
                   <span>{device.type}</span>
                   {device.zoneName && (
                     <>
-                      <span>{'\u00b7'}</span>
+                      <span>{"\u00b7"}</span>
                       <span>{device.zoneName}</span>
                     </>
                   )}
@@ -56,21 +58,19 @@ export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
                       {reading.sensorType}: {reading.value}
                       {reading.unit}
                     </span>
-                    {reading.batteryPct != null && (
-                      <span>Battery: {reading.batteryPct.toFixed(0)}%</span>
-                    )}
+                    {reading.batteryPct != null && <span>Battery: {reading.batteryPct.toFixed(0)}%</span>}
                   </div>
                 )}
               </div>
               <div className="shrink-0">
                 {device.status === "error" || device.status === "offline" ? (
                   device.status === "error" ? (
-                    <AlertTriangleIcon className="text-red-500 size-4" />
+                    <AlertTriangleIcon className="size-4 text-red-500" />
                   ) : (
-                    <WifiOffIcon className="text-amber-500 size-4" />
+                    <WifiOffIcon className="size-4 text-amber-500" />
                   )
                 ) : (
-                  <ActivityIcon className="text-green-500 size-4" />
+                  <ActivityIcon className="size-4 text-green-500" />
                 )}
               </div>
             </div>

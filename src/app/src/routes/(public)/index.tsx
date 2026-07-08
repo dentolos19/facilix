@@ -50,7 +50,6 @@ const features = [
       "Define network gateways, communication zones, and coverage areas. Visualize signal strength and device connectivity across the facility.",
     icon: Wifi,
   },
-
 ];
 
 const steps = [
@@ -138,9 +137,8 @@ function Home() {
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-2xl text-base leading-relaxed md:text-lg">
-            Upload your floorplan, place virtual CCTV cameras, sensors, and gateways — then simulate
-            real-time device statuses, environmental readings, and security events in a living digital twin of your
-            facility.
+            Upload your floorplan, place virtual CCTV cameras, sensors, and gateways — then simulate real-time device
+            statuses, environmental readings, and security events in a living digital twin of your facility.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">

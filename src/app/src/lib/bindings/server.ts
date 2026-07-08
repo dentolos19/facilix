@@ -71,10 +71,10 @@ export class Server extends Container<Env> {
   // ── Lifecycle hooks ──────────────────────────────────────────────────
 
   async onStart(): Promise<void> {
-    // Startup event is recorded by the Python monitoring code with facility details
+    await this.recordEvent("start");
   }
 
-  async onStop(_params: { exitCode?: number; reason?: string }): Promise<void> {
-    // Stop event is recorded by the Python shutdown code with facility details
+  async onStop(params: { exitCode?: number; reason?: string }): Promise<void> {
+    await this.recordEvent("stop", params as Record<string, unknown>);
   }
 }

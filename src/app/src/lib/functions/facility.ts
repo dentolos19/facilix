@@ -129,11 +129,7 @@ export const duplicateFacility = createServerFn({ method: "POST" })
     const ctx = await requireAccessContext();
     await requireFacilityAccess(data.id);
 
-    const [source] = await db
-      .select()
-      .from(schema.facility)
-      .where(eq(schema.facility.id, data.id))
-      .limit(1);
+    const [source] = await db.select().from(schema.facility).where(eq(schema.facility.id, data.id)).limit(1);
 
     if (!source) throw new Error("Facility not found");
 
@@ -499,10 +495,22 @@ export const deleteFacility = createServerFn({ method: "POST" })
       const ids = [...facilityAssetIds];
 
       const [remainingSegments, remainingBefore, remainingAfter, remainingAttachments] = await Promise.all([
-        db.select({ assetId: schema.videoSegment.assetId }).from(schema.videoSegment).where(inArray(schema.videoSegment.assetId, ids)),
-        db.select({ assetId: schema.predictionOutput.beforeAssetId }).from(schema.predictionOutput).where(inArray(schema.predictionOutput.beforeAssetId, ids)),
-        db.select({ assetId: schema.predictionOutput.afterAssetId }).from(schema.predictionOutput).where(inArray(schema.predictionOutput.afterAssetId, ids)),
-        db.select({ assetId: schema.eventAttachment.assetId }).from(schema.eventAttachment).where(inArray(schema.eventAttachment.assetId, ids)),
+        db
+          .select({ assetId: schema.videoSegment.assetId })
+          .from(schema.videoSegment)
+          .where(inArray(schema.videoSegment.assetId, ids)),
+        db
+          .select({ assetId: schema.predictionOutput.beforeAssetId })
+          .from(schema.predictionOutput)
+          .where(inArray(schema.predictionOutput.beforeAssetId, ids)),
+        db
+          .select({ assetId: schema.predictionOutput.afterAssetId })
+          .from(schema.predictionOutput)
+          .where(inArray(schema.predictionOutput.afterAssetId, ids)),
+        db
+          .select({ assetId: schema.eventAttachment.assetId })
+          .from(schema.eventAttachment)
+          .where(inArray(schema.eventAttachment.assetId, ids)),
       ]);
 
       const referenced = new Set<string>();

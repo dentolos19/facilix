@@ -51,7 +51,7 @@ export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
   try {
     const res = await fetch(`${getApiBase()}/streams`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return [];
-    const data = (await res.json()) as SimulationStreamsResponse;
+    const data = (await res.json()) as { streams: Record<string, unknown>[] };
     return data.streams.map(toStream);
   } catch {
     return [];

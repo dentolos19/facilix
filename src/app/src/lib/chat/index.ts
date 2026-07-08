@@ -4,12 +4,15 @@ import { and, count, desc, eq, gte, like, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { summarizeImage, summarizeVideo } from "#/lib/ai";
-import { createDatabase, schema } from "#/lib/database";
 import type { UiPayload } from "#/lib/chat/ui";
+import { createDatabase, schema } from "#/lib/database";
 
-function deviceStatusCounts(
-  devices: Array<{ status: string }>,
-): { online: number; offline: number; error: number; degraded: number } {
+function deviceStatusCounts(devices: Array<{ status: string }>): {
+  online: number;
+  offline: number;
+  error: number;
+  degraded: number;
+} {
   let online = 0;
   let offline = 0;
   let error = 0;
@@ -193,11 +196,7 @@ export function createChatTools(facilityId: string) {
     });
 
     const healthScore =
-      devices.length === 0
-        ? 100
-        : Math.round(
-            ((counts.online + counts.degraded * 0.5) / devices.length) * 100,
-          );
+      devices.length === 0 ? 100 : Math.round(((counts.online + counts.degraded * 0.5) / devices.length) * 100);
 
     const ui: UiPayload[] = [
       {
@@ -349,7 +348,7 @@ export function createChatTools(facilityId: string) {
                 message: event.message,
                 createdAt: toIso(event.createdAt),
                 zoneName: null,
-                hasMedia: ((attachmentsByEvent.get(event.id) ?? []).length > 0),
+                hasMedia: (attachmentsByEvent.get(event.id) ?? []).length > 0,
                 mediaCount: (attachmentsByEvent.get(event.id) ?? []).length,
               })),
               deviceFilter: deviceId ?? undefined,
@@ -479,9 +478,7 @@ export function createChatTools(facilityId: string) {
       url: `/assets/${encodeURIComponent(assetId)}`,
     });
 
-    function mediaKind(
-      type: string,
-    ): "image" | "video" | "unknown" {
+    function mediaKind(type: string): "image" | "video" | "unknown" {
       if (type.startsWith("video/")) return "video";
       if (type.startsWith("image/")) return "image";
       return "unknown";
@@ -540,7 +537,13 @@ export function createChatTools(facilityId: string) {
             const m = media(attachment.assetId);
             return {
               id: attachment.eventId ? `event-${attachment.eventId}` : m.assetId,
-              kind: mediaKind(attachment.kind === "video" ? "video/" : attachment.kind === "image" ? "image/" : "application/octet-stream"),
+              kind: mediaKind(
+                attachment.kind === "video"
+                  ? "video/"
+                  : attachment.kind === "image"
+                    ? "image/"
+                    : "application/octet-stream",
+              ),
               source: "event" as const,
               deviceId: attachment.deviceId,
               name: m.name,

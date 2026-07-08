@@ -35,7 +35,6 @@ import { fetchSimulationSensors, type SimulationSensorDevice } from "#/lib/simul
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
 
-
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
   editMode,
@@ -408,7 +407,9 @@ export function PropertiesPanel({
                           const durationSec = Number.isFinite(v) && v >= 5 ? v : 30;
                           onUpdateItem(selected.id, {
                             props: {
-                              capture: { segments: { durationSec } } as unknown as import("../-helpers/types").JsonValue,
+                              capture: {
+                                segments: { durationSec },
+                              } as unknown as import("../-helpers/types").JsonValue,
                             },
                           });
                         }}
@@ -416,11 +417,13 @@ export function PropertiesPanel({
                         step={1}
                         type="number"
                         value={String(
-                          ((selected.props.capture as unknown as { segments?: { durationSec?: number } })?.segments
-                            ?.durationSec) ?? 30,
+                          (selected.props.capture as unknown as { segments?: { durationSec?: number } })?.segments
+                            ?.durationSec ?? 30,
                         )}
                       />
-                      <p className="text-muted-foreground/60 text-[10px]">Length of each recorded clip (5–300 s). Default: 30 s.</p>
+                      <p className="text-muted-foreground/60 text-[10px]">
+                        Length of each recorded clip (5–300 s). Default: 30 s.
+                      </p>
                     </Field>
                   </div>
                 </AccordionContent>

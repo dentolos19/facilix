@@ -28,7 +28,7 @@ export function SensorHistoryCard({ data }: { data: UiSensorHistory }) {
 
   return (
     <div className="border-border my-2 overflow-hidden rounded-lg border">
-      <div className="flex flex-col divide-y divide-border">
+      <div className="divide-border flex flex-col divide-y">
         {Array.from(grouped.entries()).map(([deviceName, readings]) => {
           const latest = readings[0];
           const values = readings.slice(0, 20);
@@ -56,7 +56,12 @@ export function SensorHistoryCard({ data }: { data: UiSensorHistory }) {
                         key={r.timestamp}
                         style={{
                           height: `${Math.max(pct, 4)}%`,
-                          backgroundColor: r.status === "ok" ? "var(--color-green-500, #22c55e)" : r.status === "degraded" ? "var(--color-amber-500, #f59e0b)" : "var(--color-red-500, #ef4444)",
+                          backgroundColor:
+                            r.status === "ok"
+                              ? "var(--color-green-500, #22c55e)"
+                              : r.status === "degraded"
+                                ? "var(--color-amber-500, #f59e0b)"
+                                : "var(--color-red-500, #ef4444)",
                           opacity: 0.6 + 0.4 * ((i + 1) / values.length),
                         }}
                       />

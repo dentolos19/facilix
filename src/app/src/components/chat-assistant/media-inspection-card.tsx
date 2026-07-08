@@ -27,20 +27,9 @@ export function MediaInspectionCard({ data }: { data: UiMediaInspection }) {
       {canPreview && (
         <div className="border-border bg-muted/10 relative aspect-video overflow-hidden rounded border">
           {isVideo ? (
-            <video
-              className="size-full object-contain"
-              controls
-              playsInline
-              preload="metadata"
-              src={data.assetUrl}
-            />
+            <video className="size-full object-contain" controls playsInline preload="metadata" src={data.assetUrl} />
           ) : (
-            <img
-              alt={data.assetName}
-              className="size-full object-contain"
-              loading="lazy"
-              src={data.assetUrl}
-            />
+            <img alt={data.assetName} className="size-full object-contain" loading="lazy" src={data.assetUrl} />
           )}
         </div>
       )}

@@ -117,7 +117,11 @@ function toolDetail(part: ToolCallPart): string | null {
   if (part.name === "search_facility_events") {
     const query = typeof input.query === "string" ? input.query : null;
     const severity = typeof input.severity === "string" ? input.severity : null;
-    return [query ? `\u201c${query}\u201d` : null, severity ? `${severity} severity` : null].filter(Boolean).join(" \u00b7 ") || null;
+    return (
+      [query ? `\u201c${query}\u201d` : null, severity ? `${severity} severity` : null]
+        .filter(Boolean)
+        .join(" \u00b7 ") || null
+    );
   }
   if (part.name === "get_sensor_history" && typeof input.deviceId === "string") {
     return `Device ${input.deviceId}`;
@@ -301,10 +305,7 @@ function ChatMessage({ message, isLatest, isLoading }: { message: UIMessage; isL
   const toolParts = message.parts.filter((part): part is ToolCallPart => part.type === "tool-call");
   const thinkingParts = message.parts.filter((part): part is ThinkingPart => part.type === "thinking");
   const completedToolParts = toolParts.filter((part) => part.state === "complete");
-  const uiPayloads = useMemo(
-    () => completedToolParts.flatMap(extractUiPayloads),
-    [completedToolParts],
-  );
+  const uiPayloads = useMemo(() => completedToolParts.flatMap(extractUiPayloads), [completedToolParts]);
   const hasVisibleContent =
     textParts.some((part) => part.content.trim()) || toolParts.length > 0 || thinkingParts.length > 0;
 

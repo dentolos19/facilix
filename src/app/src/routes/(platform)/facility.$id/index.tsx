@@ -324,75 +324,72 @@ function Page() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
-  const addPlacedItem = useCallback(
-    (type: PlacedItemType, x: number, y: number) => {
-      saveSnapshot();
-      const id = crypto.randomUUID();
-      const size = DEFAULT_SIZES[type];
+  const addPlacedItem = useCallback((type: PlacedItemType, x: number, y: number) => {
+    saveSnapshot();
+    const id = crypto.randomUUID();
+    const size = DEFAULT_SIZES[type];
 
-      const defaultProps = { ...DEFAULT_PROPS[type] };
+    const defaultProps = { ...DEFAULT_PROPS[type] };
 
-      setPlacedItems((prev) =>
-        recomputeZoneLinks([
-          ...prev,
-          {
-            id,
-            type,
-            x,
-            y,
-            width: size.width,
-            height: size.height,
-            zoneId: null,
-            name: type,
-            status: "unknown",
-            notes: "",
-            props: defaultProps,
-          },
-        ]),
-      );
-      setIsDirty(true);
+    setPlacedItems((prev) =>
+      recomputeZoneLinks([
+        ...prev,
+        {
+          id,
+          type,
+          x,
+          y,
+          width: size.width,
+          height: size.height,
+          zoneId: null,
+          name: type,
+          status: "unknown",
+          notes: "",
+          props: defaultProps,
+        },
+      ]),
+    );
+    setIsDirty(true);
 
-      // Fire-and-forget: auto-select first available simulation source.
-      if (type === "CCTV") {
-        fetchSimulationStreams().then((streams) => {
-          if (streams.length > 0) {
-            setPlacedItems((prev) =>
-              recomputeZoneLinks(
-                prev.map((item) =>
-                  item.id === id && !item.props.simulationStream
-                    ? { ...item, props: { ...item.props, simulationStream: streams[0].name } }
-                    : item,
-                ),
+    // Fire-and-forget: auto-select first available simulation source.
+    if (type === "CCTV") {
+      fetchSimulationStreams().then((streams) => {
+        if (streams.length > 0) {
+          setPlacedItems((prev) =>
+            recomputeZoneLinks(
+              prev.map((item) =>
+                item.id === id && !item.props.simulationStream
+                  ? { ...item, props: { ...item.props, simulationStream: streams[0].name } }
+                  : item,
               ),
-            );
-          }
-        });
-      }
-      if (type === "Sensor") {
-        fetchSimulationSensors().then((devices) => {
-          if (devices.length > 0) {
-            setPlacedItems((prev) =>
-              recomputeZoneLinks(
-                prev.map((item) =>
-                  item.id === id && !item.props.simulationDeviceId
-                    ? {
-                        ...item,
-                        props: {
-                          ...item.props,
-                          simulationDeviceId: devices[0].deviceId,
-                          sensorType: devices[0].sensorType,
-                        },
-                      }
-                    : item,
-                ),
+            ),
+          );
+        }
+      });
+    }
+    if (type === "Sensor") {
+      fetchSimulationSensors().then((devices) => {
+        if (devices.length > 0) {
+          setPlacedItems((prev) =>
+            recomputeZoneLinks(
+              prev.map((item) =>
+                item.id === id && !item.props.simulationDeviceId
+                  ? {
+                      ...item,
+                      props: {
+                        ...item.props,
+                        simulationDeviceId: devices[0].deviceId,
+                        sensorType: devices[0].sensorType,
+                      },
+                    }
+                  : item,
               ),
-            );
-          }
-        });
-      }
-    },
-    [],
-  );
+            ),
+          );
+        }
+      });
+    }
+  }, []);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
@@ -1073,7 +1070,11 @@ function Page() {
 
           {/* Expanded chat dialog */}
           <Dialog onOpenChange={setChatExpandedOpen} open={chatExpandedOpen}>
-            <DialogContent className="flex flex-col gap-0 overflow-hidden p-0" showCloseButton={false} style={{ height: "90vh", width: "calc(100vw - 2rem)", maxWidth: "64rem" }}>
+            <DialogContent
+              className="flex flex-col gap-0 overflow-hidden p-0"
+              showCloseButton={false}
+              style={{ height: "90vh", width: "calc(100vw - 2rem)", maxWidth: "64rem" }}
+            >
               <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-medium">Chat</h2>
@@ -1082,7 +1083,9 @@ function Page() {
                   <TooltipTrigger asChild>
                     <Button
                       aria-label="Open in Manage"
-                      onClick={() => navigate({ to: "/manage/$id", params: { id: facilityId }, search: { tab: "chat" } })}
+                      onClick={() =>
+                        navigate({ to: "/manage/$id", params: { id: facilityId }, search: { tab: "chat" } })
+                      }
                       size="icon-sm"
                       variant="ghost"
                     >
@@ -1091,7 +1094,12 @@ function Page() {
                   </TooltipTrigger>
                   <TooltipContent>Open in Manage</TooltipContent>
                 </Tooltip>
-                <Button aria-label="Close expanded chat" onClick={() => setChatExpandedOpen(false)} size="icon-sm" variant="ghost">
+                <Button
+                  aria-label="Close expanded chat"
+                  onClick={() => setChatExpandedOpen(false)}
+                  size="icon-sm"
+                  variant="ghost"
+                >
                   <XIcon />
                 </Button>
               </header>

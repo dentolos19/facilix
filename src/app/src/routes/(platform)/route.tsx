@@ -41,7 +41,5 @@ function Layout() {
     return null;
   }
 
-  return (
-    <Outlet />
-  );
+  return <Outlet />;
 }

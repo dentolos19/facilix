@@ -25,7 +25,7 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
           {entries.map((entry) => (
             <button
               aria-label={`View ${entry.name}`}
-              className="border-border bg-muted/20 group relative aspect-video overflow-hidden rounded border transition-colors hover:bg-muted/40"
+              className="border-border bg-muted/20 group hover:bg-muted/40 relative aspect-video overflow-hidden rounded border transition-colors"
               key={entry.id}
               onClick={() => setPreview(entry)}
               type="button"
@@ -58,22 +58,20 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
         </div>
         {data.entries.length > 12 && (
           <div className="border-border/50 bg-muted/20 border-t px-3 py-1.5 text-center">
-            <span className="text-muted-foreground/50 text-[10px]">
-              {data.entries.length} media files total
-            </span>
+            <span className="text-muted-foreground/50 text-[10px]">{data.entries.length} media files total</span>
           </div>
         )}
       </div>
 
-      <Dialog onOpenChange={(open) => { if (!open) setPreview(null); }} open={preview !== null}>
+      <Dialog
+        onOpenChange={(open) => {
+          if (!open) setPreview(null);
+        }}
+        open={preview !== null}
+      >
         <DialogContent className="flex h-[85vh] max-w-3xl flex-col items-center justify-center gap-2 p-4">
           {preview?.kind === "video" ? (
-            <video
-              className="max-h-full max-w-full object-contain"
-              controls
-              playsInline
-              src={preview.url}
-            />
+            <video className="max-h-full max-w-full object-contain" controls playsInline src={preview.url} />
           ) : preview ? (
             <img
               alt={preview.name}
@@ -86,9 +84,7 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
           ) : (
             <AlertTriangleIcon className="text-muted-foreground size-8" />
           )}
-          {preview && (
-            <p className="text-muted-foreground text-[11px]">{preview.name}</p>
-          )}
+          {preview && <p className="text-muted-foreground text-[11px]">{preview.name}</p>}
         </DialogContent>
       </Dialog>
     </>
