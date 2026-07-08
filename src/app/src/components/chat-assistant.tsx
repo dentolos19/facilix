@@ -5,6 +5,7 @@ import {
   ActivityIcon,
   CircleAlertIcon,
   DatabaseIcon,
+  ExpandIcon,
   EyeIcon,
   ImagesIcon,
   LoaderCircleIcon,
@@ -34,13 +35,23 @@ import {
   MessageScrollerViewport,
 } from "#/components/ui/message-scroller";
 import { useFacilityChat } from "#/hooks/use-chat";
+import type { UiPayload } from "#/lib/chat/ui";
 import { cn } from "#/lib/utils";
+
+import { DeviceListCard } from "./chat-assistant/device-list-card";
+import { EventListCard } from "./chat-assistant/event-list-card";
+import { FacilityMapCard } from "./chat-assistant/facility-map-card";
+import { FacilitySummaryCard } from "./chat-assistant/facility-summary-card";
+import { MediaGalleryCard } from "./chat-assistant/media-gallery-card";
+import { MediaInspectionCard } from "./chat-assistant/media-inspection-card";
+import { SensorHistoryCard } from "./chat-assistant/sensor-history-card";
 
 type MessagePart = UIMessage["parts"][number];
 type ToolCallPart = Extract<MessagePart, { type: "tool-call" }>;
 type ThinkingPart = Extract<MessagePart, { type: "thinking" }>;
 
 const SUGGESTED_QUESTIONS = [
+  "Show me the facility layout and device map",
   "What needs my attention right now?",
   "Summarize recent safety events",
   "Which sensors look unusual?",
@@ -106,7 +117,7 @@ function toolDetail(part: ToolCallPart): string | null {
   if (part.name === "search_facility_events") {
     const query = typeof input.query === "string" ? input.query : null;
     const severity = typeof input.severity === "string" ? input.severity : null;
-    return [query ? `“${query}”` : null, severity ? `${severity} severity` : null].filter(Boolean).join(" · ") || null;
+    return [query ? `\u201c${query}\u201d` : null, severity ? `${severity} severity` : null].filter(Boolean).join(" \u00b7 ") || null;
   }
   if (part.name === "get_sensor_history" && typeof input.deviceId === "string") {
     return `Device ${input.deviceId}`;
@@ -115,6 +126,15 @@ function toolDetail(part: ToolCallPart): string | null {
     return typeof input.question === "string" ? input.question : null;
   }
   return null;
+}
+
+function extractUiPayloads(part: ToolCallPart): UiPayload[] {
+  if (part.state !== "complete") return [];
+  const output = (part as Record<string, unknown>).output;
+  if (!output || typeof output !== "object") return [];
+  const ui = (output as Record<string, unknown>).ui;
+  if (!Array.isArray(ui)) return [];
+  return ui as UiPayload[];
 }
 
 function mergeAssistantMessages(messages: UIMessage[]): UIMessage[] {
@@ -149,7 +169,7 @@ function ActivityDetails({
         <div className="text-muted-foreground flex flex-col gap-2 text-xs leading-relaxed">
           {thinkingParts.map((part, index) => (
             <div className="whitespace-pre-wrap" key={`${messageId}-thinking-${index}`}>
-              <Streamdown>{part.content || "Reasoning through the facility data…"}</Streamdown>
+              <Streamdown>{part.content || "Reasoning through the facility data\u2026"}</Streamdown>
             </div>
           ))}
         </div>
@@ -246,6 +266,33 @@ function AssistantActivity({
   );
 }
 
+function UiRenderer({ payloads }: { payloads: UiPayload[] }) {
+  return (
+    <>
+      {payloads.map((payload, index) => {
+        switch (payload.kind) {
+          case "facility-summary":
+            return <FacilitySummaryCard data={payload.data} key={`ui-${index}`} />;
+          case "facility-map":
+            return <FacilityMapCard data={payload.data} key={`ui-${index}`} />;
+          case "device-list":
+            return <DeviceListCard data={payload.data} key={`ui-${index}`} />;
+          case "sensor-history":
+            return <SensorHistoryCard data={payload.data} key={`ui-${index}`} />;
+          case "event-list":
+            return <EventListCard data={payload.data} key={`ui-${index}`} />;
+          case "media-gallery":
+            return <MediaGalleryCard data={payload.data} key={`ui-${index}`} />;
+          case "media-inspection":
+            return <MediaInspectionCard data={payload.data} key={`ui-${index}`} />;
+          default:
+            return null;
+        }
+      })}
+    </>
+  );
+}
+
 function ChatMessage({ message, isLatest, isLoading }: { message: UIMessage; isLatest: boolean; isLoading: boolean }) {
   const isUser = message.role === "user";
   const textParts = message.parts.filter(
@@ -253,6 +300,11 @@ function ChatMessage({ message, isLatest, isLoading }: { message: UIMessage; isL
   );
   const toolParts = message.parts.filter((part): part is ToolCallPart => part.type === "tool-call");
   const thinkingParts = message.parts.filter((part): part is ThinkingPart => part.type === "thinking");
+  const completedToolParts = toolParts.filter((part) => part.state === "complete");
+  const uiPayloads = useMemo(
+    () => completedToolParts.flatMap(extractUiPayloads),
+    [completedToolParts],
+  );
   const hasVisibleContent =
     textParts.some((part) => part.content.trim()) || toolParts.length > 0 || thinkingParts.length > 0;
 
@@ -286,6 +338,7 @@ function ChatMessage({ message, isLatest, isLoading }: { message: UIMessage; isL
             </Bubble>
           );
         })}
+        {!isUser && uiPayloads.length > 0 ? <UiRenderer payloads={uiPayloads} /> : null}
       </MessageContent>
     </Message>
   );
@@ -295,11 +348,13 @@ export function ChatAssistant({
   facilityId,
   className,
   onClose,
+  onExpand,
   hideHeader,
 }: {
   facilityId: string;
   className?: string;
   onClose?: () => void;
+  onExpand?: () => void;
   hideHeader?: boolean;
 }) {
   const [input, setInput] = useState("");
@@ -329,6 +384,11 @@ export function ChatAssistant({
               <TrashIcon />
             </Button>
           ) : null}
+          {onExpand ? (
+            <Button aria-label="Expand chat" onClick={onExpand} size="icon-sm" variant="ghost">
+              <ExpandIcon />
+            </Button>
+          ) : null}
           {onClose ? (
             <Button aria-label="Close chat" onClick={onClose} size="icon-sm" variant="ghost">
               <XIcon />
@@ -343,7 +403,7 @@ export function ChatAssistant({
             <EmptyHeader>
               <EmptyTitle className="text-xl">What would you like to know?</EmptyTitle>
               <EmptyDescription>
-                Ask about this facility’s devices, events, sensors, recordings, or visual evidence.
+                Ask about this facility's devices, events, sensors, recordings, or visual evidence.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent className="max-w-xl">

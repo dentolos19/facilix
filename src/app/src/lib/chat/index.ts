@@ -1,10 +1,28 @@
 import { toolDefinition } from "@tanstack/ai";
 import { env } from "cloudflare:workers";
-import { and, desc, eq, gte, like, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, like, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { summarizeImage, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
+import type { UiPayload } from "#/lib/chat/ui";
+
+function deviceStatusCounts(
+  devices: Array<{ status: string }>,
+): { online: number; offline: number; error: number; degraded: number } {
+  let online = 0;
+  let offline = 0;
+  let error = 0;
+  let degraded = 0;
+  for (const d of devices) {
+    if (d.status === "online") online++;
+    else if (d.status === "offline") offline++;
+    else if (d.status === "error") error++;
+    else if (d.status === "degraded") degraded++;
+    else online++;
+  }
+  return { online, offline, error, degraded };
+}
 
 const emptyInput = z.object({});
 
@@ -80,7 +98,7 @@ async function getAssetMetadata(assetIds: string[]) {
 export function createChatTools(facilityId: string) {
   const getFacilityOverview = getFacilityOverviewDefinition.server(async () => {
     const db = createDatabase(env.DATABASE);
-    const [facilityRows, zones, devices, sensorReadings] = await Promise.all([
+    const [facilityRows, zones, devices, sensorReadings, eventCounts] = await Promise.all([
       db.select().from(schema.facility).where(eq(schema.facility.id, facilityId)).limit(1),
       db.select().from(schema.facilityZone).where(eq(schema.facilityZone.facilityId, facilityId)),
       db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, facilityId)),
@@ -90,6 +108,7 @@ export function createChatTools(facilityId: string) {
         .where(eq(schema.sensorReading.facilityId, facilityId))
         .orderBy(desc(schema.sensorReading.timestamp))
         .limit(1000),
+      db.select({ count: count() }).from(schema.facilityEvent).where(eq(schema.facilityEvent.facilityId, facilityId)),
     ]);
 
     const facility = facilityRows[0];
@@ -101,6 +120,112 @@ export function createChatTools(facilityId: string) {
     }
 
     const zoneNames = new Map(zones.map((zone) => [zone.id, zone.name]));
+    const counts = deviceStatusCounts(devices);
+    const eventCount = eventCounts[0]?.count ?? 0;
+    const layoutItems = (facility.data?.items ?? []).map((lay) => ({
+      id: lay.id,
+      x: lay.x,
+      y: lay.y,
+      width: lay.width,
+      height: lay.height,
+    }));
+    const layoutById = new Map(layoutItems.map((l) => [l.id, l]));
+
+    const mapItems = devices.map((device) => {
+      const lay = layoutById.get(device.id);
+      const zoneName = device.zoneId ? (zoneNames.get(device.zoneId) ?? null) : null;
+      return {
+        id: device.id,
+        type: device.type as "CCTV" | "Sensor" | "Signal",
+        name: device.name,
+        status: device.status,
+        x: lay?.x ?? 0,
+        y: lay?.y ?? 0,
+        width: lay?.width ?? 36,
+        height: lay?.height ?? 36,
+        zoneId: device.zoneId,
+        zoneName,
+        props: device.data,
+      };
+    });
+
+    const zoneMapItems = zones.map((zone) => {
+      const lay = layoutById.get(zone.id);
+      return {
+        id: zone.id,
+        type: "Zone" as const,
+        name: zone.name,
+        status: "active",
+        x: lay?.x ?? 0,
+        y: lay?.y ?? 0,
+        width: lay?.width ?? 140,
+        height: lay?.height ?? 90,
+        zoneId: null,
+        zoneName: null,
+        props: zone.data,
+      };
+    });
+
+    const deviceListItems = devices.map((device) => {
+      const latest = latestReadingByDevice.get(device.id);
+      return {
+        id: device.id,
+        name: device.name,
+        type: device.type,
+        status: device.status,
+        zoneId: device.zoneId,
+        zoneName: device.zoneId ? (zoneNames.get(device.zoneId) ?? null) : null,
+        notes: device.notes,
+        latestReading: latest
+          ? {
+              sensorType: latest.sensorType,
+              value: latest.value,
+              unit: latest.unit,
+              status: latest.status,
+              secondaryValue: latest.secondaryValue,
+              secondaryUnit: latest.secondaryUnit,
+              batteryPct: latest.batteryPct,
+              signalRssiDbm: latest.signalRssiDbm,
+              timestamp: toIso(latest.timestamp),
+            }
+          : null,
+      };
+    });
+
+    const healthScore =
+      devices.length === 0
+        ? 100
+        : Math.round(
+            ((counts.online + counts.degraded * 0.5) / devices.length) * 100,
+          );
+
+    const ui: UiPayload[] = [
+      {
+        kind: "facility-summary",
+        data: {
+          facilityName: facility.name,
+          zoneCount: zones.length,
+          deviceCount: devices.length,
+          onlineCount: counts.online,
+          errorCount: counts.error,
+          offlineCount: counts.offline,
+          eventCount,
+          healthScore,
+        },
+      },
+      {
+        kind: "facility-map",
+        data: {
+          items: [...zoneMapItems, ...mapItems],
+          highlightedDeviceIds: [],
+        },
+      },
+      {
+        kind: "device-list",
+        data: deviceListItems,
+      },
+    ];
+
     return {
       facility: {
         id: facility.id,
@@ -142,6 +267,7 @@ export function createChatTools(facilityId: string) {
             : null,
         };
       }),
+      ui,
     };
   });
 
@@ -181,6 +307,14 @@ export function createChatTools(facilityId: string) {
         attachmentsByEvent.set(attachment.eventId, current);
       }
 
+      const deviceRows =
+        events.length === 0
+          ? []
+          : await db
+              .select({ id: schema.facilityDevice.id, name: schema.facilityDevice.name })
+              .from(schema.facilityDevice)
+              .where(eq(schema.facilityDevice.facilityId, facilityId));
+      const deviceNameMap = new Map(deviceRows.map((d) => [d.id, d.name]));
       return {
         count: events.length,
         events: events.map((event) => ({
@@ -201,6 +335,27 @@ export function createChatTools(facilityId: string) {
             url: `/assets/${encodeURIComponent(attachment.assetId)}`,
           })),
         })),
+        ui: [
+          {
+            kind: "event-list",
+            data: {
+              count: events.length,
+              events: events.map((event) => ({
+                id: event.id,
+                deviceId: event.deviceId,
+                deviceName: event.deviceId ? (deviceNameMap.get(event.deviceId) ?? null) : null,
+                severity: event.severity,
+                type: event.type,
+                message: event.message,
+                createdAt: toIso(event.createdAt),
+                zoneName: null,
+                hasMedia: ((attachmentsByEvent.get(event.id) ?? []).length > 0),
+                mediaCount: (attachmentsByEvent.get(event.id) ?? []).length,
+              })),
+              deviceFilter: deviceId ?? undefined,
+            },
+          },
+        ] as UiPayload[],
       };
     },
   );
@@ -225,22 +380,41 @@ export function createChatTools(facilityId: string) {
     ]);
     const deviceNames = new Map(devices.map((device) => [device.id, device.name]));
 
+    const readingsData = readings.map((reading) => ({
+      deviceId: reading.deviceId,
+      deviceName: deviceNames.get(reading.deviceId) ?? "Unknown device",
+      sensorType: reading.sensorType,
+      value: reading.value,
+      unit: reading.unit,
+      status: reading.status,
+      secondaryValue: reading.secondaryValue,
+      secondaryUnit: reading.secondaryUnit,
+      batteryPct: reading.batteryPct,
+      signalRssiDbm: reading.signalRssiDbm,
+      source: reading.source,
+      timestamp: toIso(reading.timestamp),
+    }));
+
     return {
       count: readings.length,
-      readings: readings.map((reading) => ({
-        deviceId: reading.deviceId,
-        deviceName: deviceNames.get(reading.deviceId) ?? "Unknown device",
-        sensorType: reading.sensorType,
-        value: reading.value,
-        unit: reading.unit,
-        status: reading.status,
-        secondaryValue: reading.secondaryValue,
-        secondaryUnit: reading.secondaryUnit,
-        batteryPct: reading.batteryPct,
-        signalRssiDbm: reading.signalRssiDbm,
-        source: reading.source,
-        timestamp: toIso(reading.timestamp),
-      })),
+      readings: readingsData,
+      ui: [
+        {
+          kind: "sensor-history",
+          data: {
+            readings: readingsData.map((r) => ({
+              deviceId: r.deviceId,
+              deviceName: r.deviceName,
+              sensorType: r.sensorType,
+              value: r.value,
+              unit: r.unit,
+              status: r.status,
+              batteryPct: r.batteryPct,
+              timestamp: r.timestamp,
+            })),
+          },
+        },
+      ] as UiPayload[],
     };
   });
 
@@ -305,6 +479,79 @@ export function createChatTools(facilityId: string) {
       url: `/assets/${encodeURIComponent(assetId)}`,
     });
 
+    function mediaKind(
+      type: string,
+    ): "image" | "video" | "unknown" {
+      if (type.startsWith("video/")) return "video";
+      if (type.startsWith("image/")) return "image";
+      return "unknown";
+    }
+
+    const recordingEntries = {
+      kind: "media-gallery",
+      data: {
+        entries: [
+          ...recordings.map((recording) => {
+            const m = media(recording.assetId);
+            return {
+              id: recording.id,
+              kind: mediaKind(m.type),
+              source: "recording" as const,
+              deviceId: recording.deviceId,
+              name: m.name,
+              url: m.url,
+              durationSec: recording.durationSec,
+              createdAt: toIso(recording.startedAt),
+            };
+          }),
+          ...predictions.flatMap((prediction) => {
+            const b = media(prediction.beforeAssetId);
+            const a = media(prediction.afterAssetId);
+            const results: Array<{
+              id: string;
+              kind: "image" | "video" | "unknown";
+              source: "prediction";
+              deviceId: string | null;
+              name: string;
+              url: string;
+              createdAt: string;
+            }> = [];
+            results.push({
+              id: `${prediction.id}-before`,
+              kind: mediaKind(b.type),
+              source: "prediction",
+              deviceId: prediction.deviceId,
+              name: `Before ${b.name}`,
+              url: b.url,
+              createdAt: toIso(prediction.createdAt),
+            });
+            results.push({
+              id: `${prediction.id}-annotated`,
+              kind: mediaKind(a.type),
+              source: "prediction",
+              deviceId: prediction.deviceId,
+              name: `Annotated ${a.name}`,
+              url: a.url,
+              createdAt: toIso(prediction.createdAt),
+            });
+            return results;
+          }),
+          ...eventMedia.map((attachment) => {
+            const m = media(attachment.assetId);
+            return {
+              id: attachment.eventId ? `event-${attachment.eventId}` : m.assetId,
+              kind: mediaKind(attachment.kind === "video" ? "video/" : attachment.kind === "image" ? "image/" : "application/octet-stream"),
+              source: "event" as const,
+              deviceId: attachment.deviceId,
+              name: m.name,
+              url: m.url,
+              createdAt: toIso(attachment.createdAt),
+            };
+          }),
+        ],
+      },
+    };
+
     return {
       recordings: recordings.map((recording) => ({
         id: recording.id,
@@ -338,6 +585,7 @@ export function createChatTools(facilityId: string) {
         createdAt: toIso(attachment.createdAt),
         media: media(attachment.assetId),
       })),
+      ui: [recordingEntries] as UiPayload[],
     };
   });
 
@@ -392,7 +640,7 @@ export function createChatTools(facilityId: string) {
         ? await summarizeImage(bytes, asset.type, prompt, { maxTokens: 800 })
         : null;
 
-    return {
+    const inspectionResult = {
       status: answer ? "inspected" : "unsupported",
       answer:
         answer ??
@@ -405,6 +653,26 @@ export function createChatTools(facilityId: string) {
         url: `/assets/${encodeURIComponent(asset.id)}`,
       },
     };
+
+    if (answer) {
+      return {
+        ...inspectionResult,
+        ui: [
+          {
+            kind: "media-inspection",
+            data: {
+              assetName: asset.name,
+              assetType: asset.type,
+              assetUrl: `/assets/${encodeURIComponent(asset.id)}`,
+              status: "inspected",
+              answer,
+            },
+          },
+        ] as UiPayload[],
+      };
+    }
+
+    return inspectionResult;
   });
 
   return [getFacilityOverview, searchFacilityEvents, getSensorHistory, listFacilityMedia, inspectFacilityMedia];

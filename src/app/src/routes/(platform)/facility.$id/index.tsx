@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   BarChart3,
   DownloadIcon,
+  ExternalLinkIcon,
   EyeIcon,
   FileJsonIcon,
   ImagePlusIcon,
@@ -22,6 +23,7 @@ import {
   Trash2Icon,
   Undo2Icon,
   UserPlusIcon,
+  XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -178,6 +180,7 @@ function Page() {
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpandedOpen, setChatExpandedOpen] = useState(false);
 
   const handleClearContainerLogs = useCallback(async () => {
     try {
@@ -1032,10 +1035,45 @@ function Page() {
                 forceMount
                 sideOffset={8}
               >
-                <ChatAssistant facilityId={facilityId} onClose={() => setChatOpen(false)} />
+                <ChatAssistant
+                  facilityId={facilityId}
+                  onClose={() => setChatOpen(false)}
+                  onExpand={() => {
+                    setChatOpen(false);
+                    setChatExpandedOpen(true);
+                  }}
+                />
               </PopoverContent>
             </Popover>
           )}
+
+          {/* Expanded chat dialog */}
+          <Dialog onOpenChange={setChatExpandedOpen} open={chatExpandedOpen}>
+            <DialogContent className="flex flex-col gap-0 overflow-hidden p-0" showCloseButton={false} style={{ height: "90vh", width: "calc(100vw - 2rem)", maxWidth: "64rem" }}>
+              <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-sm font-medium">Chat</h2>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      aria-label="Open in Manage"
+                      onClick={() => navigate({ to: "/manage/$id", params: { id: facilityId }, search: { tab: "chat" } })}
+                      size="icon-sm"
+                      variant="ghost"
+                    >
+                      <ExternalLinkIcon />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Open in Manage</TooltipContent>
+                </Tooltip>
+                <Button aria-label="Close expanded chat" onClick={() => setChatExpandedOpen(false)} size="icon-sm" variant="ghost">
+                  <XIcon />
+                </Button>
+              </header>
+              <ChatAssistant facilityId={facilityId} hideHeader />
+            </DialogContent>
+          </Dialog>
 
           {editMode === "edit" && (
             <Tooltip>

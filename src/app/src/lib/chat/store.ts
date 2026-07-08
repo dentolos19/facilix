@@ -63,16 +63,18 @@ function ensureEntry(facilityId: string): ChatEntry {
   if (existing) return existing;
 
   const client = makeClient(facilityId);
-  const entry: ChatEntry = { client, state: createInitialState() };
+
+  // Load persisted messages before the entry is visible so the store
+  // never publishes an empty state when history exists.
+  const messages = client.getMessages();
+  const state: FacilityChatState = { ...createInitialState(), messages };
+  const entry: ChatEntry = { client, state };
 
   // Start the background subscription so the session survives navigation.
   client.subscribe();
 
-  // Sync initial hydrated state from persistence.
-  updateEntry(facilityId, { messages: client.getMessages() });
-
-  chatStore.setState((state) => {
-    const clients = new Map(state.clients);
+  chatStore.setState((previous) => {
+    const clients = new Map(previous.clients);
     clients.set(facilityId, entry);
     return { clients };
   });
