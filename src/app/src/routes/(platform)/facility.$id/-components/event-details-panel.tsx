@@ -1,6 +1,8 @@
 import { AlertTriangleIcon, ImageIcon, Maximize2Icon, VideoIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { EvidenceImage, type DetectionBox } from "#/components/evidence-image";
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { ScrollArea } from "#/components/ui/scroll-area";
@@ -147,11 +149,12 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
           </DialogHeader>
           <div className="border-border flex min-h-0 flex-1 items-center justify-center overflow-auto border bg-black/95">
             {selectedAttachment?.kind === "image" && (
-              <img
+              <EventEvidenceImage
                 alt={`Evidence from ${event.deviceName}`}
-                className="max-h-none max-w-none transition-transform"
+                attachment={selectedAttachment}
+                className="transition-transform"
+                imageClassName="block max-h-none max-w-none"
                 onError={() => setFailedAttachmentId(selectedAttachment.id)}
-                src={selectedAttachment.url}
                 style={{ transform: `scale(${zoom})` }}
               />
             )}
@@ -228,11 +231,12 @@ function EventAttachmentViewer({
           />
         ) : selectedAttachment ? (
           <>
-            <img
+            <EventEvidenceImage
               alt="Annotated event evidence"
-              className="h-full w-full object-contain"
+              attachment={selectedAttachment}
+              className="h-full w-full"
+              imageClassName="h-full w-full object-contain"
               onError={() => onAttachmentError(selectedAttachment.id)}
-              src={selectedAttachment.url}
             />
             <Button
               aria-label="Open image zoom"
@@ -272,6 +276,77 @@ function EventAttachmentViewer({
   );
 }
 
+function EventEvidenceImage({
+  attachment,
+  alt,
+  className,
+  imageClassName,
+  style,
+  onError,
+}: {
+  attachment: FacilityEventAttachmentRow;
+  alt: string;
+  className?: string;
+  imageClassName?: string;
+  style?: CSSProperties;
+  onError?: () => void;
+}) {
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const detections = useMemo((): DetectionBox[] => {
+    const rawDetections = Array.isArray(attachment.metadata.detections)
+      ? attachment.metadata.detections
+      : Array.isArray(attachment.metadata.predictions)
+        ? attachment.metadata.predictions
+        : [];
+
+    return rawDetections.flatMap((item) => {
+      if (!isRecord(item)) return [];
+      const box = getDetectionBox(item);
+      if (!box) return [];
+      const confidence = typeof item.confidence === "number" && Number.isFinite(item.confidence) ? item.confidence : 0;
+      return [{ label: typeof item.label === "string" ? item.label : "detection", confidence, ...box }];
+    });
+  }, [attachment.metadata]);
+
+  return (
+    <EvidenceImage
+      alt={alt}
+      className={className}
+      detections={detections}
+      height={imageSize?.height ?? 0}
+      imageClassName={imageClassName}
+      onError={onError}
+      onImageLoad={setImageSize}
+      src={attachment.url}
+      style={style}
+      width={imageSize?.width ?? 0}
+    />
+  );
+}
+
+function getDetectionBox(item: Record<string, unknown>) {
+  if (isRecord(item.box)) {
+    const xmin = toFiniteNumber(item.box.xmin);
+    const ymin = toFiniteNumber(item.box.ymin);
+    const xmax = toFiniteNumber(item.box.xmax);
+    const ymax = toFiniteNumber(item.box.ymax);
+    if (xmin !== null && ymin !== null && xmax !== null && ymax !== null && xmax > xmin && ymax > ymin) {
+      return { x: xmin, y: ymin, width: xmax - xmin, height: ymax - ymin };
+    }
+  }
+
+  const prediction = isRecord(item.prediction) ? item.prediction : isRecord(item.detection) ? item.detection : null;
+  if (!prediction) return null;
+
+  const x = toFiniteNumber(prediction.x);
+  const y = toFiniteNumber(prediction.y);
+  const width = toFiniteNumber(prediction.width);
+  const height = toFiniteNumber(prediction.height);
+  if (x === null || y === null || width === null || height === null || width <= 0 || height <= 0) return null;
+
+  return { x: x - width / 2, y: y - height / 2, width, height };
+}
+
 function buildAttachmentContext(
   attachment: FacilityEventAttachmentRow | null,
   event: FacilityEventView,
@@ -296,14 +371,14 @@ function buildAttachmentContext(
     ...detections.map((detection) => toFiniteNumber(detection.confidence)),
   ].filter((value): value is number => value !== null);
   const confidence = confidenceValues.length > 0 ? Math.max(...confidenceValues) : null;
-  const predictionCount = toFiniteNumber(metadata.predictionCount) ?? detections.length;
+  const detectionCount = toFiniteNumber(metadata.detectionCount) ?? detections.length;
   const atSec = toFiniteNumber(metadata.atSec);
   const subject = labels.length > 0 ? labels.map(humanize).join(", ") : "the highlighted activity";
 
   if (attachment?.kind === "image") {
     const detectionSummary =
-      predictionCount > 0
-        ? `${predictionCount} detection${predictionCount === 1 ? "" : "s"}${labels.length > 0 ? `: ${subject}` : ""}`
+      detectionCount > 0
+        ? `${detectionCount} detection${detectionCount === 1 ? "" : "s"}${labels.length > 0 ? `: ${subject}` : ""}`
         : subject;
     const parts = [`Bounding boxes mark ${detectionSummary.toLowerCase()}`];
     if (atSec !== null) parts.push(`captured ${atSec.toFixed(1)} seconds into the clip`);

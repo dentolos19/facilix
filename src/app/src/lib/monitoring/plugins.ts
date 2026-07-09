@@ -156,7 +156,7 @@ export const DEFAULT_OBJECT_DETECTION_WORKFLOW: PluginWorkflowConfig = {
   workspaceName: "dentolos19",
   workflowId: "object-detection",
   inputName: "image",
-  dataOutputNames: ["image", "predictions", "count"],
+  dataOutputNames: ["image", "detections", "count"],
 };
 
 const PEOPLE_DETECTION_WORKFLOW: PluginWorkflowConfig = {

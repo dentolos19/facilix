@@ -8,8 +8,8 @@ import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { CctvPlayer } from "#/routes/(platform)/facility.$id/-components/cctv-player";
 
 import { Route as DeviceRoute } from "../index";
+import { CctvDetectionsTab } from "./cctv-detections";
 import { CctvPlaybackTab } from "./cctv-playback";
-import { CctvPredictionsTab } from "./cctv-predictions";
 import { DeviceDetailShell, DeviceInformationCard, DevicePropertiesCard } from "./device-details";
 import { DeviceLogs } from "./device-logs";
 
@@ -17,7 +17,7 @@ const TABS = [
   { id: "live", label: "Live" },
   { id: "logs", label: "Logs" },
   { id: "playback", label: "Playback" },
-  { id: "predictions", label: "Predictions" },
+  { id: "detections", label: "Detections" },
 ];
 
 export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
@@ -63,7 +63,7 @@ export function CctvDeviceDetail({ device }: { device: DeviceDetail }) {
       )}
       {activeTab === "logs" && <DeviceLogs device={device} />}
       {activeTab === "playback" && <CctvPlaybackTab device={device} />}
-      {activeTab === "predictions" && <CctvPredictionsTab device={device} />}
+      {activeTab === "detections" && <CctvDetectionsTab device={device} />}
     </DeviceDetailShell>
   );
 }

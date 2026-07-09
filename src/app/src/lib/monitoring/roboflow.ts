@@ -47,7 +47,7 @@ export interface WorkflowDetection {
 }
 
 /** Raw Roboflow workflow prediction shape. */
-interface WorkflowPrediction {
+interface RawDetection {
   x?: number;
   y?: number;
   width?: number;
@@ -112,26 +112,24 @@ export interface DetectionVideoMeta {
   failedFrameCount?: number;
 }
 
-/** A sampled frame's prediction output with before/after images. */
-export interface PredictionOutputFrame {
+/** A sampled frame's detection output. */
+export interface DetectionFrame {
   /** Frame index within the video. */
   frameIndex: number;
   /** Timestamp in seconds. */
   atSec: number;
-  /** Base64-encoded JPEG of the raw sampled frame (before processing). */
+  /** Base64-encoded JPEG of the raw sampled frame. */
   beforeImage: string;
-  /** Base64-encoded JPEG of the annotated frame (after processing, with bounding boxes). */
-  afterImage: string;
-  /** Normalized predictions for this frame. */
-  predictions: WorkflowDetection[];
-  /** Source image dimensions that the predictions are relative to. */
+  /** Normalized detections for this frame. */
+  detections: WorkflowDetection[];
+  /** Source image dimensions that the detections are relative to. */
   image: { width: number; height: number };
 }
 
 /** Result of video object detection including metadata. */
 export interface VideoDetectionResult {
   detections: WorkflowDetection[];
-  predictionOutputs: PredictionOutputFrame[];
+  detectionOutputs: DetectionFrame[];
   video: DetectionVideoMeta | null;
 }
 
@@ -230,13 +228,13 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
         detections = detections.filter((d) => allowedLabels.has(d.label));
       }
 
-      // Extract prediction outputs (before/after images) from Python backend
-      const predictionOutputs = extractPredictionOutputs(result);
+      // Extract detection outputs from Python backend
+      const detectionOutputs = extractDetectionOutputs(result);
 
       // Extract video metadata from Python backend response
       const video = extractVideoMeta(result);
 
-      return { detections, predictionOutputs, video };
+      return { detections, detectionOutputs, video };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (err instanceof NonRetryableRoboflowError) {
@@ -278,26 +276,26 @@ function extractVideoMeta(result: unknown): DetectionVideoMeta | null {
   };
 }
 
-/** Extract prediction outputs (before/after images) from Python backend response. */
-function extractPredictionOutputs(result: unknown): PredictionOutputFrame[] {
+/** Extract detection outputs from Python backend response. */
+function extractDetectionOutputs(result: unknown): DetectionFrame[] {
   if (!result || typeof result !== "object") return [];
   const obj = result as Record<string, unknown>;
-  const raw = obj.predictionOutputs;
+  const raw = obj.detectionOutputs;
   if (!Array.isArray(raw)) return [];
 
   return raw
     .filter(isRecord)
     .map((frame) => {
       if (typeof frame.frameIndex !== "number" || typeof frame.atSec !== "number") return null;
-      if (typeof frame.beforeImage !== "string" || typeof frame.afterImage !== "string") return null;
-      if (!Array.isArray(frame.predictions)) return null;
+      if (typeof frame.beforeImage !== "string") return null;
+      if (!Array.isArray(frame.detections)) return null;
 
       const image =
         isRecord(frame.image) && typeof frame.image.width === "number" && typeof frame.image.height === "number"
           ? { width: frame.image.width, height: frame.image.height }
           : { width: 0, height: 0 };
 
-      const predictions = frame.predictions
+      const detections = frame.detections
         .filter(isRecord)
         .map((d) => passthroughDetection(d))
         .filter((d): d is WorkflowDetection => d !== null);
@@ -306,12 +304,11 @@ function extractPredictionOutputs(result: unknown): PredictionOutputFrame[] {
         frameIndex: frame.frameIndex,
         atSec: frame.atSec,
         beforeImage: frame.beforeImage,
-        afterImage: frame.afterImage,
-        predictions,
+        detections,
         image,
       };
     })
-    .filter((f): f is PredictionOutputFrame => f !== null);
+    .filter((f): f is DetectionFrame => f !== null);
 }
 
 /** Normalise the various shapes the Roboflow REST API may return. */
@@ -322,7 +319,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
 
   // Python backend returns: { detections: [...], count: N }
   // The Python backend already returns the full normalized format including
-  // prediction/image fields, so pass them through directly.
+  // raw/image fields, so pass them through directly.
   if (Array.isArray(obj.detections)) {
     return obj.detections
       .filter(isRecord)
@@ -331,18 +328,20 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
   }
 
   // Roboflow REST API shapes (fallback):
-  //   { outputs: [ { predictions: [...], image: … } ] }
-  //   { output:  { predictions: [...], image: … }   }
-  //   { predictions: [...] }                          (single-image shorthand)
+  //   { outputs: [ { detections: [...], image: … } ] }
+  //   { output:  { detections: [...], image: … }   }
+  //   { detections: [...] }                          (single-image shorthand)
   const outputs: Record<string, unknown>[] = Array.isArray(obj.outputs)
     ? (obj.outputs as Record<string, unknown>[])
     : obj.output && typeof obj.output === "object"
       ? [obj.output as Record<string, unknown>]
-      : Array.isArray(obj.predictions)
+      : Array.isArray(obj.detections)
         ? [obj as Record<string, unknown>]
         : [obj];
 
-  const dataOutputNames = new Set(pluginWorkflow.dataOutputNames ?? [pluginWorkflow.inputName, "predictions", "count"]);
+  const dataOutputNames = new Set(pluginWorkflow.dataOutputNames ?? [pluginWorkflow.inputName, "detections", "count"]);
+  dataOutputNames.add("detections");
+  dataOutputNames.add("predictions");
 
   const detections: WorkflowDetection[] = [];
 
@@ -351,8 +350,8 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
       if (name === "count") continue;
       if (!dataOutputNames.has(name)) continue;
 
-      const predictions = extractPredictions(value);
-      // Capture image metadata from the predictions output (same structure as Python parser)
+      const detections = extractDetections(value);
+      // Capture image metadata from the detections output (same structure as Python parser)
       let imageMeta: WorkflowDetection["image"] | undefined;
       if (isRecord(value)) {
         const img = value.image as Record<string, unknown> | undefined;
@@ -361,8 +360,8 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
         }
       }
 
-      for (const prediction of predictions) {
-        const detection = toDetection(prediction, {}, imageMeta);
+      for (const raw of detections) {
+        const detection = toDetection(raw, {}, imageMeta);
         if (detection) detections.push(detection);
       }
     }
@@ -373,7 +372,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
 
 /**
  * Pass-through for detections already normalized by the Python backend.
- * Extracts the common fields and preserves prediction/image metadata.
+ * Extracts the common fields and preserves raw/image metadata.
  */
 function passthroughDetection(d: Record<string, unknown>): WorkflowDetection | null {
   if (typeof d.confidence !== "number") return null;
@@ -385,23 +384,23 @@ function passthroughDetection(d: Record<string, unknown>): WorkflowDetection | n
     frameIndex: typeof d.frameIndex === "number" ? d.frameIndex : undefined,
     trackId: typeof d.trackId === "string" ? d.trackId : undefined,
     classId: typeof d.classId === "number" ? d.classId : undefined,
-    prediction: d.prediction as WorkflowDetection["prediction"] | undefined,
+    prediction: (d.prediction ?? d.detection) as WorkflowDetection["prediction"] | undefined,
     image: d.image as WorkflowDetection["image"] | undefined,
   };
 }
 
-function extractPredictions(value: unknown): WorkflowPrediction[] {
-  if (Array.isArray(value)) return value.filter(isRecord) as WorkflowPrediction[];
+function extractDetections(value: unknown): RawDetection[] {
+  if (Array.isArray(value)) return value.filter(isRecord) as RawDetection[];
   if (!isRecord(value)) return [];
 
-  if (Array.isArray(value.value)) return value.value.filter(isRecord) as WorkflowPrediction[];
-  if (isRecord(value.value)) return extractPredictions(value.value);
+  if (Array.isArray(value.value)) return value.value.filter(isRecord) as RawDetection[];
+  if (isRecord(value.value)) return extractDetections(value.value);
 
-  if (Array.isArray(value.predictions)) return value.predictions.filter(isRecord) as WorkflowPrediction[];
-  if (isRecord(value.predictions)) return extractPredictions(value.predictions);
+  if (Array.isArray(value.detections)) return value.detections.filter(isRecord) as RawDetection[];
+  if (isRecord(value.detections)) return extractDetections(value.detections);
 
-  if (Array.isArray(value.detections)) return value.detections.filter(isRecord) as WorkflowPrediction[];
-  if (isRecord(value.detections)) return extractPredictions(value.detections);
+  if (Array.isArray(value.predictions)) return value.predictions.filter(isRecord) as RawDetection[];
+  if (isRecord(value.predictions)) return extractDetections(value.predictions);
 
   return [];
 }
@@ -412,7 +411,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Normalize a raw Roboflow workflow prediction into our shared detection shape. */
 function toDetection(
-  p: WorkflowPrediction,
+  p: RawDetection,
   fallback: { frameIndex?: number; atSec?: number },
   imageMeta?: WorkflowDetection["image"],
 ): WorkflowDetection | null {
@@ -422,7 +421,7 @@ function toDetection(
   const confidence = p.confidence;
 
   let box: WorkflowDetection["box"] | undefined;
-  let prediction: WorkflowDetection["prediction"] | undefined;
+  let rawLocal: WorkflowDetection["prediction"] | undefined;
   if (
     typeof p.x === "number" &&
     typeof p.y === "number" &&
@@ -435,7 +434,7 @@ function toDetection(
       xmax: p.x + p.width / 2,
       ymax: p.y + p.height / 2,
     };
-    prediction = {
+    rawLocal = {
       x: p.x,
       y: p.y,
       width: p.width,
@@ -457,7 +456,7 @@ function toDetection(
           : fallback.frameIndex,
     trackId: typeof p.tracker_id === "string" ? p.tracker_id : typeof p.track_id === "string" ? p.track_id : undefined,
     classId: typeof p.class_id === "number" ? p.class_id : undefined,
-    prediction,
+    prediction: rawLocal,
     image: imageMeta,
   };
 }

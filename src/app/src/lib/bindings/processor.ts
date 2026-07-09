@@ -7,7 +7,7 @@ import { createLogger } from "#/lib/logs";
 import {
   selectAnalysisContextFrame,
   selectRepresentativeFrames,
-  type StoredPredictionOutputRef,
+  type StoredDetectionRef,
 } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
@@ -33,7 +33,7 @@ import {
 import {
   runVideoObjectDetection,
   type DetectionVideoMeta,
-  type PredictionOutputFrame,
+  type DetectionFrame,
   type WorkflowDetection,
 } from "#/lib/monitoring/roboflow";
 import { recordEvent, type EventAttachmentInput } from "#/lib/monitoring/utils";
@@ -165,9 +165,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           roboflowApiBase: "https://serverless.roboflow.com",
         });
 
-        const storedPredictionOutputsByPlugin =
-          workflowResult.predictionOutputs.length > 0
-            ? await persistPredictionOutputs({
+        const storedDetectionOutputsByPlugin =
+          workflowResult.detectionOutputs.length > 0
+            ? await persistDetectionOutputs({
                 database: this.env.DATABASE,
                 bucket: this.env.BUCKET,
                 segmentId,
@@ -178,7 +178,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
                   pluginId: entry.plugin.id,
                   config: entry.config,
                 })),
-                frames: workflowResult.predictionOutputs,
+                frames: workflowResult.detectionOutputs,
               })
             : {};
 
@@ -186,7 +186,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         // serializes step outputs and has a 32MiB serialized value limit.
         return {
           detections: workflowResult.detections,
-          storedPredictionOutputsByPlugin,
+          storedDetectionOutputsByPlugin,
           video: workflowResult.video,
         };
       });
@@ -221,7 +221,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           detectionCounts: countByLabel(filtered),
           maxCount: countValue,
           operationalState: deriveDetectionOperationalState(resolved.plugin.id, countValue),
-          storedPredictionOutputs: result.storedPredictionOutputsByPlugin[resolved.plugin.id] ?? [],
+          storedDetectionOutputs: result.storedDetectionOutputsByPlugin[resolved.plugin.id] ?? [],
           matchedAlerts: pluginAlertResults,
         });
         matchedAlerts.push(...pluginAlertResults.filter((alert) => alert.matched));
@@ -247,7 +247,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         const config = segmentPlugin.config;
         const alerts = config.alerts.filter((a): a is SceneMatchAlertRule => a.kind === "scene-match" && a.enabled);
         const detectionResult = pluginResults.find((result) => result.pluginId === segmentPlugin.plugin.id);
-        const contextFrame = selectAnalysisContextFrame(detectionResult?.storedPredictionOutputs ?? []);
+        const contextFrame = selectAnalysisContextFrame(detectionResult?.storedDetectionOutputs ?? []);
         if (!contextFrame) {
           this.#log.warn("vision-language plugin has no Roboflow frame context", {
             pluginId: segmentPlugin.plugin.id,
@@ -258,8 +258,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
 
         if (alerts.length === 0) {
           try {
-            const framePair = await loadAnalysisFramePair(this.env.BUCKET, contextFrame);
-            const summary = await summarizeSceneFrames(framePair.original, framePair.annotated, config.prompt);
+            const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
+            const summary = await summarizeSceneFrames(frameImage, config.prompt);
             if (summary) {
               results.push({
                 pluginId: segmentPlugin.plugin.id,
@@ -286,15 +286,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         const detectionContext = labelList ? `\n\nRoboflow detected in this frame: ${labelList}` : "";
 
         try {
-          const framePair = await loadAnalysisFramePair(this.env.BUCKET, contextFrame);
+          const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
           const alertDescriptions = alerts.map((a) => a.description);
-          const analysis = await analyzeSceneFrames({
-            original: framePair.original,
-            annotated: framePair.annotated,
-            descriptions: alertDescriptions,
-            guidance: config.prompt,
-            contextSuffix: detectionContext,
-          });
+          const analysis = await analyzeSceneFrames(frameImage, alertDescriptions, config.prompt, detectionContext);
 
           if (analysis) {
             results.push({
@@ -643,7 +637,7 @@ interface PluginDetectionResult {
   detectionCounts: Record<string, number>;
   maxCount: number;
   operationalState: string;
-  storedPredictionOutputs: StoredPredictionOutputRef[];
+  storedDetectionOutputs: StoredDetectionRef[];
   matchedAlerts: MatchedAlert[];
 }
 
@@ -656,7 +650,7 @@ function buildAlertAttachments(
   const selectedFrames =
     config.attachAnnotatedFrames && detectionResult
       ? selectRepresentativeFrames(
-          detectionResult.storedPredictionOutputs,
+          detectionResult.storedDetectionOutputs,
           detectionResult.detections,
           { kind: alert.kind, labels: alert.matchedLabels },
           config.maxAnnotatedFrames,
@@ -665,7 +659,7 @@ function buildAlertAttachments(
   const attachments: EventAttachmentInput[] = selectedFrames.map((frame, index) => {
     const detections = detectionResult?.detections.filter((item) => item.frameIndex === frame.frameIndex) ?? [];
     return {
-      assetId: frame.afterAssetId,
+      assetId: frame.assetId,
       kind: "image",
       variant: "annotated-frame",
       role: index === 0 ? "primary" : "supporting",
@@ -676,10 +670,10 @@ function buildAlertAttachments(
         frameIndex: frame.frameIndex,
         atSec: frame.atSec,
         labels: detections.length > 0 ? [...new Set(detections.map((item) => item.label))] : (frame.labels ?? []),
-        predictionCount: detections.length || frame.predictionCount || 0,
+        detectionCount: detections.length || frame.detectionCount || 0,
         confidence:
           detections.length > 0 ? Math.max(...detections.map((item) => item.confidence)) : frame.maxConfidence,
-        detections: detections.slice(0, 10).map((item) => ({
+        detections: detections.map((item) => ({
           label: item.label,
           confidence: item.confidence,
           box: item.box,
@@ -794,19 +788,16 @@ function sanitizeWorkflowKey(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "-");
 }
 
-async function loadAnalysisFramePair(bucket: R2Bucket, frame: StoredPredictionOutputRef) {
-  const [originalObject, annotatedObject] = await Promise.all([
-    bucket.get(frame.beforeAssetId),
-    bucket.get(frame.afterAssetId),
-  ]);
-  if (!originalObject || !annotatedObject) {
-    throw new Error(`Roboflow frame pair not found for frame ${frame.frameIndex}`);
+async function loadAnalysisFrame(
+  bucket: R2Bucket,
+  frame: StoredDetectionRef,
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const object = await bucket.get(frame.assetId);
+  if (!object) {
+    throw new Error(`Video frame not found for frame ${frame.frameIndex}`);
   }
-  const [originalBytes, annotatedBytes] = await Promise.all([originalObject.bytes(), annotatedObject.bytes()]);
-  return {
-    original: { bytes: originalBytes, mimeType: "image/jpeg" },
-    annotated: { bytes: annotatedBytes, mimeType: "image/jpeg" },
-  };
+  const bytes = await object.bytes();
+  return { bytes, mimeType: "image/jpeg" };
 }
 
 async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint8Array> {
@@ -815,7 +806,7 @@ async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint
   return object.bytes();
 }
 
-async function persistPredictionOutputs({
+async function persistDetectionOutputs({
   database,
   bucket,
   segmentId,
@@ -832,46 +823,28 @@ async function persistPredictionOutputs({
   deviceId: string;
   workflow: import("#/lib/monitoring/plugins").PluginWorkflowConfig;
   plugins: Array<{ pluginId: string; config: DevicePluginConfig }>;
-  frames: PredictionOutputFrame[];
-}): Promise<Record<string, StoredPredictionOutputRef[]>> {
+  frames: DetectionFrame[];
+}): Promise<Record<string, StoredDetectionRef[]>> {
   const db = createDatabase(database);
-  const outputName = "predictions";
-  const storedByPlugin: Record<string, StoredPredictionOutputRef[]> = Object.fromEntries(
+  const outputName = "detections";
+  const storedByPlugin: Record<string, StoredDetectionRef[]> = Object.fromEntries(
     plugins.map((plugin) => [plugin.pluginId, []]),
   );
   const workflowAssetKey = sanitizeWorkflowKey(workflowIdentity(workflow));
 
   for (const frame of frames) {
     const frameIndex = frame.frameIndex;
-    const beforeKey = `prediction-outputs/${segmentId}/${workflowAssetKey}/${frameIndex}/before.jpg`;
-    const afterKey = `prediction-outputs/${segmentId}/${workflowAssetKey}/${frameIndex}/after.jpg`;
-    const beforeBytes = base64ToArrayBuffer(frame.beforeImage);
-    const afterBytes = base64ToArrayBuffer(frame.afterImage);
-    await Promise.all([
-      persistPredictionImage(
-        db,
-        bucket,
-        beforeKey,
-        beforeBytes,
-        `${segmentId}-${workflowAssetKey}-${frameIndex}-raw.jpg`,
-      ),
-      persistPredictionImage(
-        db,
-        bucket,
-        afterKey,
-        afterBytes,
-        `${segmentId}-${workflowAssetKey}-${frameIndex}-annotated.jpg`,
-      ),
-    ]);
+    const key = `video-frames/${segmentId}/${workflowAssetKey}/${frameIndex}.jpg`;
+    const bytes = base64ToArrayBuffer(frame.beforeImage);
+    await persistDetectionImage(db, bucket, key, bytes, `${segmentId}-${workflowAssetKey}-${frameIndex}.jpg`);
 
     for (const plugin of plugins) {
-      const predictions = filterDetectionsForPlugin(frame.predictions, plugin.config);
-      const serializedPredictions = predictions.map((prediction) => ({ ...prediction }));
+      const detections = filterDetectionsForPlugin(frame.detections, plugin.config);
+      const serializedDetections = detections.map((d) => ({ ...d }));
       await db
-        .insert(schema.predictionOutput)
+        .insert(schema.videoFrame)
         .values({
-          beforeAssetId: beforeKey,
-          afterAssetId: afterKey,
+          assetId: key,
           segmentId,
           facilityId,
           deviceId,
@@ -880,40 +853,38 @@ async function persistPredictionOutputs({
           outputName,
           frameIndex,
           atSec: frame.atSec,
-          predictions: serializedPredictions,
+          detections: serializedDetections,
           image: frame.image,
         })
         .onConflictDoUpdate({
           target: [
-            schema.predictionOutput.segmentId,
-            schema.predictionOutput.pluginId,
-            schema.predictionOutput.workflowId,
-            schema.predictionOutput.outputName,
-            schema.predictionOutput.frameIndex,
+            schema.videoFrame.segmentId,
+            schema.videoFrame.pluginId,
+            schema.videoFrame.workflowId,
+            schema.videoFrame.outputName,
+            schema.videoFrame.frameIndex,
           ],
           set: {
-            beforeAssetId: beforeKey,
-            afterAssetId: afterKey,
-            predictions: serializedPredictions,
+            assetId: key,
+            detections: serializedDetections,
             image: frame.image,
           },
         });
       storedByPlugin[plugin.pluginId].push({
-        beforeAssetId: beforeKey,
-        afterAssetId: afterKey,
+        assetId: key,
         frameIndex,
         atSec: frame.atSec,
-        predictionCount: predictions.length,
-        labels: [...new Set(predictions.map((prediction) => prediction.label))],
+        detectionCount: detections.length,
+        labels: [...new Set(detections.map((detection) => detection.label))],
         maxConfidence:
-          predictions.length > 0 ? Math.max(...predictions.map((prediction) => prediction.confidence)) : undefined,
+          detections.length > 0 ? Math.max(...detections.map((detection) => detection.confidence)) : undefined,
       });
     }
   }
   return storedByPlugin;
 }
 
-async function persistPredictionImage(
+async function persistDetectionImage(
   db: ReturnType<typeof createDatabase>,
   bucket: R2Bucket,
   assetId: string,

@@ -48,7 +48,7 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
                   src={entry.url}
                 />
               )}
-              {entry.source === "prediction" && (
+              {entry.source === "detection" && (
                 <span className="bg-primary/80 absolute top-1 right-1 rounded px-1 py-0.5 text-[7px] text-white">
                   AI
                 </span>

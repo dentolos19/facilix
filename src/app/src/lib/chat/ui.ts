@@ -90,7 +90,7 @@ export interface UiEventList {
 export interface UiMediaEntry {
   id: string;
   kind: "image" | "video" | "unknown";
-  source: "recording" | "prediction" | "event";
+  source: "recording" | "detection" | "event";
   deviceId: string | null;
   name: string;
   url: string;

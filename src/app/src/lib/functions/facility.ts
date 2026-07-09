@@ -432,7 +432,7 @@ export const getDevice = createServerFn({ method: "GET" })
 /**
  * Delete a facility and all related data:
  *   - D1 rows owned by this facility (members, zones, devices, events,
- *     attachments, segments, sensor readings, idempotency keys, prediction outputs)
+ *     attachments, segments, sensor readings, idempotency keys, detection outputs)
  *   - R2 objects for assets that are no longer referenced by any other row
  *   - Observer Durable Object storage for this facility
  *   - Monitoring container for this facility
@@ -447,18 +447,15 @@ export const deleteFacility = createServerFn({ method: "POST" })
     await requireFacilityAccess(data.id);
 
     // 1. Collect facility-owned asset IDs before deleting any rows
-    const [segments, predictions, events] = await Promise.all([
+    const [segments, frames, events] = await Promise.all([
       db
         .select({ assetId: schema.videoSegment.assetId })
         .from(schema.videoSegment)
         .where(eq(schema.videoSegment.facilityId, data.id)),
       db
-        .select({
-          beforeAssetId: schema.predictionOutput.beforeAssetId,
-          afterAssetId: schema.predictionOutput.afterAssetId,
-        })
-        .from(schema.predictionOutput)
-        .where(eq(schema.predictionOutput.facilityId, data.id)),
+        .select({ assetId: schema.videoFrame.assetId })
+        .from(schema.videoFrame)
+        .where(eq(schema.videoFrame.facilityId, data.id)),
       db
         .select({ assetId: schema.eventAttachment.assetId })
         .from(schema.eventAttachment)
@@ -468,15 +465,12 @@ export const deleteFacility = createServerFn({ method: "POST" })
 
     const facilityAssetIds = new Set<string>();
     for (const s of segments) facilityAssetIds.add(s.assetId);
-    for (const p of predictions) {
-      facilityAssetIds.add(p.beforeAssetId);
-      facilityAssetIds.add(p.afterAssetId);
-    }
+    for (const f of frames) facilityAssetIds.add(f.assetId);
     for (const a of events) facilityAssetIds.add(a.assetId);
 
     // 2. Delete facility-owned rows in dependency order (batch = transactional)
     await env.DATABASE.batch([
-      env.DATABASE.prepare("DELETE FROM prediction_outputs WHERE facility_id = ?").bind(data.id),
+      env.DATABASE.prepare("DELETE FROM video_frames WHERE facility_id = ?").bind(data.id),
       env.DATABASE.prepare(
         "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM facility_events WHERE facility_id = ?)",
       ).bind(data.id),
@@ -491,33 +485,32 @@ export const deleteFacility = createServerFn({ method: "POST" })
     ]);
 
     // 3. Delete orphan R2 objects and asset rows (only when no longer referenced)
+    //    Queries are chunked to stay under D1's ~100 parameter limit.
     if (facilityAssetIds.size > 0) {
       const ids = [...facilityAssetIds];
-
-      const [remainingSegments, remainingBefore, remainingAfter, remainingAttachments] = await Promise.all([
-        db
-          .select({ assetId: schema.videoSegment.assetId })
-          .from(schema.videoSegment)
-          .where(inArray(schema.videoSegment.assetId, ids)),
-        db
-          .select({ assetId: schema.predictionOutput.beforeAssetId })
-          .from(schema.predictionOutput)
-          .where(inArray(schema.predictionOutput.beforeAssetId, ids)),
-        db
-          .select({ assetId: schema.predictionOutput.afterAssetId })
-          .from(schema.predictionOutput)
-          .where(inArray(schema.predictionOutput.afterAssetId, ids)),
-        db
-          .select({ assetId: schema.eventAttachment.assetId })
-          .from(schema.eventAttachment)
-          .where(inArray(schema.eventAttachment.assetId, ids)),
-      ]);
-
       const referenced = new Set<string>();
-      for (const r of remainingSegments) referenced.add(r.assetId);
-      for (const r of remainingBefore) referenced.add(r.assetId);
-      for (const r of remainingAfter) referenced.add(r.assetId);
-      for (const r of remainingAttachments) referenced.add(r.assetId);
+      const CHUNK = 80;
+
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const [segRows, frameRows, attRows] = await Promise.all([
+          db
+            .select({ assetId: schema.videoSegment.assetId })
+            .from(schema.videoSegment)
+            .where(inArray(schema.videoSegment.assetId, chunk)),
+          db
+            .select({ assetId: schema.videoFrame.assetId })
+            .from(schema.videoFrame)
+            .where(inArray(schema.videoFrame.assetId, chunk)),
+          db
+            .select({ assetId: schema.eventAttachment.assetId })
+            .from(schema.eventAttachment)
+            .where(inArray(schema.eventAttachment.assetId, chunk)),
+        ]);
+        for (const r of segRows) referenced.add(r.assetId);
+        for (const r of frameRows) referenced.add(r.assetId);
+        for (const r of attRows) referenced.add(r.assetId);
+      }
 
       const orphanAssetIds = ids.filter((id) => !referenced.has(id));
 
@@ -527,8 +520,12 @@ export const deleteFacility = createServerFn({ method: "POST" })
           await env.BUCKET.delete(orphanAssetIds.slice(i, i + 1000));
         }
 
-        // Delete asset rows
-        await db.delete(schema.asset).where(inArray(schema.asset.id, orphanAssetIds));
+        // Delete asset rows (chunked to stay under parameter limit)
+        for (let i = 0; i < orphanAssetIds.length; i += CHUNK) {
+          await db
+            .delete(schema.asset)
+            .where(inArray(schema.asset.id, orphanAssetIds.slice(i, i + CHUNK)));
+        }
       }
     }
 

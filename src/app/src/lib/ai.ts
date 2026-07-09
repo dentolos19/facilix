@@ -276,26 +276,21 @@ export interface SceneFrameImage {
   mimeType?: string;
 }
 
-export interface SceneFrameAnalysisInput {
-  original: SceneFrameImage;
-  annotated: SceneFrameImage;
-  descriptions: string[];
-  guidance?: string;
-  contextSuffix?: string;
-}
-
 /**
- * Analyze one representative Roboflow frame pair. The original image is the
- * visual source of truth; the annotated image is included as a location hint.
- * This is materially cheaper than sending the complete video to the VLM.
+ * Analyze a CCTV frame against multiple natural-language scene alert
+ * descriptions. Returns structured JSON indicating which descriptions
+ * match the scene, with confidence scores.
  */
-export async function analyzeSceneFrames(input: SceneFrameAnalysisInput): Promise<SceneAlertAnalysis | null> {
-  if (input.descriptions.length === 0) return null;
+export async function analyzeSceneFrames(
+  image: SceneFrameImage,
+  descriptions: string[],
+  guidance?: string,
+  contextSuffix?: string,
+): Promise<SceneAlertAnalysis | null> {
+  if (descriptions.length === 0) return null;
 
-  const descriptionList = input.descriptions.map((description, index) => `${index + 1}. "${description}"`).join("\n");
-  const systemPrompt = `You are a CCTV scene analysis assistant. Compare an original CCTV frame with a Roboflow-annotated version of the same frame.
-
-The original frame is the source of truth. Roboflow boxes and labels are hints that can help locate relevant objects, but they may be incomplete or incorrect.
+  const descriptionList = descriptions.map((description, index) => `${index + 1}. "${description}"`).join("\n");
+  const systemPrompt = `You are a CCTV scene analysis assistant. Review a CCTV frame for visible operational conditions.
 
 For each description, determine whether the visible scene matches it, give a confidence score from 0 to 1, and cite visible evidence.
 
@@ -308,25 +303,21 @@ Respond ONLY with valid JSON in this exact format:
       "matched": true,
       "confidence": 0.0,
       "evidence": [
-        { "label": "visible evidence", "confidence": 0.0, "box": { "xmin": 0, "ymin": 0, "xmax": 0, "ymax": 0 } }
+        { "label": "visible evidence", "confidence": 0.0 }
       ]
     }
   ]
 }`;
-  const userPrompt = `${input.guidance ? `${input.guidance}\n\n` : ""}Evaluate these operational conditions:
+  const userPrompt = `${guidance ? `${guidance}\n\n` : ""}Evaluate these operational conditions:
 
-${descriptionList}${input.contextSuffix ?? ""}`;
-  const originalUrl = bytesToDataUrl(input.original.bytes, input.original.mimeType ?? "image/jpeg");
-  const annotatedUrl = bytesToDataUrl(input.annotated.bytes, input.annotated.mimeType ?? "image/jpeg");
+${descriptionList}${contextSuffix ?? ""}`;
+  const imageUrl = bytesToDataUrl(image.bytes, image.mimeType ?? "image/jpeg");
 
   const result = await chatCompletionWithJson(
     [
       { type: "text", text: systemPrompt },
       { type: "text", text: userPrompt },
-      { type: "text", text: "Original CCTV frame:" },
-      { type: "image_url", image_url: { url: originalUrl } },
-      { type: "text", text: "Roboflow-annotated frame of the same moment:" },
-      { type: "image_url", image_url: { url: annotatedUrl } },
+      { type: "image_url", image_url: { url: imageUrl } },
     ],
     { maxTokens: 1500 },
   );
@@ -335,26 +326,16 @@ ${descriptionList}${input.contextSuffix ?? ""}`;
 }
 
 export async function summarizeSceneFrames(
-  original: SceneFrameImage,
-  annotated: SceneFrameImage,
+  image: SceneFrameImage,
   prompt: string,
   options: { maxTokens?: number } = {},
 ): Promise<string | null> {
   return chatCompletion(
     [
-      {
-        type: "text",
-        text: `${prompt}\n\nThe original frame is the source of truth. Use Roboflow annotations only as location hints.`,
-      },
-      { type: "text", text: "Original CCTV frame:" },
+      { type: "text", text: prompt },
       {
         type: "image_url",
-        image_url: { url: bytesToDataUrl(original.bytes, original.mimeType ?? "image/jpeg") },
-      },
-      { type: "text", text: "Roboflow-annotated frame of the same moment:" },
-      {
-        type: "image_url",
-        image_url: { url: bytesToDataUrl(annotated.bytes, annotated.mimeType ?? "image/jpeg") },
+        image_url: { url: bytesToDataUrl(image.bytes, image.mimeType ?? "image/jpeg") },
       },
     ],
     options,

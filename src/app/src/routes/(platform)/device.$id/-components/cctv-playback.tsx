@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 
 import type { DeviceDetail } from "#/lib/functions/facility";
 import {
-  getDevicePredictions,
+  getDeviceDetections,
   getDeviceRecordings,
-  type PredictionOutputRow,
+  type VideoFrameRow,
   type RecordingRow,
 } from "#/lib/functions/recordings";
 
@@ -13,7 +13,7 @@ import { PlaybackPlayer } from "./playback-player";
 
 export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
   const [recordings, setRecordings] = useState<RecordingRow[]>([]);
-  const [predictions, setPredictions] = useState<PredictionOutputRow[]>([]);
+  const [detections, setDetections] = useState<VideoFrameRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,11 +26,11 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
       try {
         const [rows, preds] = await Promise.all([
           getDeviceRecordings({ data: { facilityId: device.facilityId, deviceId: device.id } }),
-          getDevicePredictions({ data: { facilityId: device.facilityId, deviceId: device.id } }),
+          getDeviceDetections({ data: { facilityId: device.facilityId, deviceId: device.id } }),
         ]);
         if (!cancelled) {
           setRecordings(rows);
-          setPredictions(preds);
+          setDetections(preds);
         }
       } catch (err) {
         if (!cancelled) {
@@ -75,7 +75,7 @@ export function CctvPlaybackTab({ device }: { device: DeviceDetail }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <PlaybackPlayer className="h-full" predictions={predictions} recordings={recordings} />
+      <PlaybackPlayer className="h-full" detections={detections} recordings={recordings} />
     </div>
   );
 }

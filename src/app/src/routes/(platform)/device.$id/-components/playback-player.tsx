@@ -12,14 +12,16 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScrollArea } from "#/components/ui/scroll-area";
-import type { PredictionOutputRow, RecordingRow } from "#/lib/functions/recordings";
+import type { VideoFrameRow, RecordingRow } from "#/lib/functions/recordings";
 import { cn } from "#/lib/utils";
+
+import { getDetectionRect } from "./detection-frame-utils";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface PlaybackPlayerProps {
   recordings: RecordingRow[];
-  predictions?: PredictionOutputRow[];
+  detections?: VideoFrameRow[];
   className?: string;
 }
 
@@ -62,7 +64,7 @@ function formatTimestamp(date: Date) {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function PlaybackPlayer({ recordings, predictions = [], className }: PlaybackPlayerProps) {
+export function PlaybackPlayer({ recordings, detections = [], className }: PlaybackPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const seekRef = useRef<HTMLDivElement>(null);
@@ -534,7 +536,7 @@ export function PlaybackPlayer({ recordings, predictions = [], className }: Play
       {/* ─ Right: Analysis panels ──────────────────────────────────────── */}
       {currentSegment && (
         <aside className="flex min-h-0 w-72 shrink-0 flex-col overflow-hidden">
-          <AnalysisPanel predictions={predictions} segment={currentSegment} />
+          <AnalysisPanel detections={detections} segment={currentSegment} />
         </aside>
       )}
     </div>
@@ -543,7 +545,7 @@ export function PlaybackPlayer({ recordings, predictions = [], className }: Play
 
 // ─── Analysis Panel ─────────────────────────────────────────────────────────
 
-function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions: PredictionOutputRow[] }) {
+function AnalysisPanel({ segment, detections }: { segment: Segment; detections: VideoFrameRow[] }) {
   const data = segment.recording.data ?? {};
   const sceneSummary = data.sceneSummary ?? null;
   const detectionCounts = data.detectionCounts ?? {};
@@ -553,34 +555,34 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
     .sort(([, a], [, b]) => b - a);
 
   // Shared workflows fan out lightweight rows per plugin. Collapse rows that
-  // point at the same annotated frame so playback does not show duplicates.
-  const segmentPredictions = useMemo(() => {
-    const byFrame = new Map<string, PredictionOutputRow>();
-    for (const prediction of predictions) {
-      if (prediction.segmentId !== segment.recording.id) continue;
-      const existing = byFrame.get(prediction.afterAssetId);
+  // point at the same frame so playback does not show duplicates.
+  const segmentDetections = useMemo(() => {
+    const byFrame = new Map<string, VideoFrameRow>();
+    for (const row of detections) {
+      if (row.segmentId !== segment.recording.id) continue;
+      const existing = byFrame.get(row.assetId);
       if (!existing) {
-        byFrame.set(prediction.afterAssetId, prediction);
+        byFrame.set(row.assetId, row);
         continue;
       }
       const seen = new Set(
-        existing.predictions.map(
+        existing.detections.map(
           (item) => `${item.label}:${item.frameIndex ?? ""}:${item.prediction?.detectionId ?? ""}:${item.confidence}`,
         ),
       );
-      const additions = prediction.predictions.filter(
+      const additions = row.detections.filter(
         (item) =>
           !seen.has(`${item.label}:${item.frameIndex ?? ""}:${item.prediction?.detectionId ?? ""}:${item.confidence}`),
       );
       if (additions.length > 0) {
-        byFrame.set(prediction.afterAssetId, {
+        byFrame.set(row.assetId, {
           ...existing,
-          predictions: [...existing.predictions, ...additions],
+          detections: [...existing.detections, ...additions],
         });
       }
     }
     return [...byFrame.values()];
-  }, [predictions, segment.recording.id]);
+  }, [detections, segment.recording.id]);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
@@ -636,31 +638,56 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
           <h3 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
             Predicted Frames
           </h3>
-          <span className="text-muted-foreground/50 font-mono text-[9px] tabular-nums">
-            {segmentPredictions.length}
-          </span>
+          <span className="text-muted-foreground/50 font-mono text-[9px] tabular-nums">{segmentDetections.length}</span>
         </div>
 
-        {segmentPredictions.length === 0 ? (
+        {segmentDetections.length === 0 ? (
           <p className="text-muted-foreground/50 text-[11px]">No predicted frames for this segment.</p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-2">
             <div className="flex flex-col gap-2 pb-px">
-              {segmentPredictions.map((pred) => {
-                const labels = [...new Set(pred.predictions.map((p) => p.label).filter(Boolean))];
+              {segmentDetections.map((pred) => {
+                const labels = [...new Set(pred.detections.map((p) => p.label).filter(Boolean))];
+                const { width, height } = pred.image;
+                const strokeWidth = Math.max(1.5, Math.max(width, height) * 0.003);
                 return (
                   <div className="border-border bg-background/50 rounded-none border" key={pred.id}>
                     <div
-                      className="bg-muted flex items-center justify-center overflow-hidden"
+                      className="bg-muted relative flex items-center justify-center overflow-hidden"
                       style={{ maxHeight: "120px" }}
                     >
                       <img
-                        alt={`Prediction frame ${pred.frameIndex}`}
+                        alt={`Detection frame ${pred.frameIndex}`}
                         className="max-h-[120px] w-auto object-contain"
                         decoding="async"
                         loading="lazy"
-                        src={`/assets/${encodeURIComponent(pred.afterAssetId)}`}
+                        src={`/assets/${encodeURIComponent(pred.assetId)}`}
                       />
+                      {width > 0 && height > 0 && (
+                        <svg
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-0 size-full"
+                          preserveAspectRatio="xMidYMid meet"
+                          viewBox={`0 0 ${width} ${height}`}
+                        >
+                          {pred.detections.map((detection, index) => {
+                            const rect = getDetectionRect(detection);
+                            if (!rect) return null;
+                            return (
+                              <rect
+                                fill="transparent"
+                                height={rect.height}
+                                key={index}
+                                stroke="#84cc16"
+                                strokeWidth={strokeWidth}
+                                width={rect.width}
+                                x={rect.x}
+                                y={rect.y}
+                              />
+                            );
+                          })}
+                        </svg>
+                      )}
                     </div>
                     <div className="border-border border-t px-2.5 py-1.5">
                       <div className="flex items-center justify-between">
@@ -668,7 +695,7 @@ function AnalysisPanel({ segment, predictions }: { segment: Segment; predictions
                           Frame {pred.frameIndex} &middot; {pred.atSec.toFixed(1)}s
                         </span>
                         <span className="text-muted-foreground/50 font-mono text-[9px]">
-                          {pred.predictions.length} {pred.predictions.length === 1 ? "detection" : "detections"}
+                          {pred.detections.length} {pred.detections.length === 1 ? "detection" : "detections"}
                         </span>
                       </div>
                       {labels.length > 0 && (

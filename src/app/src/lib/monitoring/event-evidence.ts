@@ -1,9 +1,8 @@
-export interface StoredPredictionOutputRef {
-  beforeAssetId: string;
-  afterAssetId: string;
+export interface StoredDetectionRef {
+  assetId: string;
   frameIndex: number;
   atSec: number;
-  predictionCount?: number;
+  detectionCount?: number;
   labels?: string[];
   maxConfidence?: number;
 }
@@ -24,13 +23,13 @@ export interface EvidenceAlertDescriptor {
  * frame with the most Roboflow evidence, then confidence, then the frame
  * nearest the middle of the sampled clip.
  */
-export function selectAnalysisContextFrame(frames: StoredPredictionOutputRef[]): StoredPredictionOutputRef | null {
+export function selectAnalysisContextFrame(frames: StoredDetectionRef[]): StoredDetectionRef | null {
   if (frames.length === 0) return null;
   const ordered = [...frames].sort((left, right) => left.frameIndex - right.frameIndex);
   const middleFrame = (ordered[0].frameIndex + ordered[ordered.length - 1].frameIndex) / 2;
   return [...ordered].sort(
     (left, right) =>
-      (right.predictionCount ?? 0) - (left.predictionCount ?? 0) ||
+      (right.detectionCount ?? 0) - (left.detectionCount ?? 0) ||
       (right.maxConfidence ?? 0) - (left.maxConfidence ?? 0) ||
       Math.abs(left.frameIndex - middleFrame) - Math.abs(right.frameIndex - middleFrame),
   )[0];
@@ -42,11 +41,11 @@ export function selectAnalysisContextFrame(frames: StoredPredictionOutputRef[]):
  * alerts prefer frames with the strongest concentration of detections.
  */
 export function selectRepresentativeFrames(
-  frames: StoredPredictionOutputRef[],
+  frames: StoredDetectionRef[],
   detections: EvidenceDetection[],
   alert: EvidenceAlertDescriptor,
   limit: number,
-): StoredPredictionOutputRef[] {
+): StoredDetectionRef[] {
   if (limit <= 0 || alert.kind === "object-leaves") return [];
   if (alert.kind === "scene-match") {
     const context = selectAnalysisContextFrame(frames);
@@ -69,11 +68,11 @@ export function selectRepresentativeFrames(
   // aggregate detection/frame association. The lightweight persisted-output
   // summary still tells us which annotated frames contain relevant boxes.
   for (const frame of frames) {
-    if (scoreByFrame.has(frame.frameIndex) || !frame.predictionCount) continue;
+    if (scoreByFrame.has(frame.frameIndex) || !frame.detectionCount) continue;
     const frameLabels = new Set((frame.labels ?? []).map((label) => label.toLowerCase()));
     if (labels.size > 0 && ![...labels].some((label) => frameLabels.has(label))) continue;
     scoreByFrame.set(frame.frameIndex, {
-      count: frame.predictionCount,
+      count: frame.detectionCount,
       confidence: frame.maxConfidence ?? 0,
     });
   }

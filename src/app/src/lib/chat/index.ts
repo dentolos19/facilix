@@ -64,7 +64,7 @@ const getSensorHistoryDefinition = toolDefinition({
 const listFacilityMediaDefinition = toolDefinition({
   name: "list_facility_media",
   description:
-    "List facility media that can be inspected: CCTV recordings, event attachments, and raw or annotated prediction frames.",
+    "List facility media that can be inspected: CCTV recordings, event attachments, and raw or annotated detection frames.",
   inputSchema: z.object({
     deviceId: z.string().optional(),
     before: z.string().datetime().optional().describe("Page through older media before this ISO timestamp"),
@@ -421,21 +421,21 @@ export function createChatTools(facilityId: string) {
     const db = createDatabase(env.DATABASE);
     const rowLimit = limit ?? 20;
     const recordingConditions = [eq(schema.videoSegment.facilityId, facilityId)];
-    const predictionConditions = [eq(schema.predictionOutput.facilityId, facilityId)];
+    const detectionConditions = [eq(schema.videoFrame.facilityId, facilityId)];
     const eventConditions = [eq(schema.facilityEvent.facilityId, facilityId)];
     if (deviceId) {
       recordingConditions.push(eq(schema.videoSegment.deviceId, deviceId));
-      predictionConditions.push(eq(schema.predictionOutput.deviceId, deviceId));
+      detectionConditions.push(eq(schema.videoFrame.deviceId, deviceId));
       eventConditions.push(eq(schema.facilityEvent.deviceId, deviceId));
     }
     if (before) {
       const beforeDate = new Date(before);
       recordingConditions.push(lt(schema.videoSegment.createdAt, beforeDate));
-      predictionConditions.push(lt(schema.predictionOutput.createdAt, beforeDate));
+      detectionConditions.push(lt(schema.videoFrame.createdAt, beforeDate));
       eventConditions.push(lt(schema.eventAttachment.createdAt, beforeDate));
     }
 
-    const [recordings, predictions, eventMedia] = await Promise.all([
+    const [recordings, detections, eventMedia] = await Promise.all([
       db
         .select()
         .from(schema.videoSegment)
@@ -444,9 +444,9 @@ export function createChatTools(facilityId: string) {
         .limit(rowLimit),
       db
         .select()
-        .from(schema.predictionOutput)
-        .where(and(...predictionConditions))
-        .orderBy(desc(schema.predictionOutput.createdAt))
+        .from(schema.videoFrame)
+        .where(and(...detectionConditions))
+        .orderBy(desc(schema.videoFrame.createdAt))
         .limit(rowLimit),
       db
         .select({
@@ -468,7 +468,7 @@ export function createChatTools(facilityId: string) {
 
     const assetIds = [
       ...recordings.map((row) => row.assetId),
-      ...predictions.flatMap((row) => [row.beforeAssetId, row.afterAssetId]),
+      ...detections.map((row) => row.assetId),
       ...eventMedia.map((row) => row.assetId),
     ];
     const metadata = await getAssetMetadata(assetIds);
@@ -501,37 +501,19 @@ export function createChatTools(facilityId: string) {
               createdAt: toIso(recording.startedAt),
             };
           }),
-          ...predictions.flatMap((prediction) => {
-            const b = media(prediction.beforeAssetId);
-            const a = media(prediction.afterAssetId);
-            const results: Array<{
-              id: string;
-              kind: "image" | "video" | "unknown";
-              source: "prediction";
-              deviceId: string | null;
-              name: string;
-              url: string;
-              createdAt: string;
-            }> = [];
-            results.push({
-              id: `${prediction.id}-before`,
-              kind: mediaKind(b.type),
-              source: "prediction",
-              deviceId: prediction.deviceId,
-              name: `Before ${b.name}`,
-              url: b.url,
-              createdAt: toIso(prediction.createdAt),
-            });
-            results.push({
-              id: `${prediction.id}-annotated`,
-              kind: mediaKind(a.type),
-              source: "prediction",
-              deviceId: prediction.deviceId,
-              name: `Annotated ${a.name}`,
-              url: a.url,
-              createdAt: toIso(prediction.createdAt),
-            });
-            return results;
+          ...detections.flatMap((row) => {
+            const m = media(row.assetId);
+            return [
+              {
+                id: `${row.id}-frame`,
+                kind: mediaKind(m.type),
+                source: "detection",
+                deviceId: row.deviceId,
+                name: `Frame ${m.name}`,
+                url: m.url,
+                createdAt: toIso(row.createdAt),
+              },
+            ];
           }),
           ...eventMedia.map((attachment) => {
             const m = media(attachment.assetId);
@@ -565,18 +547,17 @@ export function createChatTools(facilityId: string) {
         analysis: recording.data,
         media: media(recording.assetId),
       })),
-      predictionFrames: predictions.map((prediction) => ({
-        id: prediction.id,
-        deviceId: prediction.deviceId,
-        segmentId: prediction.segmentId,
-        pluginId: prediction.pluginId,
-        outputName: prediction.outputName,
-        frameIndex: prediction.frameIndex,
-        atSec: prediction.atSec,
-        predictions: prediction.predictions,
-        image: prediction.image,
-        before: media(prediction.beforeAssetId),
-        annotated: media(prediction.afterAssetId),
+      detectionFrames: detections.map((row) => ({
+        id: row.id,
+        deviceId: row.deviceId,
+        segmentId: row.segmentId,
+        pluginId: row.pluginId,
+        outputName: row.outputName,
+        frameIndex: row.frameIndex,
+        atSec: row.atSec,
+        detections: row.detections,
+        image: row.image,
+        frame: media(row.assetId),
       })),
       eventAttachments: eventMedia.map((attachment) => ({
         eventId: attachment.eventId,
@@ -594,21 +575,16 @@ export function createChatTools(facilityId: string) {
 
   const inspectFacilityMedia = inspectFacilityMediaDefinition.server(async ({ assetId, question }) => {
     const db = createDatabase(env.DATABASE);
-    const [recording, prediction, attachment, assetRows] = await Promise.all([
+    const [recording, frame, attachment, assetRows] = await Promise.all([
       db
         .select({ id: schema.videoSegment.id })
         .from(schema.videoSegment)
         .where(and(eq(schema.videoSegment.facilityId, facilityId), eq(schema.videoSegment.assetId, assetId)))
         .limit(1),
       db
-        .select({ id: schema.predictionOutput.id })
-        .from(schema.predictionOutput)
-        .where(
-          and(
-            eq(schema.predictionOutput.facilityId, facilityId),
-            or(eq(schema.predictionOutput.beforeAssetId, assetId), eq(schema.predictionOutput.afterAssetId, assetId)),
-          ),
-        )
+        .select({ id: schema.videoFrame.id })
+        .from(schema.videoFrame)
+        .where(and(eq(schema.videoFrame.facilityId, facilityId), eq(schema.videoFrame.assetId, assetId)))
         .limit(1),
       db
         .select({ id: schema.eventAttachment.id })
@@ -619,7 +595,7 @@ export function createChatTools(facilityId: string) {
       db.select().from(schema.asset).where(eq(schema.asset.id, assetId)).limit(1),
     ]);
 
-    if (recording.length === 0 && prediction.length === 0 && attachment.length === 0) {
+    if (recording.length === 0 && frame.length === 0 && attachment.length === 0) {
       throw new Error("That media asset does not belong to this facility.");
     }
 

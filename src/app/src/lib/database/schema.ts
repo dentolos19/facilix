@@ -203,7 +203,7 @@ export const facilityEvent = sqliteTable("facility_events", {
 /**
  * Evidence attachments linked to a facility event.
  *
- * Assets are shared with recordings and prediction outputs. Deleting an event
+ * Assets are shared with recordings and detection outputs. Deleting an event
  * removes only the relation; deleting a source asset removes the attachment.
  */
 export const eventAttachment = sqliteTable(
@@ -306,20 +306,17 @@ export const idempotencyKey = sqliteTable("idempotency_keys", {
 });
 
 /**
- * Roboflow workflow prediction outputs stored per sampled frame.
- * Each row stores the raw frame image (before) and annotated frame (after)
- * with bounding boxes drawn, plus the predictions JSON.
+ * Roboflow workflow detection outputs stored per sampled frame.
+ * Each row stores the raw frame image and detections JSON.
+ * Bounding boxes are rendered by the frontend from the detections data.
  */
-export const predictionOutput = sqliteTable(
-  "prediction_outputs",
+export const videoFrame = sqliteTable(
+  "video_frames",
   {
     id: text("id")
       .primaryKey()
       .$default(() => crypto.randomUUID()),
-    beforeAssetId: text("before_asset_id")
-      .notNull()
-      .references(() => asset.id, { onDelete: "cascade" }),
-    afterAssetId: text("after_asset_id")
+    assetId: text("asset_id")
       .notNull()
       .references(() => asset.id, { onDelete: "cascade" }),
     segmentId: text("segment_id")
@@ -336,17 +333,17 @@ export const predictionOutput = sqliteTable(
     outputName: text("output_name").notNull(),
     frameIndex: integer("frame_index").notNull(),
     atSec: real("at_sec").notNull(),
-    predictions: text("predictions", { mode: "json" }).$type<Record<string, unknown>[]>().notNull(),
+    detections: text("detections", { mode: "json" }).$type<Record<string, unknown>[]>().notNull(),
     image: text("image", { mode: "json" }).$type<{ width: number; height: number }>().notNull(),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .$default(() => new Date()),
   },
   (table) => [
-    index("prediction_outputs_segment_id_idx").on(table.segmentId),
-    index("prediction_outputs_facility_id_idx").on(table.facilityId),
-    index("prediction_outputs_device_id_idx").on(table.deviceId),
-    uniqueIndex("prediction_outputs_idempotency_idx").on(
+    index("video_frames_segment_id_idx").on(table.segmentId),
+    index("video_frames_facility_id_idx").on(table.facilityId),
+    index("video_frames_device_id_idx").on(table.deviceId),
+    uniqueIndex("video_frames_idempotency_idx").on(
       table.segmentId,
       table.pluginId,
       table.workflowId,
@@ -358,7 +355,6 @@ export const predictionOutput = sqliteTable(
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
-
 export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
 export type Asset = typeof asset.$inferSelect;
@@ -370,4 +366,4 @@ export type EventAttachment = typeof eventAttachment.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;
-export type PredictionOutput = typeof predictionOutput.$inferSelect;
+export type VideoFrame = typeof videoFrame.$inferSelect;

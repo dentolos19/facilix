@@ -167,19 +167,18 @@ export const getDeviceRecordings = createServerFn({ method: "GET" })
     return rows.map(toRecording);
   });
 
-// ─── Prediction Outputs ─────────────────────────────────────────────────────
+// ─── Video Frames ──────────────────────────────────────────────────────────
 
-export interface PredictionOutputRow {
+export interface VideoFrameRow {
   id: string;
-  beforeAssetId: string;
-  afterAssetId: string;
+  assetId: string;
   segmentId: string;
   pluginId: string;
   workflowId: string;
   outputName: string;
   frameIndex: number;
   atSec: number;
-  predictions: RecordingDetection[];
+  detections: RecordingDetection[];
   image: { width: number; height: number };
   createdAt: Date;
 }
@@ -188,7 +187,7 @@ export interface PredictionOutputRow {
  * Get Roboflow prediction outputs for a device, newest-first.
  * Limited to `limit` rows (default 100, max 500).
  */
-export const getDevicePredictions = createServerFn({ method: "GET" })
+export const getDeviceDetections = createServerFn({ method: "GET" })
   .validator((data: { facilityId: string; deviceId: string; limit?: number }) => {
     if (!data.facilityId) throw new Error("Facility ID is required");
     if (!data.deviceId) throw new Error("Device ID is required");
@@ -201,30 +200,24 @@ export const getDevicePredictions = createServerFn({ method: "GET" })
 
     const rows = await db
       .select()
-      .from(schema.predictionOutput)
-      .where(
-        and(
-          eq(schema.predictionOutput.facilityId, data.facilityId),
-          eq(schema.predictionOutput.deviceId, data.deviceId),
-        ),
-      )
-      .orderBy(desc(schema.predictionOutput.createdAt))
+      .from(schema.videoFrame)
+      .where(and(eq(schema.videoFrame.facilityId, data.facilityId), eq(schema.videoFrame.deviceId, data.deviceId)))
+      .orderBy(desc(schema.videoFrame.createdAt))
       .limit(limit);
 
     return rows
       .filter((row) => getPlugin(row.pluginId) !== undefined)
       .map(
-        (row): PredictionOutputRow => ({
+        (row): VideoFrameRow => ({
           id: row.id,
-          beforeAssetId: row.beforeAssetId,
-          afterAssetId: row.afterAssetId,
+          assetId: row.assetId,
           segmentId: row.segmentId,
           pluginId: row.pluginId,
           workflowId: row.workflowId,
           outputName: row.outputName,
           frameIndex: row.frameIndex,
           atSec: row.atSec,
-          predictions: row.predictions as unknown as RecordingDetection[],
+          detections: row.detections as unknown as RecordingDetection[],
           image: row.image,
           createdAt: row.createdAt,
         }),
