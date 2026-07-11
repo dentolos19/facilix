@@ -5,37 +5,33 @@ from __future__ import annotations
 import os
 
 # ---------------------------------------------------------------------------
-# CCTV / MediaMTX
+# Samples — the single override point for the sample directory.
+# Everything else is derived from this or hard-coded.
 # ---------------------------------------------------------------------------
 
-# Directory mounted from host containing MP4 video files
-VIDEOS_DIR = os.environ.get("SIMULATOR_VIDEOS_DIR", "/videos")
-
-# Directory containing the samples manifest (videos.json)
 SAMPLES_DIR = os.environ.get("SIMULATOR_SAMPLES_DIR", "/samples")
+VIDEOS_MANIFEST = os.path.join(SAMPLES_DIR, "videos.json")
 
-# Path to the video manifest JSON
-VIDEOS_MANIFEST = os.environ.get("SIMULATOR_VIDEOS_MANIFEST", "/samples/videos.json")
+# ---------------------------------------------------------------------------
+# MediaMTX (internal — these addresses never change because all three
+# processes run side-by-side inside the same container)
+# ---------------------------------------------------------------------------
 
-# MediaMTX hostname (container name in compose, localhost when bundled)
-MEDIAMTX_HOST = os.environ.get("MEDIAMTX_HOST", "localhost")
+MEDIAMTX_HOST = "localhost"
+MEDIAMTX_RTSP_PORT = 8554
+MEDIAMTX_RTMP_PORT = 1935
+MEDIAMTX_HLS_URL = "http://localhost:8888"
 
-# RTSP target port inside MediaMTX
-MEDIAMTX_RTSP_PORT = int(os.environ.get("MEDIAMTX_RTSP_PORT", "8554"))
+# While low-latency HLS is assembling the first segment the endpoint can
+# block; this is the fetch timeout for the proxy.
+MEDIAMTX_HLS_TIMEOUT_SECONDS = 30
 
-# RTMP target port inside MediaMTX
-MEDIAMTX_RTMP_PORT = int(os.environ.get("MEDIAMTX_RTMP_PORT", "1935"))
+# ---------------------------------------------------------------------------
+# CCTV health
+# ---------------------------------------------------------------------------
 
-# Browser-facing HLS endpoint served by bundled MediaMTX.
-MEDIAMTX_HLS_URL = os.environ.get("MEDIAMTX_HLS_URL", "http://localhost:8888")
+HEALTH_CHECK_INTERVAL = 15
 
-# Low-latency HLS can block while MediaMTX waits for parts to become available.
-MEDIAMTX_HLS_TIMEOUT_SECONDS = int(os.environ.get("MEDIAMTX_HLS_TIMEOUT_SECONDS", "30"))
-
-# How often to check whether FFmpeg processes are alive (seconds)
-HEALTH_CHECK_INTERVAL = int(os.environ.get("SIMULATOR_HEALTH_CHECK_INTERVAL", "15"))
-
-# Fallback encode args if stream copy fails
 FALLBACK_ENCODE_ARGS = [
     "-c:v",
     "libx264",
@@ -48,26 +44,24 @@ FALLBACK_ENCODE_ARGS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Sensors
+# Sensors — all default values are code-owned constants.
 # ---------------------------------------------------------------------------
 
-# Default interval between automatic reading generations (seconds)
-SENSOR_DEFAULT_INTERVAL_SECONDS = int(os.environ.get("SENSOR_DEFAULT_INTERVAL_SECONDS", "5"))
+SENSOR_DEFAULT_INTERVAL_SECONDS = 5
+SENSOR_HISTORY_LIMIT = 500
+SENSOR_PAYLOAD_FORMAT = "facilix"
 
-# Maximum number of historical readings to keep per sensor
-SENSOR_HISTORY_LIMIT = int(os.environ.get("SENSOR_HISTORY_LIMIT", "500"))
-
-# Fixed seed for repeatable random values across restarts (optional)
-RANDOM_SEED = os.environ.get("SENSOR_RANDOM_SEED", None)
-if RANDOM_SEED is not None:
-    RANDOM_SEED = int(RANDOM_SEED)
-
-# Payload format: "facilix" (default), "thingsboard", or "senml"
-SENSOR_PAYLOAD_FORMAT = os.environ.get("SENSOR_PAYLOAD_FORMAT", "facilix")
+# Fixed seed for repeatable random values across restarts (optional).
+RANDOM_SEED: int | None = None
+_seed_raw = os.environ.get("SENSOR_RANDOM_SEED")
+if _seed_raw is not None:
+    RANDOM_SEED = int(_seed_raw)
 
 # ---------------------------------------------------------------------------
 # Shared
 # ---------------------------------------------------------------------------
+
+LOG_LEVEL = "info"
 
 # Comma-separated origins allowed to call the simulator from a browser.
 DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://localhost:3001,http://localhost:5173,https://local.dennise.me,https://facilix.dennise.me"
@@ -76,6 +70,3 @@ CORS_ORIGINS = [
     for origin in os.environ.get("SIMULATOR_CORS_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
     if origin.strip()
 ]
-
-# Log level for the app
-LOG_LEVEL = os.environ.get("SIMULATOR_LOG_LEVEL", "info")

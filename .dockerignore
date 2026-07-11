@@ -1,16 +1,32 @@
+# Root .dockerignore — used when building from the repo root
+# (compose.yml and fly.toml both build from ".").
+
 # Environment files
 node_modules/
 .git/
-.venv/
 .next/
 dist/
 build/
 __pycache__/
 *.pyc
+.ruff_cache/
+
+# Virtual environments (any depth)
+**/.venv/
+.venv/
+
+# Editor configurations
+.vs/
+.idea/
+*.iml
 
 # User files
 .env*
 !.env*.template
+
+# TypeScript / frontend build artifacts
+*.tsbuildinfo
+*.d.ts
 
 # Miscellaneous files
 .DS_Store

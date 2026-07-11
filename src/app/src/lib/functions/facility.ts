@@ -522,9 +522,7 @@ export const deleteFacility = createServerFn({ method: "POST" })
 
         // Delete asset rows (chunked to stay under parameter limit)
         for (let i = 0; i < orphanAssetIds.length; i += CHUNK) {
-          await db
-            .delete(schema.asset)
-            .where(inArray(schema.asset.id, orphanAssetIds.slice(i, i + CHUNK)));
+          await db.delete(schema.asset).where(inArray(schema.asset.id, orphanAssetIds.slice(i, i + CHUNK)));
         }
       }
     }

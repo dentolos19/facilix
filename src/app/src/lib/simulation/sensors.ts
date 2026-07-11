@@ -41,7 +41,7 @@ export interface NormalizedReading {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration (Vite client env vars – local dev only)
+// Configuration
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
@@ -52,10 +52,6 @@ function getApiBase(): string {
 // API helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch the list of available simulation sensor devices.
- * Returns an empty array if the simulator is unreachable.
- */
 export async function fetchSimulationSensors(): Promise<SimulationSensorDevice[]> {
   try {
     const res = await fetch(`${getApiBase()}/sensors`, { signal: AbortSignal.timeout(3000) });
@@ -67,12 +63,9 @@ export async function fetchSimulationSensors(): Promise<SimulationSensorDevice[]
   }
 }
 
-/**
- * Fetch details for a single simulation sensor device.
- */
-export async function fetchSimulationSensor(deviceId: string): Promise<SimulationSensorDevice | null> {
+export async function fetchSimulationSensor(identifier: string): Promise<SimulationSensorDevice | null> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(deviceId)}`, {
+    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -82,30 +75,23 @@ export async function fetchSimulationSensor(deviceId: string): Promise<Simulatio
   }
 }
 
-/**
- * Fetch the latest reading for a simulation sensor device.
- */
-export async function fetchSimulationLatestReading(deviceId: string): Promise<NormalizedReading | null> {
+export async function fetchSimulationLatestReading(identifier: string): Promise<NormalizedReading | null> {
   try {
-    const res = await fetch(`${getApiBase()}/readings/latest?device_id=${encodeURIComponent(deviceId)}`, {
+    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/latest`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { readings: Record<string, unknown>[] };
-    const found = data.readings.find((r: Record<string, unknown>) => String(r.deviceId ?? "") === deviceId);
-    if (!found) return null;
-    return normalizeReading(found);
+    const data = (await res.json()) as { reading: Record<string, unknown> };
+    if (!data.reading) return null;
+    return normalizeReading(data.reading);
   } catch {
     return null;
   }
 }
 
-/**
- * Fetch reading history for a simulation sensor device.
- */
-export async function fetchSimulationHistory(deviceId: string, limit = 50): Promise<NormalizedReading[]> {
+export async function fetchSimulationHistory(identifier: string, limit = 50): Promise<NormalizedReading[]> {
   try {
-    const res = await fetch(`${getApiBase()}/readings?device_id=${encodeURIComponent(deviceId)}&limit=${limit}`, {
+    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/readings?limit=${limit}`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return [];
@@ -116,12 +102,9 @@ export async function fetchSimulationHistory(deviceId: string, limit = 50): Prom
   }
 }
 
-/**
- * Trigger a single immediate reading for a simulation sensor device.
- */
-export async function triggerSimulationReading(deviceId: string): Promise<NormalizedReading | null> {
+export async function triggerSimulationReading(identifier: string): Promise<NormalizedReading | null> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(deviceId)}/read`, {
+    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/read`, {
       method: "POST",
       signal: AbortSignal.timeout(3000),
     });
@@ -141,7 +124,6 @@ function normalizeReading(raw: Record<string, unknown>): NormalizedReading {
   const values = (raw.values as Record<string, { value: number; unit: string }>) ?? {};
   const sensorType = String(raw.sensorType ?? "");
 
-  // Extract primary value from the values map
   let value = 0;
   let unit = "";
   let secondaryValue: number | null = null;
@@ -153,7 +135,6 @@ function normalizeReading(raw: Record<string, unknown>): NormalizedReading {
     unit = primaryEntry.unit;
   }
 
-  // Extract secondary value (e.g. occupancy for motion)
   const secondaryEntry = values.occupancy ?? values.value;
   if (secondaryEntry && secondaryEntry !== primaryEntry) {
     secondaryValue = secondaryEntry.value;

@@ -2,7 +2,7 @@
  * CCTV simulation helpers.
  *
  * Discovers available streams from the CCTV simulator API and builds
- * browser-compatible HLS playback URLs through MediaMTX.
+ * browser-compatible HLS playback URLs through the proxy.
  */
 
 // ---------------------------------------------------------------------------
@@ -16,40 +16,27 @@ export interface SimulationStream {
   rtmpUrl: string;
   hlsUrl: string;
   videoPath: string;
-  /** Optional metadata from the video manifest. */
   label?: string;
   description?: string;
   tags?: string[];
   file?: string;
 }
 
-export interface SimulationStreamsResponse {
-  streams: SimulationStream[];
-}
-
 // ---------------------------------------------------------------------------
-// Configuration (Vite client env vars – local dev only)
+// Configuration
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
   return import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002";
 }
 
-function getHlsBase(): string {
-  return import.meta.env?.VITE_SIMULATION_HLS_URL ?? "http://localhost:3002/hls";
-}
-
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch the list of available simulation streams from the CCTV simulator.
- * Returns an empty array if the simulator is unreachable.
- */
 export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
   try {
-    const res = await fetch(`${getApiBase()}/streams`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${getApiBase()}/cctv`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { streams: Record<string, unknown>[] };
     return data.streams.map(toStream);
@@ -58,9 +45,6 @@ export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
   }
 }
 
-/**
- * Fetch health status of the simulator (CCTV + sensors).
- */
 export async function fetchSimulationHealth(): Promise<{
   ok: boolean;
   alive: number;
@@ -87,14 +71,9 @@ export async function fetchSimulationHealth(): Promise<{
 // URL builders
 // ---------------------------------------------------------------------------
 
-/**
- * Build an HLS playback URL for a given simulation stream name.
- */
 export function simulationHlsUrl(streamName: string): string {
-  return `${getHlsBase()}/${encodeURIComponent(streamName)}/index.m3u8`;
+  return `${getApiBase()}/cctv/${encodeURIComponent(streamName)}/hls/index.m3u8`;
 }
-
-// No static fallbacks — streams are only loaded from the live simulator API.
 
 // ---------------------------------------------------------------------------
 // Internal

@@ -4,9 +4,6 @@ primary_region = "sin"
 [build]
 dockerfile = "src/simulator/Dockerfile"
 
-[env]
-SIMULATOR_LOG_LEVEL = "info"
-
 [[services]]
 internal_port = 8000
 protocol = "tcp"
@@ -18,3 +15,8 @@ port = 80
 [[services.ports]]
 handlers = ["tls"]
 port = 443
+
+[[services.tcp_checks]]
+interval = "15s"
+timeout = "5s"
+grace_period = "10s"

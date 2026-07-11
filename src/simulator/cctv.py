@@ -1,5 +1,5 @@
 """CCTV Simulator — loops local MP4 files and publishes them as
-RTSP/RTMP streams via MediaMTX.
+RTSP/RTMP streams via MediaMTX, then proxies HLS for browser playback.
 
 Video discovery is driven by a manifest file (videos.json) that
 describes available samples, with filesystem fallback for unlisted MP4s.
@@ -11,11 +11,15 @@ import asyncio
 import json
 import logging
 import signal
+from collections import deque
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import fastapi
-from fastapi.responses import JSONResponse
+import urllib.error
+import urllib.parse
+import urllib.request
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import config
 
@@ -71,7 +75,11 @@ class StreamProcess:
         self.video_path = video_path
         self.video_info = video_info
         self.process: Optional[asyncio.subprocess.Process] = None
-        self.use_copy = True  # try stream-copy first, fall back to re-encode
+        self.use_copy = True
+        self._lock = asyncio.Lock()
+        self._max_restarts = 5
+        self._restart_window = 60.0
+        self._restart_attempts: deque[float] = deque()
 
     @property
     def rtsp_url(self) -> str:
@@ -92,7 +100,6 @@ class StreamProcess:
             "alive": self.is_alive,
             "rtsp_url": self.rtsp_url,
             "rtmp_url": self.rtmp_url,
-            "use_copy": self.use_copy,
         }
         if self.video_info:
             base["label"] = self.video_info.label
@@ -100,6 +107,18 @@ class StreamProcess:
             base["tags"] = self.video_info.tags
             base["file"] = self.video_info.file
         return base
+
+    def can_restart(self) -> bool:
+        """Limit restart storms without permanently abandoning a stream."""
+        now = asyncio.get_running_loop().time()
+        while self._restart_attempts and self._restart_attempts[0] <= now - self._restart_window:
+            self._restart_attempts.popleft()
+
+        if len(self._restart_attempts) >= self._max_restarts:
+            return False
+
+        self._restart_attempts.append(now)
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -181,21 +200,19 @@ def _discover_videos() -> List[VideoInfo]:
     For unlisted files, generates minimal metadata from the filename.
     """
     manifest_videos = _load_video_manifest()
-    video_dir = Path(config.VIDEOS_DIR)
+    samples_dir = Path(config.SAMPLES_DIR)
     seen: set[str] = set()
     result: List[VideoInfo] = []
 
-    # Emit manifest entries that have existing files
     for vid, info in manifest_videos.items():
         result.append(info)
         seen.add(vid)
 
-    # Discover remaining MP4 files not in the manifest
-    if not video_dir.is_dir():
-        logger.warning("Videos directory %s does not exist", video_dir)
+    if not samples_dir.is_dir():
+        logger.warning("Samples directory %s does not exist", samples_dir)
         return result
 
-    for fpath in sorted(video_dir.glob("*.mp4")):
+    for fpath in sorted(samples_dir.glob("*.mp4")):
         stem = fpath.stem
         if stem in seen:
             continue
@@ -211,7 +228,7 @@ def _discover_videos() -> List[VideoInfo]:
         )
         seen.add(stem)
 
-    logger.info("Discovered %d video(s) total in %s", len(result), video_dir)
+    logger.info("Discovered %d video(s) total in %s", len(result), samples_dir)
     return result
 
 
@@ -221,6 +238,7 @@ def _discover_videos() -> List[VideoInfo]:
 
 streams: StreamState = {}
 _shutdown_event = asyncio.Event()
+_stderr_tasks: set[asyncio.Task] = set()
 
 
 def _build_ffmpeg_args(sp: StreamProcess) -> List[str]:
@@ -281,8 +299,9 @@ async def _start_stream(sp: StreamProcess) -> None:
         stderr=asyncio.subprocess.PIPE,
     )
 
-    # Read stderr asynchronously so we can see codec errors
-    asyncio.ensure_future(_monitor_stream_stderr(sp))
+    task = asyncio.ensure_future(_monitor_stream_stderr(sp))
+    _stderr_tasks.add(task)
+    task.add_done_callback(_stderr_tasks.discard)
 
 
 async def _monitor_stream_stderr(sp: StreamProcess) -> None:
@@ -326,9 +345,10 @@ async def _stop_stream(sp: StreamProcess) -> None:
 
 
 async def _restart_stream(sp: StreamProcess) -> None:
-    """Restart a stream (stop then start)."""
-    await _stop_stream(sp)
-    await _start_stream(sp)
+    """Restart a stream (stop then start). Single-flight per stream."""
+    async with sp._lock:
+        await _stop_stream(sp)
+        await _start_stream(sp)
 
 
 async def initialize_streams() -> None:
@@ -352,7 +372,15 @@ async def health_loop() -> None:
                     name,
                     return_code,
                 )
-                asyncio.ensure_future(_restart_stream(sp))
+                if sp.can_restart():
+                    asyncio.ensure_future(_restart_stream(sp))
+                else:
+                    logger.error(
+                        "Stream '%s' exceeded %d restarts in %.0f seconds",
+                        name,
+                        sp._max_restarts,
+                        sp._restart_window,
+                    )
         try:
             await asyncio.wait_for(_shutdown_event.wait(), timeout=config.HEALTH_CHECK_INTERVAL)
         except asyncio.TimeoutError:
@@ -360,11 +388,23 @@ async def health_loop() -> None:
 
 
 async def shutdown_streams() -> None:
-    """Graceful shutdown: stop all streams."""
-    logger.info("Shutting down all streams\u2026")
+    """Graceful shutdown: stop all streams and cancel monitor tasks."""
+    logger.info("Shutting down all streams…")
     _shutdown_event.set()
+
+    for task in list(_stderr_tasks):
+        task.cancel()
+    for task in list(_stderr_tasks):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     for name, sp in list(streams.items()):
         await _stop_stream(sp)
+
+    _stderr_tasks.clear()
+    streams.clear()
     logger.info("All streams stopped")
 
 
@@ -372,13 +412,57 @@ async def shutdown_streams() -> None:
 # Routes
 # ---------------------------------------------------------------------------
 
-router = fastapi.APIRouter(prefix="/streams", tags=["cctv"])
+router = fastapi.APIRouter(prefix="/cctv", tags=["cctv"])
 
 
 @router.get("")
 async def list_streams() -> JSONResponse:
     """List all CCTV streams with metadata."""
     return JSONResponse({"streams": [sp.info() for sp in streams.values()]})
+
+
+@router.get("/health")
+async def cctv_health() -> JSONResponse:
+    """CCTV-only health check."""
+    alive = sum(1 for sp in streams.values() if sp.is_alive)
+    total = len(streams)
+    return JSONResponse(
+        {
+            "status": "ok" if alive == total else "degraded",
+            "streams": {"alive": alive, "total": total},
+        }
+    )
+
+
+@router.get("/{name}")
+async def get_stream(name: str) -> JSONResponse:
+    """Get details for a single CCTV stream."""
+    sp = streams.get(name)
+    if sp is None:
+        return JSONResponse({"error": f"Stream '{name}' not found"}, status_code=404)
+    return JSONResponse(sp.info())
+
+
+@router.post("/{name}/start")
+async def start_stream(name: str) -> JSONResponse:
+    """Start a CCTV stream."""
+    sp = streams.get(name)
+    if sp is None:
+        return JSONResponse({"error": f"Stream '{name}' not found"}, status_code=404)
+    async with sp._lock:
+        await _start_stream(sp)
+    return JSONResponse({"status": "started", "stream": sp.info()})
+
+
+@router.post("/{name}/stop")
+async def stop_stream(name: str) -> JSONResponse:
+    """Stop a CCTV stream."""
+    sp = streams.get(name)
+    if sp is None:
+        return JSONResponse({"error": f"Stream '{name}' not found"}, status_code=404)
+    async with sp._lock:
+        await _stop_stream(sp)
+    return JSONResponse({"status": "stopped", "name": name})
 
 
 @router.post("/{name}/restart")
@@ -391,38 +475,45 @@ async def restart_stream(name: str) -> JSONResponse:
     return JSONResponse({"status": "restarted", "stream": sp.info()})
 
 
-@router.post("/{name}/stop")
-async def stop_stream(name: str) -> JSONResponse:
-    """Stop a CCTV stream."""
-    sp = streams.get(name)
-    if sp is None:
-        return JSONResponse({"error": f"Stream '{name}' not found"}, status_code=404)
-    await _stop_stream(sp)
-    return JSONResponse({"status": "stopped", "name": name})
+@router.get("/{name}/hls/{hls_path:path}")
+async def proxy_hls(name: str, hls_path: str, request: fastapi.Request) -> fastapi.Response:
+    """Proxy MediaMTX HLS output through FastAPI so only one HTTP port is needed.
+
+    Streams the response instead of buffering the entire segment in memory.
+    """
+    if name not in streams:
+        raise fastapi.HTTPException(status_code=404, detail=f"Stream '{name}' not found")
+
+    if ".." in hls_path.split("/"):
+        raise fastapi.HTTPException(status_code=400, detail="Invalid HLS path")
+
+    encoded_path = urllib.parse.quote(f"{name}/{hls_path}", safe="/.")
+    upstream_url = f"{config.MEDIAMTX_HLS_URL.rstrip('/')}/{encoded_path}"
+    if request.url.query:
+        upstream_url = f"{upstream_url}?{request.url.query}"
+
+    try:
+        upstream_resp = await asyncio.to_thread(
+            urllib.request.urlopen,
+            upstream_url,
+            timeout=config.MEDIAMTX_HLS_TIMEOUT_SECONDS,
+        )
+        content_type = upstream_resp.headers.get("content-type", "application/octet-stream")
+        return StreamingResponse(
+            _stream_response(upstream_resp),
+            media_type=content_type,
+            status_code=upstream_resp.status,
+        )
+    except urllib.error.HTTPError as exc:
+        raise fastapi.HTTPException(status_code=exc.code, detail="HLS resource unavailable") from exc
+    except urllib.error.URLError as exc:
+        raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS endpoint unavailable") from exc
 
 
-@router.post("/{name}/start")
-async def start_stream(name: str) -> JSONResponse:
-    """Start a CCTV stream."""
-    sp = streams.get(name)
-    if sp is None:
-        return JSONResponse({"error": f"Stream '{name}' not found"}, status_code=404)
-    await _start_stream(sp)
-    return JSONResponse({"status": "started", "stream": sp.info()})
-
-
-# Legacy health endpoint (backward compat)
-health_router = fastapi.APIRouter(tags=["cctv"])
-
-
-@health_router.get("/cctv/health")
-async def cctv_health() -> JSONResponse:
-    """CCTV-only health check."""
-    alive = sum(1 for sp in streams.values() if sp.is_alive)
-    total = len(streams)
-    return JSONResponse(
-        {
-            "status": "ok" if alive == total else "degraded",
-            "streams": {"alive": alive, "total": total},
-        }
-    )
+def _stream_response(resp):
+    """Yield chunks from urllib response to avoid buffering."""
+    try:
+        while chunk := resp.read(65536):
+            yield chunk
+    finally:
+        resp.close()

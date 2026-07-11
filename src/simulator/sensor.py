@@ -1,7 +1,7 @@
 """Sensor simulation — data models, simulation engine, and API routes.
 
-This module replaces the previous split across sensor_models.py,
-sensor_engine.py, and sensor_routes.py.
+Public routes use human-readable sensor types (/sensors/temperature)
+while the monitoring container retains stable device IDs.
 """
 
 from __future__ import annotations
@@ -58,19 +58,16 @@ class SensorDevice:
     battery_pct: float = 100.0
     signal_rssi_dbm: int = -55
 
-    # Measurement bounds for realistic random generation
     value_min: float = 0.0
     value_max: float = 100.0
     value_unit: str = ""
     value_decimals: int = 1
 
-    # Optional secondary value (e.g., occupancy count for motion)
     secondary_label: str = ""
     secondary_min: float = 0.0
     secondary_max: float = 0.0
     secondary_unit: str = ""
 
-    # Current "drift anchor" so values change smoothly
     _current_value: float = 0.0
     _current_secondary: float = 0.0
 
@@ -91,8 +88,8 @@ class SensorReading:
     secondary_value: Optional[float] = None
     secondary_unit: Optional[str] = None
 
-    def to_facilix_payload(self) -> Dict[str, Any]:
-        """Default Facilix-format payload."""
+    def to_dict(self) -> Dict[str, Any]:
+        """Facilix-format payload."""
         values: Dict[str, Any] = {
             self.sensor_type.value: {
                 "value": round(self.value, 2),
@@ -116,60 +113,6 @@ class SensorReading:
             "signalRssiDbm": self.signal_rssi_dbm,
             "values": values,
         }
-
-    def to_thingsboard_payload(self) -> Dict[str, Any]:
-        """ThingsBoard MQTT-style telemetry payload."""
-        return {
-            "ts": int(self.timestamp.timestamp() * 1000),
-            "values": {
-                self.sensor_type.value: round(self.value, 2),
-                **({"occupancy": round(self.secondary_value, 2)} if self.secondary_value is not None else {}),
-            },
-        }
-
-    def to_senml_payload(self) -> List[Dict[str, Any]]:
-        """SenML (RFC 8428) compact representation."""
-        records: List[Dict[str, Any]] = [
-            {
-                "n": self.sensor_type.value,
-                "u": self.unit,
-                "v": round(self.value, 2),
-                "t": int(self.timestamp.timestamp()),
-            }
-        ]
-        if self.secondary_value is not None and self.secondary_unit is not None:
-            records.append(
-                {
-                    "n": "occupancy",
-                    "v": round(self.secondary_value, 0),
-                    "t": int(self.timestamp.timestamp()),
-                }
-            )
-        records.append(
-            {
-                "n": "battery",
-                "u": "%",
-                "v": round(self.battery_pct, 1),
-                "t": int(self.timestamp.timestamp()),
-            }
-        )
-        records.append(
-            {
-                "n": "signal",
-                "u": "dBm",
-                "v": self.signal_rssi_dbm,
-                "t": int(self.timestamp.timestamp()),
-            }
-        )
-        return records
-
-    def to_dict(self, fmt: str = "facilix") -> Dict[str, Any]:
-        """Convert to dict in the requested format."""
-        if fmt == "thingsboard":
-            return self.to_thingsboard_payload()
-        if fmt == "senml":
-            return {"senml": self.to_senml_payload()}
-        return self.to_facilix_payload()
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +233,7 @@ _latest: Dict[str, SensorReading] = {}
 _device_enabled: Dict[str, bool] = {}
 _sequence: Dict[str, int] = {}
 _rng: random.Random
+_type_to_device: Dict[str, str] = {}
 
 
 def init() -> None:
@@ -297,6 +241,13 @@ def init() -> None:
     seed = sim_config.RANDOM_SEED
     global _rng
     _rng = random.Random(seed)
+
+    _devices.clear()
+    _readings.clear()
+    _latest.clear()
+    _device_enabled.clear()
+    _sequence.clear()
+    _type_to_device.clear()
 
     for dev in SENSOR_DEFINITIONS:
         dev.battery_pct = _rng.uniform(80.0, 100.0)
@@ -313,6 +264,7 @@ def init() -> None:
         _latest[dev.device_id] = _generate_reading(dev)
         _device_enabled[dev.device_id] = True
         _sequence[dev.device_id] = 0
+        _type_to_device[dev.sensor_type.value] = dev.device_id
 
     logger.info("Initialized %d sensor devices", len(_devices))
 
@@ -344,14 +296,11 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
     seq = _sequence.get(dev.device_id, 0)
     now = datetime.now(timezone.utc)
 
-    # --- battery & signal decay -------------------------------------------
     if _rng.random() < 0.1:
         dev.battery_pct = max(0.0, dev.battery_pct - _rng.uniform(0.0, 0.5))
-    # nudge signal up/down a little
     dev.signal_rssi_dbm += _rng.randint(-2, 2)
     dev.signal_rssi_dbm = max(-100, min(-30, dev.signal_rssi_dbm))
 
-    # --- status simulation -------------------------------------------------
     if dev.battery_pct < 5.0:
         status = SensorStatus.OFFLINE
     elif dev.battery_pct < 15.0 or _rng.random() < 0.005:
@@ -360,7 +309,6 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
         status = SensorStatus.OK
     dev.status = status
 
-    # --- value drift -------------------------------------------------------
     new_target = _rng.uniform(dev.value_min, dev.value_max)
     max_step = (dev.value_max - dev.value_min) * 0.05
     dev._current_value = _drift(dev._current_value, new_target, max_step, dev.value_min, dev.value_max)
@@ -378,14 +326,12 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
         )
         secondary = round(dev._current_secondary, 1)
 
-    # --- motion / door / leak are boolean-ish ------------------------------
     value = dev._current_value
     if dev.sensor_type in (
         SensorType.MOTION,
         SensorType.DOOR_CONTACT,
         SensorType.LEAK,
     ):
-        # Toggle occasionally
         if _rng.random() < 0.15:
             value = 1.0 if value < 0.5 else 0.0
             dev._current_value = value
@@ -416,6 +362,16 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_device_id(identifier: str) -> Optional[str]:
+    """Resolve a sensor type string or device ID to a device ID."""
+    if identifier in _devices:
+        return identifier
+    device_id = _type_to_device.get(identifier)
+    if device_id and device_id in _devices:
+        return device_id
+    return None
+
+
 def generate_readings() -> Dict[str, SensorReading]:
     """Generate new readings for all enabled devices, store them, return latest."""
     generated: Dict[str, SensorReading] = {}
@@ -432,8 +388,11 @@ def generate_readings() -> Dict[str, SensorReading]:
     return generated
 
 
-def read_single(device_id: str) -> Optional[SensorReading]:
+def read_single(identifier: str) -> Optional[SensorReading]:
     """Force a single reading for a specific device."""
+    device_id = _resolve_device_id(identifier)
+    if device_id is None:
+        return None
     dev = _devices.get(device_id)
     if dev is None:
         return None
@@ -451,38 +410,74 @@ def get_devices() -> List[SensorDevice]:
     return list(_devices.values())
 
 
-def get_device(device_id: str) -> Optional[SensorDevice]:
-    """Return a single device by ID."""
+def get_device(identifier: str) -> Optional[SensorDevice]:
+    """Return a single device by ID or type."""
+    device_id = _resolve_device_id(identifier)
+    if device_id is None:
+        return None
     return _devices.get(device_id)
 
 
 def get_latest(
-    device_id: Optional[str] = None,
+    identifier: Optional[str] = None,
 ) -> Dict[str, SensorReading]:
-    """Return latest reading(s). If device_id is None, return all."""
-    if device_id:
+    """Return latest reading(s). If identifier is None, return all."""
+    if identifier:
+        device_id = _resolve_device_id(identifier)
+        if device_id is None:
+            return {}
         r = _latest.get(device_id)
         return {device_id: r} if r else {}
     return dict(_latest)
 
 
-def get_history(device_id: str, limit: int = 100) -> List[SensorReading]:
+def get_history(identifier: str, limit: int = 100) -> List[SensorReading]:
     """Return recent history for a single device."""
+    device_id = _resolve_device_id(identifier)
+    if device_id is None:
+        return []
     hist = _readings.get(device_id, [])
     return hist[-limit:]
 
 
-def set_enabled(device_id: str, enabled: bool) -> bool:
+def set_enabled(identifier: str, enabled: bool) -> bool:
     """Enable or disable automatic reading generation."""
-    if device_id not in _device_enabled:
+    device_id = _resolve_device_id(identifier)
+    if device_id is None or device_id not in _device_enabled:
         return False
     _device_enabled[device_id] = enabled
     return True
 
 
-def is_enabled(device_id: str) -> bool:
+def is_enabled(identifier: str) -> bool:
     """Check whether a device is currently enabled."""
+    device_id = _resolve_device_id(identifier)
+    if device_id is None:
+        return False
     return _device_enabled.get(device_id, False)
+
+
+def _device_summary(d: SensorDevice) -> dict:
+    return {
+        "deviceId": d.device_id,
+        "sensorType": d.sensor_type.value,
+        "label": d.label,
+        "status": d.status.value,
+        "enabled": is_enabled(d.device_id),
+        "batteryPct": round(d.battery_pct, 1),
+        "signalRssiDbm": d.signal_rssi_dbm,
+        "intervalSeconds": d.interval_seconds,
+    }
+
+
+def _device_detail(d: SensorDevice) -> dict:
+    summary = _device_summary(d)
+    summary["measurementRange"] = {
+        "min": d.value_min,
+        "max": d.value_max,
+        "unit": d.value_unit,
+    }
+    return summary
 
 
 # ======================================================================
@@ -492,152 +487,88 @@ def is_enabled(device_id: str) -> bool:
 router = fastapi.APIRouter(tags=["sensors"])
 
 
-# ---------------------------------------------------------------------------
-# Health (sensor-specific)
-# ---------------------------------------------------------------------------
-
-
-@router.get("/sensors/health")
-async def sensors_health() -> JSONResponse:
-    """Sensor-only health check."""
-    total = len(get_devices())
-    online = sum(1 for d in get_devices() if d.status.value in ("ok", "degraded"))
-    return JSONResponse(
-        {
-            "status": "ok" if online == total else "degraded",
-            "sensors": {"total": total, "online": online},
-        }
-    )
-
-
-# ---------------------------------------------------------------------------
-# Device listing
-# ---------------------------------------------------------------------------
-
-
 @router.get("/sensors")
 async def list_sensors() -> JSONResponse:
     """List all configured sensor devices."""
-    devices = get_devices()
-    return JSONResponse(
-        {
-            "sensors": [
-                {
-                    "deviceId": d.device_id,
-                    "sensorType": d.sensor_type.value,
-                    "label": d.label,
-                    "status": d.status.value,
-                    "enabled": is_enabled(d.device_id),
-                    "batteryPct": round(d.battery_pct, 1),
-                    "signalRssiDbm": d.signal_rssi_dbm,
-                    "intervalSeconds": d.interval_seconds,
-                }
-                for d in devices
-            ]
-        }
-    )
+    return JSONResponse({"sensors": [_device_summary(d) for d in get_devices()]})
 
 
-@router.get("/sensors/{device_id}")
-async def get_sensor(device_id: str) -> JSONResponse:
-    """Get details for a single sensor device."""
-    dev = get_device(device_id)
+@router.get("/sensors/{identifier}")
+async def get_sensor(identifier: str) -> JSONResponse:
+    """Get details for a single sensor by type or device ID."""
+    dev = get_device(identifier)
     if dev is None:
-        return JSONResponse({"error": f"Device '{device_id}' not found"}, status_code=404)
+        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+    return JSONResponse(_device_detail(dev))
+
+
+@router.get("/sensors/{identifier}/latest")
+async def get_sensor_latest(identifier: str) -> JSONResponse:
+    """Get the latest reading for a sensor by type or device ID."""
+    latest = get_latest(identifier)
+    if not latest:
+        return JSONResponse({"error": "No readings found"}, status_code=404)
+    return JSONResponse({"reading": next(iter(latest.values())).to_dict()})
+
+
+@router.get("/sensors/{identifier}/readings")
+async def get_sensor_readings(identifier: str, limit: int = 100) -> JSONResponse:
+    """Get recent reading history for a sensor by type or device ID."""
+    if limit < 1:
+        limit = 100
+    dev = get_device(identifier)
+    if dev is None:
+        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+    history = get_history(identifier, limit=limit)
     return JSONResponse(
         {
             "deviceId": dev.device_id,
             "sensorType": dev.sensor_type.value,
-            "label": dev.label,
-            "status": dev.status.value,
-            "enabled": is_enabled(dev.device_id),
-            "batteryPct": round(dev.battery_pct, 1),
-            "signalRssiDbm": dev.signal_rssi_dbm,
-            "intervalSeconds": dev.interval_seconds,
-            "measurementRange": {
-                "min": dev.value_min,
-                "max": dev.value_max,
-                "unit": dev.value_unit,
-            },
-        }
-    )
-
-
-# ---------------------------------------------------------------------------
-# Readings
-# ---------------------------------------------------------------------------
-
-
-@router.get("/readings/latest")
-async def get_latest_readings(device_id: Optional[str] = None) -> JSONResponse:
-    """Get the latest reading(s). Optionally filter by device_id."""
-    latest = get_latest(device_id)
-    if not latest:
-        return JSONResponse({"error": "No readings found"}, status_code=404)
-    return JSONResponse({"readings": [r.to_dict(sim_config.SENSOR_PAYLOAD_FORMAT) for r in latest.values()]})
-
-
-@router.get("/readings")
-async def get_readings(device_id: str, limit: int = 100) -> JSONResponse:
-    """Get recent reading history for a specific device."""
-    if limit < 1:
-        limit = 100
-    dev = get_device(device_id)
-    if dev is None:
-        return JSONResponse({"error": f"Device '{device_id}' not found"}, status_code=404)
-    history = get_history(device_id, limit=limit)
-    return JSONResponse(
-        {
-            "deviceId": device_id,
             "count": len(history),
-            "readings": [r.to_dict(sim_config.SENSOR_PAYLOAD_FORMAT) for r in history],
+            "readings": [r.to_dict() for r in history],
         }
     )
 
 
-# ---------------------------------------------------------------------------
-# Per-device actions
-# ---------------------------------------------------------------------------
-
-
-@router.post("/sensors/{device_id}/read")
-async def read_now(device_id: str) -> JSONResponse:
-    """Trigger a single immediate reading for a specific device."""
-    reading = read_single(device_id)
+@router.post("/sensors/{identifier}/read")
+async def read_now(identifier: str) -> JSONResponse:
+    """Trigger a single immediate reading for a sensor."""
+    reading = read_single(identifier)
     if reading is None:
-        return JSONResponse({"error": f"Device '{device_id}' not found"}, status_code=404)
-    return JSONResponse(reading.to_dict(sim_config.SENSOR_PAYLOAD_FORMAT))
+        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+    return JSONResponse(reading.to_dict())
 
 
-@router.post("/sensors/{device_id}/start")
-async def start_sensor(device_id: str) -> JSONResponse:
-    """Enable automatic reading generation for a device."""
-    ok = set_enabled(device_id, True)
+@router.post("/sensors/{identifier}/start")
+async def start_sensor(identifier: str) -> JSONResponse:
+    """Enable automatic reading generation for a sensor."""
+    ok = set_enabled(identifier, True)
     if not ok:
-        return JSONResponse({"error": f"Device '{device_id}' not found"}, status_code=404)
+        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+    device_id = _resolve_device_id(identifier)
     return JSONResponse({"status": "started", "deviceId": device_id})
 
 
-@router.post("/sensors/{device_id}/stop")
-async def stop_sensor(device_id: str) -> JSONResponse:
-    """Disable automatic reading generation for a device."""
-    ok = set_enabled(device_id, False)
+@router.post("/sensors/{identifier}/stop")
+async def stop_sensor(identifier: str) -> JSONResponse:
+    """Disable automatic reading generation for a sensor."""
+    ok = set_enabled(identifier, False)
     if not ok:
-        return JSONResponse({"error": f"Device '{device_id}' not found"}, status_code=404)
+        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+    device_id = _resolve_device_id(identifier)
     return JSONResponse({"status": "stopped", "deviceId": device_id})
 
 
 # ---------------------------------------------------------------------------
-# Backward compatibility endpoint for the monitoring server
-# (src/server/main.py calls /devices/{simulation_device_id}/latest)
+# Monitoring compatibility — the monitoring container polls this stable
+# device-id endpoint.
 # ---------------------------------------------------------------------------
 
 
 @router.get("/devices/{device_id}/latest")
 async def get_device_latest(device_id: str) -> JSONResponse:
     """Get the latest reading for a device in a simple {value, status} shape."""
-    latest = get_latest(device_id)
-    reading = latest.get(device_id)
+    reading = _latest.get(device_id)
     if reading is None:
         return JSONResponse(
             {"error": f"No reading for device '{device_id}'"},
@@ -649,6 +580,7 @@ async def get_device_latest(device_id: str) -> JSONResponse:
             "unit": reading.unit,
             "status": reading.status.value,
             "batteryPct": round(reading.battery_pct, 1),
+            "signalRssiDbm": reading.signal_rssi_dbm,
             "timestamp": reading.timestamp.isoformat(),
         }
     )

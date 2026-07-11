@@ -35,7 +35,6 @@ jobs:
         working-directory: src/app
         env:
           VITE_SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
-          VITE_SIMULATION_HLS_URL: ${{ vars.VITE_SIMULATION_HLS_URL }}
         run: bun run build
 
       - name: Migrate Database
@@ -55,8 +54,9 @@ jobs:
           echo "${{ vars.OPENROUTER_MODEL }}" | bun wrangler secret put OPENROUTER_MODEL
           echo "${{ secrets.ROBOFLOW_API_KEY }}" | bun wrangler secret put ROBOFLOW_API_KEY
           echo "${{ vars.VITE_SIMULATOR_API_URL }}" | bun wrangler secret put VITE_SIMULATOR_API_URL
-          echo "${{ vars.VITE_SIMULATION_HLS_URL }}" | bun wrangler secret put VITE_SIMULATION_HLS_URL
           echo "${{ vars.SIMULATOR_URL }}" | bun wrangler secret put SIMULATOR_URL
+          echo "${{ secrets.FLY_API_TOKEN }}" | bun wrangler secret put FLY_API_TOKEN
+          echo "${{ vars.FLY_APP_NAME }}" | bun wrangler secret put FLY_APP_NAME
 
       - name: Deploy App to Cloudflare
         working-directory: src/app

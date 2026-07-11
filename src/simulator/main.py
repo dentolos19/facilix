@@ -3,30 +3,29 @@ telemetry generation into a single FastAPI application.
 
 Endpoints
 ---------
-- GET  /health                   Combined health status
-- GET  /cctv/health              CCTV-only health
-- GET  /streams                  List CCTV streams
-- POST /streams/{name}/start
-- POST /streams/{name}/stop
-- POST /streams/{name}/restart
-- GET  /sensors/health           Sensor-only health
-- GET  /sensors                  List sensor devices
-- GET  /sensors/{device_id}      Single sensor detail
-- GET  /readings/latest          Latest sensor readings
-- GET  /readings                 Reading history
-- POST /sensors/{device_id}/read  Force one reading
-- POST /sensors/{device_id}/start Enable auto-generation
-- POST /sensors/{device_id}/stop  Disable auto-generation
-- GET  /devices/{device_id}/latest  Simple reading for monitoring server
+- GET  /health                         Combined health status
+- GET  /devices                        Unified device inventory (CCTV + sensors)
+- GET  /cctv                           List CCTV streams
+- GET  /cctv/health                    CCTV-only health
+- GET  /cctv/{name}                    Single stream detail
+- POST /cctv/{name}/start
+- POST /cctv/{name}/stop
+- POST /cctv/{name}/restart
+- GET  /cctv/{name}/hls/{path}         HLS playback proxy
+- GET  /sensors                        List sensor devices
+- GET  /sensors/{identifier}           Single sensor (type or device ID)
+- GET  /sensors/{identifier}/latest    Latest reading
+- GET  /sensors/{identifier}/readings  Reading history
+- POST /sensors/{identifier}/read     Force one reading
+- POST /sensors/{identifier}/start    Enable auto-generation
+- POST /sensors/{identifier}/stop     Disable auto-generation
+- GET  /devices/{device_id}/latest     Monitoring-compat endpoint
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import urllib.error
-import urllib.parse
-import urllib.request
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -42,14 +41,14 @@ from sensor import router as sensor_router
 import sensor as sensor_engine
 
 # ---------------------------------------------------------------------------
-# Logging — structured JSON matching the TypeScript logger
+# Logging
 # ---------------------------------------------------------------------------
 
 configure_logging(config.LOG_LEVEL)
 logger = logging.getLogger("simulator")
 
 # ---------------------------------------------------------------------------
-# Background sensor reading
+# Background tasks
 # ---------------------------------------------------------------------------
 
 _sensor_task: Optional[asyncio.Task] = None
@@ -80,7 +79,6 @@ async def lifespan(app: fastapi.FastAPI):
     clean up on shutdown."""
     global _sensor_task, _cctv_health_task
 
-    # --- Initialize sensors ---
     sensor_engine.init()
     _sensor_task = asyncio.create_task(_sensor_read_loop())
     logger.info(
@@ -89,17 +87,22 @@ async def lifespan(app: fastapi.FastAPI):
         config.SENSOR_PAYLOAD_FORMAT,
     )
 
-    # --- Initialize CCTV streams ---
     await cctv_module.initialize_streams()
     _cctv_health_task = asyncio.create_task(cctv_module.health_loop())
 
     yield
 
-    # --- Shutdown ---
     if _sensor_task is not None:
         _sensor_task.cancel()
         try:
             await _sensor_task
+        except asyncio.CancelledError:
+            pass
+
+    if _cctv_health_task is not None:
+        _cctv_health_task.cancel()
+        try:
+            await _cctv_health_task
         except asyncio.CancelledError:
             pass
 
@@ -118,12 +121,10 @@ app = fastapi.FastAPI(
         "published as RTSP/RTMP via MediaMTX) and IoT sensor telemetry "
         "(temperature, humidity, pressure, light, motion, air quality, etc.)."
     ),
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
-# Allow cross-origin requests from the frontend dev server and production
-# origins so the browser can fetch stream/sensor data directly.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
@@ -132,32 +133,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -- Mount routes -----------------------------------------------------------
-
 app.include_router(cctv_module.router)
-app.include_router(cctv_module.health_router)
 app.include_router(sensor_router)
-
-
-@app.get("/hls/{hls_path:path}")
-def proxy_hls(hls_path: str, request: fastapi.Request) -> fastapi.Response:
-    """Proxy MediaMTX HLS output through FastAPI for one public HTTP port."""
-    if ".." in hls_path.split("/"):
-        raise fastapi.HTTPException(status_code=400, detail="Invalid HLS path")
-
-    encoded_path = urllib.parse.quote(hls_path, safe="/.")
-    upstream_url = f"{config.MEDIAMTX_HLS_URL.rstrip('/')}/{encoded_path}"
-    if request.url.query:
-        upstream_url = f"{upstream_url}?{request.url.query}"
-
-    try:
-        with urllib.request.urlopen(upstream_url, timeout=config.MEDIAMTX_HLS_TIMEOUT_SECONDS) as res:
-            content_type = res.headers.get("content-type", "application/octet-stream")
-            return fastapi.Response(content=res.read(), media_type=content_type, status_code=res.status)
-    except urllib.error.HTTPError as exc:
-        raise fastapi.HTTPException(status_code=exc.code, detail="HLS resource unavailable") from exc
-    except urllib.error.URLError as exc:
-        raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS endpoint unavailable") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -186,12 +163,46 @@ async def health() -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
+# Unified device listing
+# ---------------------------------------------------------------------------
+
+
+@app.get("/devices")
+async def list_devices() -> JSONResponse:
+    """Return a unified inventory of all CCTV streams and sensor devices."""
+    cctv_devices = [
+        {
+            "type": "cctv",
+            "id": sp.name,
+            "label": sp.video_info.label if sp.video_info else sp.name,
+            "status": "online" if sp.is_alive else "offline",
+            "stream": sp.info(),
+        }
+        for sp in cctv_module.streams.values()
+    ]
+
+    sensor_devices = [
+        {
+            "type": "sensor",
+            "id": d.device_id,
+            "sensorType": d.sensor_type.value,
+            "label": d.label,
+            "status": d.status.value,
+            "enabled": sensor_engine.is_enabled(d.device_id),
+        }
+        for d in sensor_engine.get_devices()
+    ]
+
+    return JSONResponse({"devices": cctv_devices + sensor_devices})
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     uvicorn.run(
-        "simulator.main:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         log_level=config.LOG_LEVEL,

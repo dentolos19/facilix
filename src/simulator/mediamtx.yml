@@ -45,12 +45,12 @@ hlsDirectory: /app/hls
 hlsVariant: lowLatency
 hlsSegmentCount: 7
 hlsSegmentDuration: 1s
-hlsAllowOrigins: ["*"]
+hlsAllowOrigin: "*"
 
 # WebRTC server (low-latency browser playback)
 webrtc: true
 webrtcAddress: :8889
-webrtcAllowOrigins: ["*"]
+webrtcAllowOrigin: "*"
 
 # Path defaults: all paths accept publisher source
 pathDefaults:
