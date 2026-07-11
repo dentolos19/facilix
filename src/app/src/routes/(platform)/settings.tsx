@@ -1,5 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeftIcon, Loader2Icon, PlayIcon, RefreshCwIcon, SquareIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  Loader2Icon,
+  PlayIcon,
+  RefreshCwIcon,
+  SquareIcon,
+  XCircleIcon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
@@ -14,6 +22,8 @@ import { getSimulationStatus, startSimulation, stopSimulation, type SimulationSt
 export const Route = createFileRoute("/(platform)/settings")({
   component: Page,
 });
+
+const isLocal = import.meta.env.DEV;
 
 const THEME_OPTIONS = [
   { value: "system", label: "System", description: "Follow your device's theme setting" },
@@ -76,13 +86,114 @@ function Page() {
         </CardContent>
       </Card>
 
-      <SimulatorControl />
+      {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl />}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Simulator Control (admin only)
+// Shared types
+// ---------------------------------------------------------------------------
+
+interface SimulatorHealth {
+  ok: boolean;
+  cctv: { alive: number; total: number };
+  sensors: { total: number; online: number };
+}
+
+// ---------------------------------------------------------------------------
+// Local Simulator Status
+// ---------------------------------------------------------------------------
+
+function LocalSimulatorStatus() {
+  const [health, setHealth] = useState<SimulatorHealth | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002"}/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        setHealth((await res.json()) as SimulatorHealth);
+      } else {
+        setHealth(null);
+      }
+    } catch {
+      setHealth(null);
+    } finally {
+      setLoading(false);
+      setChecked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const down = checked && !health;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Simulator</CardTitle>
+            <CardDescription>Local simulator status</CardDescription>
+          </div>
+          <Button disabled={loading} onClick={refresh} size="icon" variant="ghost">
+            <RefreshCwIcon className={loading ? "animate-spin" : ""} />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            {!checked ? (
+              <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
+            ) : down ? (
+              <XCircleIcon className="text-destructive" />
+            ) : (
+              <CheckCircle2Icon className="text-emerald-600 dark:text-emerald-400" />
+            )}
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">{!checked ? "Checking…" : down ? "Down" : "Healthy"}</span>
+              {health && (
+                <span className="text-muted-foreground text-xs">
+                  {health.cctv.alive}/{health.cctv.total} streams · {health.sensors.online}/{health.sensors.total}{" "}
+                  sensors
+                </span>
+              )}
+            </div>
+          </div>
+
+          {health && (
+            <div className="rounded-md border">
+              <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">Details</div>
+              <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
+                <span className="text-xs">CCTV Streams</span>
+                <span className="text-xs tabular-nums">
+                  {health.cctv.alive}/{health.cctv.total} alive
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs">Sensors</span>
+                <span className="text-xs tabular-nums">
+                  {health.sensors.online}/{health.sensors.total} online
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fly Simulator Control (admin only, production)
 // ---------------------------------------------------------------------------
 
 const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
@@ -94,11 +205,12 @@ const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
   error: "Error",
 };
 
-function SimulatorControl() {
+function FlySimulatorControl() {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "admin";
 
   const [status, setStatus] = useState<SimulationStatus | null>(null);
+  const [health, setHealth] = useState<SimulatorHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,9 +222,19 @@ function SimulatorControl() {
     setLoading(true);
     setError(null);
     try {
-      const result = await getSimulationStatus();
+      const [result, hres] = await Promise.all([
+        getSimulationStatus(),
+        fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "https://facilix.fly.dev"}/health`, {
+          signal: AbortSignal.timeout(5000),
+        }),
+      ]);
       setStatus(result);
       if (result.error) setError(result.error);
+      if (hres.ok) {
+        setHealth((await hres.json()) as SimulatorHealth);
+      } else {
+        setHealth(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch status");
     } finally {
@@ -178,6 +300,24 @@ function SimulatorControl() {
           </div>
 
           {error && <p className="text-destructive bg-destructive/10 rounded-md px-3 py-2 text-xs">{error}</p>}
+
+          {health && (
+            <div className="rounded-md border">
+              <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">Devices</div>
+              <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
+                <span className="text-xs">CCTV Streams</span>
+                <span className="text-xs tabular-nums">
+                  {health.cctv.alive}/{health.cctv.total} alive
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs">Sensors</span>
+                <span className="text-xs tabular-nums">
+                  {health.sensors.online}/{health.sensors.total} online
+                </span>
+              </div>
+            </div>
+          )}
 
           {status && status.machines.length > 0 && (
             <div className="rounded-md border">
