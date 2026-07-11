@@ -13,13 +13,12 @@ RUN useradd -u 5678 --create-home --shell /bin/bash app
 
 WORKDIR /app
 
-COPY src/simulator/pyproject.toml src/simulator/uv.lock ./
+COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen
 
-COPY src/simulator/ .
-COPY samples/ /samples/
+COPY . .
 
-RUN mkdir -p /app/hls && chmod +x /app/start.sh && chown -R app:app /app /samples
+RUN mkdir -p /app/hls && chmod +x /app/start.sh && chown -R app:app /app /app/samples
 
 USER app
 

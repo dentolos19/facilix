@@ -9,7 +9,7 @@ import os
 # Everything else is derived from this or hard-coded.
 # ---------------------------------------------------------------------------
 
-SAMPLES_DIR = os.environ.get("SIMULATOR_SAMPLES_DIR", "/samples")
+SAMPLES_DIR = "/app/samples"
 VIDEOS_MANIFEST = os.path.join(SAMPLES_DIR, "videos.json")
 
 # ---------------------------------------------------------------------------

@@ -1,19 +1,14 @@
 services:
   simulator:
     build:
-      context: .
-      dockerfile: src/simulator/Dockerfile
+      context: src/simulator
     container_name: facilix-simulator
     restart: unless-stopped
     ports:
       - "3002:8000"
       - "3003:8554"
-    volumes:
-      - ./samples:/samples:ro
-    environment:
-      SIMULATOR_SAMPLES_DIR: /samples
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      test: [ "CMD", "curl", "-sf", "http://localhost:8000/health" ]
       interval: 10s
       timeout: 5s
       retries: 3
