@@ -1,25 +1,22 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeftIcon,
-  CheckCircle2Icon,
-  Loader2Icon,
-  PlayIcon,
-  RefreshCwIcon,
-  SquareIcon,
-  XCircleIcon,
-} from "lucide-react";
+"use client";
+
+import { createFileRoute } from "@tanstack/react-router";
+import { CheckCircle2Icon, Loader2Icon, PlayIcon, RefreshCwIcon, SquareIcon, XCircleIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
-import { Label } from "#/components/ui/label";
+import { Field, FieldLabel } from "#/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
+import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
 import { useSession } from "#/lib/auth/client";
 import { getSimulationStatus, startSimulation, stopSimulation, type SimulationStatus } from "#/lib/functions/settings";
 
-export const Route = createFileRoute("/(platform)/settings")({
+import { PlatformPageHeader } from "./-components/platform-page-header";
+
+export const Route = createFileRoute("/(platform)/(dashboard)/settings")({
   component: Page,
 });
 
@@ -40,29 +37,18 @@ function Page() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-heading text-lg font-medium tracking-tight">Settings</h1>
-          <p className="text-muted-foreground text-xs">Manage your application preferences</p>
-        </div>
-        <Link to="/dashboard">
-          <Button size="sm" variant="outline">
-            <ArrowLeftIcon className="size-4" />
-            Back to Dashboard
-          </Button>
-        </Link>
-      </div>
+    <div className="flex flex-1 flex-col gap-6 p-6">
+      <PlatformPageHeader description="Manage your application preferences" title="Settings" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>Choose how Facilix looks on your device.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="theme-select">Theme</Label>
+      <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Choose how Facilix looks on your device.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Field orientation="vertical">
+              <FieldLabel htmlFor="theme-select">Theme</FieldLabel>
               <Select onValueChange={(value) => setTheme(value)} value={mounted ? theme : undefined}>
                 <SelectTrigger className="w-full" id="theme-select">
                   <SelectValue placeholder="Select a theme" />
@@ -75,18 +61,20 @@ function Page() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
             {mounted && theme && (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground mt-3 text-xs">
                 {THEME_OPTIONS.find((o) => o.value === theme)?.description}
               </p>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl />}
+        <Separator />
+
+        {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl />}
+      </div>
     </div>
   );
 }
@@ -159,11 +147,11 @@ function LocalSimulatorStatus() {
               <CheckCircle2Icon className="text-emerald-600 dark:text-emerald-400" />
             )}
             <div className="flex flex-col">
-              <span className="text-sm font-medium">{!checked ? "Checking…" : down ? "Down" : "Healthy"}</span>
+              <span className="text-sm font-medium">{!checked ? "Checking\u2026" : down ? "Down" : "Healthy"}</span>
               {health && (
                 <span className="text-muted-foreground text-xs">
-                  {health.cctv.alive}/{health.cctv.total} streams · {health.sensors.online}/{health.sensors.total}{" "}
-                  sensors
+                  {health.cctv.alive}/{health.cctv.total} streams &middot; {health.sensors.online}/
+                  {health.sensors.total} sensors
                 </span>
               )}
             </div>
@@ -199,8 +187,8 @@ function LocalSimulatorStatus() {
 const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
   running: "Running",
   stopped: "Stopped",
-  starting: "Starting…",
-  stopping: "Stopping…",
+  starting: "Starting\u2026",
+  stopping: "Stopping\u2026",
   partial: "Partial",
   error: "Error",
 };
@@ -329,7 +317,7 @@ function FlySimulatorControl() {
                   <div className="flex flex-col">
                     <span className="font-mono text-xs">{m.id}</span>
                     <span className="text-muted-foreground text-[10px]">
-                      {m.region} · {m.imageRef}
+                      {m.region} &middot; {m.imageRef}
                     </span>
                   </div>
                   <span

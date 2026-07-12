@@ -1,10 +1,11 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2Icon, CircleCheckIcon, CircleXIcon, Loader2Icon, PlusIcon, SettingsIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Building2Icon, Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { MonitoringStatusIndicator, monitoringStatusLabel } from "#/components/status-indicator";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
@@ -19,60 +20,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "#/components/ui/sheet";
-import { Spinner } from "#/components/ui/spinner";
+import { Skeleton } from "#/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
 import { createFacility, getFacilities } from "#/lib/functions/facility";
 import { getMonitoringStatuses } from "#/lib/functions/server";
 import type { MonitoringStatus } from "#/lib/monitoring/types";
 
-export const Route = createFileRoute("/(platform)/dashboard")({
+import { PlatformPageHeader } from "./-components/platform-page-header";
+
+export const Route = createFileRoute("/(platform)/(dashboard)/dashboard")({
   component: Page,
 });
-
-/** Map monitoring status to a human-readable label. */
-function statusLabel(status: MonitoringStatus): string {
-  switch (status) {
-    case "running":
-      return "Running";
-    case "starting":
-      return "Starting…";
-    case "stopping":
-      return "Stopping…";
-    case "stopped":
-      return "Stopped";
-    case "error":
-      return "Error";
-  }
-}
-
-/** Colour helper for the status dot. */
-function statusColor(status: MonitoringStatus): string {
-  switch (status) {
-    case "running":
-      return "text-emerald-500";
-    case "starting":
-    case "stopping":
-      return "text-amber-500";
-    case "error":
-      return "text-red-500";
-    case "stopped":
-      return "text-muted-foreground/30";
-  }
-}
-
-function StatusIndicator({ status }: { status: MonitoringStatus }) {
-  if (status === "stopped") {
-    return <span className="size-3.5 shrink-0 rounded-full bg-red-500" />;
-  }
-
-  const Icon = status === "running" ? CircleCheckIcon : status === "error" ? CircleXIcon : Loader2Icon;
-
-  return (
-    <Icon
-      className={`size-3.5 shrink-0 ${statusColor(status)} ${status === "starting" || status === "stopping" ? "animate-spin" : ""}`}
-    />
-  );
-}
 
 interface Facility {
   id: string;
@@ -84,22 +42,21 @@ interface Facility {
 function Page() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [newFacilityName, setNewFacilityName] = useState("");
-
-  // ── Monitoring statuses keyed by facility ID ─────────────────────────
   const [statuses, setStatuses] = useState<Record<string, MonitoringStatus>>({});
-  const statusesRef = useRef(statuses);
-  statusesRef.current = statuses;
 
   const fetchFacilities = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const data = await getFacilities();
-      setFacilities(data as Facility[]);
+      const facilities = data as Facility[];
+      setFacilities(facilities);
 
-      // After loading facilities, fetch their monitoring statuses
-      const ids = (data as Facility[]).map((f) => f.id);
+      const ids = facilities.map((f) => f.id);
       if (ids.length > 0) {
         try {
           const results = await getMonitoringStatuses({ data: { facilityIds: ids } });
@@ -109,11 +66,11 @@ function Page() {
           }
           setStatuses(statusMap);
         } catch {
-          // Non-critical; statuses remain empty
+          // Statuses are non-critical.
         }
       }
     } catch {
-      toast.error("Failed to load facilities");
+      setError("Failed to load facilities. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -151,66 +108,60 @@ function Page() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-lg font-medium tracking-tight">Facilities</h1>
-          <p className="text-muted-foreground text-xs">Manage your facilities and their devices</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Link to="/settings">
-            <Button aria-label="Settings" size="icon-sm" variant="ghost">
-              <SettingsIcon className="size-4" />
+      <PlatformPageHeader description="Manage your facilities and their devices" title="Facilities">
+        <Sheet onOpenChange={setIsSheetOpen} open={isSheetOpen}>
+          <SheetTrigger asChild>
+            <Button size="sm">
+              <PlusIcon />
+              New Facility
             </Button>
-          </Link>
-          <Sheet onOpenChange={setIsSheetOpen} open={isSheetOpen}>
-            <SheetTrigger asChild>
-              <Button size="sm">
-                <PlusIcon />
-                New Facility
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <SheetHeader>
-                <SheetTitle>Create Facility</SheetTitle>
-                <SheetDescription>Add a new facility to manage devices and monitoring.</SheetDescription>
-              </SheetHeader>
+          </SheetTrigger>
+          <SheetContent side="right">
+            <SheetHeader>
+              <SheetTitle>Create Facility</SheetTitle>
+              <SheetDescription>Add a new facility to manage devices and monitoring.</SheetDescription>
+            </SheetHeader>
 
-              <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
-                <div className="flex-1 p-4">
-                  <Field>
-                    <FieldLabel>Name</FieldLabel>
-                    <Input
-                      autoFocus
-                      disabled={isCreating}
-                      onChange={(e) => setNewFacilityName(e.target.value)}
-                      placeholder="e.g., Main Warehouse"
-                      value={newFacilityName}
-                    />
-                  </Field>
-                </div>
+            <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
+              <div className="flex-1 p-4">
+                <Field>
+                  <FieldLabel>Name</FieldLabel>
+                  <Input
+                    autoFocus
+                    disabled={isCreating}
+                    onChange={(e) => setNewFacilityName(e.target.value)}
+                    placeholder="e.g., Main Warehouse"
+                    value={newFacilityName}
+                  />
+                </Field>
+              </div>
 
-                <SheetFooter>
-                  <Button disabled={isCreating || !newFacilityName.trim()} type="submit">
-                    {isCreating ? (
-                      <>
-                        <Loader2Icon className="animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      "Create Facility"
-                    )}
-                  </Button>
-                </SheetFooter>
-              </form>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
+              <SheetFooter>
+                <Button disabled={isCreating || !newFacilityName.trim()} type="submit">
+                  {isCreating ? (
+                    <>
+                      <Loader2Icon className="animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Facility"
+                  )}
+                </Button>
+              </SheetFooter>
+            </form>
+          </SheetContent>
+        </Sheet>
+      </PlatformPageHeader>
 
       {isLoading ? (
-        <div className="flex flex-1 items-center justify-center py-12">
-          <Spinner className="size-6" />
+        <FacilityGridSkeleton />
+      ) : error ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12">
+          <p className="text-destructive text-sm font-medium">{error}</p>
+          <Button onClick={fetchFacilities} size="sm" variant="outline">
+            <RefreshCwIcon />
+            Retry
+          </Button>
         </div>
       ) : facilities.length === 0 ? (
         <Empty className="flex-1 border border-dashed">
@@ -254,10 +205,10 @@ function Page() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center">
-                            <StatusIndicator status={status} />
+                            <MonitoringStatusIndicator status={status} />
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent>Monitoring: {statusLabel(status)}</TooltipContent>
+                        <TooltipContent>Monitoring: {monitoringStatusLabel(status)}</TooltipContent>
                       </Tooltip>
                     </div>
                   </CardContent>
@@ -267,6 +218,23 @@ function Page() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function FacilityGridSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader>
+            <Skeleton className="h-4 w-3/4" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-3 w-1/2" />
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

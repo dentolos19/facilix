@@ -3,9 +3,8 @@ import { ArrowLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "#/components/ui/button";
+import { PlatformTabs } from "#/components/ui/platform-tabs";
 import type { DeviceDetail } from "#/lib/functions/facility";
-
-import { DeviceTabs } from "./device-tabs";
 
 export interface DeviceInfoProperty {
   label: string;
@@ -60,7 +59,7 @@ export function DeviceDetailShell({
         </div>
       </div>
 
-      <DeviceTabs activeTab={activeTab} onChange={onTabChange} tabs={tabs} />
+      <PlatformTabs activeTab={activeTab} onChange={onTabChange} tabs={tabs} />
 
       <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>
     </div>

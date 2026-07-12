@@ -1,24 +1,11 @@
-"use client"
+"use client";
 
-import { TrendingUp } from "lucide-react"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "#/components/ui/card"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "#/components/ui/chart"
+import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "#/components/ui/chart";
 
-export const description = "A line chart"
+export const description = "A line chart";
 
 const chartData = [
   { time: "00:00", temperature: 22.4 },
@@ -52,7 +39,7 @@ const chartConfig = {
     label: "Desktop",
     color: "var(--chart-1)",
   },
-} satisfies ChartConfig
+} satisfies ChartConfig;
 
 export function ChartLineDefault() {
   return (
@@ -71,38 +58,23 @@ export function ChartLineDefault() {
             }}
           >
             <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="time"
+            <XAxis dataKey="time" tickLine={false} axisLine={false} tickMargin={8} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+            <YAxis
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-            />
-            <ChartTooltip
-              cursor={false}
-              content={<ChartTooltipContent hideLabel />}
-            />
-            <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                domain={["dataMin - 1", "dataMax + 1"]}
-                label={{
+              domain={["dataMin - 1", "dataMax + 1"]}
+              label={{
                 value: "Temperature (°C)",
                 angle: -90,
                 position: "insideLeft",
-                }}
+              }}
             />
-            <Line
-              dataKey="temperature"
-              type="natural"
-              stroke="var(--color-desktop)"
-              strokeWidth={2}
-              dot={false}
-              
-            />
+            <Line dataKey="temperature" type="natural" stroke="var(--color-desktop)" strokeWidth={2} dot={false} />
           </LineChart>
         </ChartContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

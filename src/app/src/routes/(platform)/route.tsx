@@ -10,11 +10,9 @@ export const Route = createFileRoute("/(platform)")({
     const request = (context as { request?: Request }).request;
     const binding = (context as { cloudflare?: { env?: { DB?: D1Database } } }).cloudflare?.env?.DB;
 
-    // Server-side: verify session against the database
     if (request && binding) {
       await requireSession(request, binding);
     }
-    // Client-side check is handled in the component below
   },
   component: Layout,
 });
