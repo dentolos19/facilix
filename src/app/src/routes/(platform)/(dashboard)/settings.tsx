@@ -1,7 +1,15 @@
 "use client";
 
-import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2Icon, Loader2Icon, PlayIcon, RefreshCwIcon, SquareIcon, XCircleIcon } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  CheckCircle2Icon,
+  Loader2Icon,
+  LogOutIcon,
+  PlayIcon,
+  RefreshCwIcon,
+  SquareIcon,
+  XCircleIcon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
 
@@ -11,7 +19,7 @@ import { Field, FieldLabel } from "#/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
-import { useSession } from "#/lib/auth/client";
+import { signOut, useSession } from "#/lib/auth/client";
 import { getSimulationStatus, startSimulation, stopSimulation, type SimulationStatus } from "#/lib/functions/settings";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
@@ -31,10 +39,16 @@ const THEME_OPTIONS = [
 function Page() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate({ to: "/" });
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -71,9 +85,20 @@ function Page() {
           </CardContent>
         </Card>
 
-        <Separator />
-
         {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl />}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+            <CardDescription>Manage your account actions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleLogout} variant="destructive">
+              <LogOutIcon className="size-4" />
+              Log Out
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
