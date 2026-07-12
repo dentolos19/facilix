@@ -222,21 +222,24 @@ function FlySimulatorControl() {
     setLoading(true);
     setError(null);
     try {
-      const [result, hres] = await Promise.all([
-        getSimulationStatus(),
-        fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "https://facilix.fly.dev"}/health`, {
-          signal: AbortSignal.timeout(5000),
-        }),
-      ]);
+      const result = await getSimulationStatus();
       setStatus(result);
       if (result.error) setError(result.error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch status");
+    }
+
+    try {
+      const hres = await fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "https://facilix.fly.dev"}/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
       if (hres.ok) {
         setHealth((await hres.json()) as SimulatorHealth);
       } else {
         setHealth(null);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch status");
+    } catch {
+      setHealth(null);
     } finally {
       setLoading(false);
     }
@@ -275,7 +278,7 @@ function FlySimulatorControl() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Simulator</CardTitle>
-            <CardDescription>Control the Fly.io simulator deployment.</CardDescription>
+            <CardDescription>Control the simulator deployment.</CardDescription>
           </div>
           <Button disabled={loading || actionLoading} onClick={refresh} size="icon" variant="ghost">
             <RefreshCwIcon className={loading ? "animate-spin" : ""} />
@@ -293,7 +296,6 @@ function FlySimulatorControl() {
               />
               <div className="flex flex-col">
                 <span className="text-sm font-medium">{status ? STATUS_LABELS[status.overall] : "Unknown"}</span>
-                {status?.appName && <span className="text-muted-foreground text-xs">{status.appName} on Fly.io</span>}
               </div>
             </div>
             {actionLoading && <Loader2Icon className="text-muted-foreground size-4 animate-spin" />}
