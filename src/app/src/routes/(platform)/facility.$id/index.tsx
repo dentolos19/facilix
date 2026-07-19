@@ -155,7 +155,10 @@ function Page() {
   const editMode: EditMode = mode === "edit" ? "edit" : "monitoring";
   const setEditMode = useCallback(
     (value: EditMode) => {
-      navigate({ search: { mode: value === "edit" ? "edit" : undefined, view }, replace: true });
+      navigate({
+        search: { mode: value === "edit" ? "edit" : undefined, view: value === "edit" ? undefined : view },
+        replace: true,
+      });
     },
     [navigate, view],
   );
