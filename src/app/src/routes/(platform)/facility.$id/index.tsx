@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   BarChart3,
   CopyIcon,
+  CuboidIcon,
   DownloadIcon,
   ExternalLinkIcon,
   EyeIcon,
@@ -26,7 +27,8 @@ import {
   UserPlusIcon,
   XIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "next-themes";
+import { useCallback, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ChatAssistant } from "#/components/chat-assistant";
@@ -84,6 +86,12 @@ import { ComponentPalette } from "./-components/component-palette";
 import { GlobalEventsPanel } from "./-components/global-events-panel";
 import { MonitoringDetailsPanel } from "./-components/monitoring-details-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
+
+const Facility3DView = lazy(() =>
+  import("./-components/facility-3d-view").then((m) => ({ default: m.Facility3DView })),
+);
+
+import { FacilityHoverCard } from "./-components/facility-hover-card";
 import type { EditMode, JsonObject, PlacedItem, PlacedItemType } from "./-helpers/types";
 import {
   DEFAULT_PROPS,
@@ -97,8 +105,9 @@ import {
 
 export const Route = createFileRoute("/(platform)/facility/$id/")({
   component: Page,
-  validateSearch: (search: Record<string, unknown>): { mode?: "edit" } => ({
+  validateSearch: (search: Record<string, unknown>): { mode?: "edit"; view?: "2d" | "3d" } => ({
     ...(search.mode === "edit" ? { mode: "edit" as const } : {}),
+    ...(search.view === "3d" ? { view: "3d" as const } : {}),
   }),
 });
 
@@ -140,13 +149,25 @@ function monitoringStatusLabel(status: MonitoringStatus): string {
 function Page() {
   const navigate = Route.useNavigate();
   const { id: facilityId } = Route.useParams();
-  const { mode } = Route.useSearch();
+  const { mode, view } = Route.useSearch();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
   const editMode: EditMode = mode === "edit" ? "edit" : "monitoring";
   const setEditMode = useCallback(
     (value: EditMode) => {
-      navigate({ search: { mode: value === "edit" ? "edit" : undefined }, replace: true });
+      navigate({ search: { mode: value === "edit" ? "edit" : undefined, view }, replace: true });
     },
-    [navigate],
+    [navigate, view],
+  );
+  const layoutView = view ?? "2d";
+  const setLayoutView = useCallback(
+    (value: "2d" | "3d") => {
+      navigate({
+        search: { mode: mode === "edit" ? "edit" : undefined, view: value === "3d" ? "3d" : undefined },
+        replace: true,
+      });
+    },
+    [navigate, mode],
   );
   const [placedItems, setPlacedItems] = useState<PlacedItem[]>([]);
   const [facilityName, setFacilityName] = useState("");
@@ -394,6 +415,17 @@ function Page() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
 
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
+
+  const handleHoverItem = useCallback((id: string | null) => {
+    setHoveredItemId(id);
+  }, []);
+
+  const handleHoverMove = useCallback((x: number, y: number) => {
+    setHoverPos({ x, y });
+  }, []);
+
   // Resolve persisted events against the current facility map without dropping
   // structured event data or evidence attachments.
   const facilityEventViews = useMemo<FacilityEventView[]>(() => {
@@ -418,7 +450,12 @@ function Page() {
   }, []);
 
   const selectMonitoringDevice = useCallback((deviceId: string) => {
-    setMonitoringSelection({ kind: "device", deviceId });
+    const item = placedItemsRef.current.find((i) => i.id === deviceId);
+    if (item?.type === "Zone") {
+      setMonitoringSelection({ kind: "zone", zoneId: deviceId });
+    } else {
+      setMonitoringSelection({ kind: "device", deviceId });
+    }
     setSelectedItemId(deviceId);
   }, []);
 
@@ -1037,6 +1074,23 @@ function Page() {
             </Tooltip>
           )}
 
+          {/* 2D / 3D view toggle (monitoring mode only) */}
+          {editMode === "monitoring" && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label={layoutView === "3d" ? "Switch to 2D view" : "Switch to 3D view"}
+                  onClick={() => setLayoutView(layoutView === "3d" ? "2d" : "3d")}
+                  size="icon-sm"
+                  variant={layoutView === "3d" ? "secondary" : "ghost"}
+                >
+                  <CuboidIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{layoutView === "3d" ? "2D" : "3D"}</TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Facility chat button (monitoring mode only) */}
           {editMode === "monitoring" && (
             <Popover onOpenChange={setChatOpen} open={chatOpen}>
@@ -1469,17 +1523,48 @@ function Page() {
           withHandle
         />
 
-        {/* Center panel — Konva canvas (live in monitoring, editable in edit) */}
+        {/* Center panel — 2D canvas or 3D view */}
         <ResizablePanel defaultSize={56} minSize={30}>
           <div className="relative h-full w-full" ref={canvasAreaRef}>
             {isLoading ? (
               <div className="bg-background flex h-full w-full items-center justify-center">
                 <span className="text-muted-foreground/50 text-xs">Loading facility…</span>
               </div>
+            ) : layoutView === "3d" ? (
+              <Suspense
+                fallback={
+                  <div className="bg-background flex h-full w-full items-center justify-center">
+                    <Loader2 className="text-muted-foreground size-8 animate-spin" />
+                  </div>
+                }
+              >
+                <Facility3DView
+                  facilityId={facilityId}
+                  isDark={isDark}
+                  onHoverItem={handleHoverItem}
+                  onHoverMove={handleHoverMove}
+                  onSelectItem={(id) => {
+                    if (editMode === "monitoring") {
+                      if (id) selectMonitoringDevice(id);
+                      else {
+                        setMonitoringSelection(null);
+                        setSelectedItemId(null);
+                      }
+                    } else {
+                      setSelectedItemId(id);
+                    }
+                  }}
+                  placedItems={placedItems}
+                  readOnly={editMode === "monitoring"}
+                  selectedItemId={editMode === "monitoring" ? monitoringDeviceId : selectedItemId}
+                />
+              </Suspense>
             ) : (
               <CanvasEditor
                 onAddItem={addPlacedItem}
                 onDeleteItems={deleteItems}
+                onHoverItem={handleHoverItem}
+                onHoverMove={handleHoverMove}
                 onMoveDown={moveItemDown}
                 onMoveToBack={moveItemToBack}
                 onMoveToFront={moveItemToFront}
@@ -1507,6 +1592,12 @@ function Page() {
                 <span className="text-muted-foreground text-sm">Importing facility layout…</span>
               </div>
             )}
+            <FacilityHoverCard
+              containerRef={canvasAreaRef}
+              item={placedItems.find((i) => i.id === hoveredItemId) ?? null}
+              x={hoverPos.x}
+              y={hoverPos.y}
+            />
           </div>
         </ResizablePanel>
 

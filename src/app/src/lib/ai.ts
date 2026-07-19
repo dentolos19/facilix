@@ -212,7 +212,7 @@ Return ONLY valid JSON with this exact top-level shape:
       "name": "Loading Bay",
       "status": "—",
       "notes": "Optional short explanation",
-      "props": { "iconColor": "#3b82f6" }
+      "props": { "iconColor": "#3b82f6", "zoneType": "loading-bay" }
     },
     {
       "id": "camera-1",
@@ -232,6 +232,7 @@ Return ONLY valid JSON with this exact top-level shape:
 
 Rules:
 - type must be exactly Zone, CCTV, Sensor, or Signal.
+- For every Zone, set props.zoneType to one of these values based on visible labels or room purpose: "generic", "office", "car-park", "factory-floor", "warehouse", "loading-bay", "storage", "lobby", "meeting-room", "break-room", "server-room", "laboratory". Default to "generic" if purpose is unclear.
 - Keep every item within the target canvas.
 - Use the image's relative geometry and adjacency; do not stack zones on top of each other unless the image does.
 - Use unique string IDs. Set each device's zoneId to the containing Zone ID when applicable.

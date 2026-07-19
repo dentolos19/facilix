@@ -107,6 +107,8 @@ export function CanvasEditor({
   onAddItem,
   onUpdateItem,
   onSelectItem,
+  onHoverItem,
+  onHoverMove,
   onMoveUp,
   onMoveDown,
   onMoveToFront,
@@ -480,6 +482,8 @@ export function CanvasEditor({
                 onDragEnd={(e) => handleDragEndWrapper(item, e)}
                 onDragMove={() => handleMultiDragMove(item)}
                 onDragStart={() => handleMultiDragStart(item)}
+                onHoverItem={onHoverItem}
+                onHoverMove={onHoverMove}
                 onSelectItem={(e) => handleItemClick(item, e)}
                 onUpdateItem={onUpdateItem}
                 onZoneDragEnd={(e) => handleZoneDragEnd(item, e)}
@@ -571,6 +575,8 @@ function PlacedShape({
   onDragMove,
   onDragEnd,
   onZoneDragEnd,
+  onHoverItem,
+  onHoverMove,
 }: {
   item: PlacedItem;
   isSelected: boolean;
@@ -583,6 +589,8 @@ function PlacedShape({
   onDragMove?: () => void;
   onDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onZoneDragEnd?: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  onHoverItem?: (id: string | null) => void;
+  onHoverMove?: (x: number, y: number) => void;
 }) {
   const def = { ...ITEM_DEFS[item.type], width: item.width, height: item.height };
   const [dragging, setDragging] = useState(false);
@@ -660,6 +668,12 @@ function PlacedShape({
             onDragEnd={readOnly ? undefined : handleZoneDragEndInner}
             onDragMove={readOnly ? undefined : handleDragMove}
             onDragStart={readOnly ? undefined : handleDragStart}
+            onMouseEnter={() => onHoverItem?.(item.id)}
+            onMouseLeave={() => onHoverItem?.(null)}
+            onMouseMove={(e) => {
+              const evt = e.evt as MouseEvent;
+              onHoverMove?.(evt.clientX, evt.clientY);
+            }}
             onTap={onSelectItem}
             ref={zoneRef}
             width={def.width}
@@ -741,6 +755,12 @@ function PlacedShape({
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}
+          onMouseEnter={() => onHoverItem?.(item.id)}
+          onMouseLeave={() => onHoverItem?.(null)}
+          onMouseMove={(e) => {
+            const evt = e.evt as MouseEvent;
+            onHoverMove?.(evt.clientX, evt.clientY);
+          }}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}
@@ -771,6 +791,12 @@ function PlacedShape({
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}
+          onMouseEnter={() => onHoverItem?.(item.id)}
+          onMouseLeave={() => onHoverItem?.(null)}
+          onMouseMove={(e) => {
+            const evt = e.evt as MouseEvent;
+            onHoverMove?.(evt.clientX, evt.clientY);
+          }}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}
@@ -801,6 +827,12 @@ function PlacedShape({
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}
+          onMouseEnter={() => onHoverItem?.(item.id)}
+          onMouseLeave={() => onHoverItem?.(null)}
+          onMouseMove={(e) => {
+            const evt = e.evt as MouseEvent;
+            onHoverMove?.(evt.clientX, evt.clientY);
+          }}
           onTap={onSelectItem}
           x={item.x}
           y={item.y}

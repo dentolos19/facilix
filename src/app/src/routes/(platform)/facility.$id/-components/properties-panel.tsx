@@ -34,6 +34,7 @@ import { fetchSimulationSensors, type SimulationSensorDevice } from "#/lib/simul
 
 import type { PropertiesPanelProps } from "../-helpers/types";
 import { DEFAULT_ICON_SHAPES, ICON_SHAPE_OPTIONS } from "../-helpers/types";
+import { ZONE_TYPE_CONFIGS } from "../-helpers/zone-types";
 
 /** Right-side properties panel. Shows selected item details in edit mode. */
 export function PropertiesPanel({
@@ -254,6 +255,30 @@ export function PropertiesPanel({
                           value={selected.height}
                         />
                       </div>
+                    </Field>
+                  )}
+
+                  {selected.type === "Zone" && (
+                    <Field label="Zone Type">
+                      <Select
+                        disabled={isReadOnly}
+                        onValueChange={(value) => onUpdateItem(selected.id, { props: { zoneType: value } })}
+                        value={String(selected.props.zoneType ?? "generic")}
+                      >
+                        <SelectTrigger className={`w-full ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}>
+                          <SelectValue placeholder="Select zone type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.values(ZONE_TYPE_CONFIGS).map((cfg) => (
+                            <SelectItem key={cfg.value} value={cfg.value}>
+                              {cfg.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-muted-foreground/50 text-[9px]">
+                        Determines auto-generated furniture in 3D view.
+                      </span>
                     </Field>
                   )}
 

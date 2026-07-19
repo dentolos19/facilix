@@ -93,7 +93,7 @@ export interface CanvasItemLayout {
 
 /** Type-specific properties by device kind. */
 export const DEFAULT_PROPS: Record<PlacedItemType, JsonObject> = {
-  Zone: { iconColor: "#3b82f6" },
+  Zone: { iconColor: "#3b82f6", zoneType: "generic" },
   CCTV: {
     videoSource: "simulation",
     simulationStream: "b0",
@@ -292,6 +292,8 @@ export interface CanvasEditorProps {
   onAddItem: (type: PlacedItemType, x: number, y: number) => void;
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
   onSelectItem: (id: string | null) => void;
+  onHoverItem?: (id: string | null) => void;
+  onHoverMove?: (x: number, y: number) => void;
   onMoveUp?: (id: string) => void;
   onMoveDown?: (id: string) => void;
   onMoveToFront?: (id: string) => void;
