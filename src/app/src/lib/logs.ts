@@ -1,15 +1,15 @@
 /**
- * Logging system for Facilix background tasks and services.
+ * Consistent logging for Facilix background tasks and services.
  *
  * By default emits clean human-readable log lines:
  *
- *     2026-06-17T13:40:15Z  INFO  [processor]  frame processed  {"frameId":5}
- *     2026-06-17T13:40:15Z ERROR  [openrouter]  API call failed
+ *     2026-06-17T13:40:15.123Z  INFO   frame processed  {"frameId":5}
+ *     2026-06-17T13:40:15.123Z  ERROR  API call failed
  *
- * Set `FACILIX_LOG_FORMAT=json` in the environment to emit structured
- * JSON (one object per line) for Cloudflare logpush or log aggregation:
+ * Set `LOG_FORMAT=json` in the environment to emit structured objects for
+ * Cloudflare Logs or log aggregation:
  *
- *     {"level":"info","namespace":"processor","message":"frame processed","timestamp":"...","data":{"frameId":5}}
+ *     {"timestamp":"...","level":"info","message":"frame processed","data":{"frameId":5}}
  *
  * Usage:
  * ```ts
@@ -17,18 +17,24 @@
  * const log = createLogger("my-module");
  *
  * log.info("frame processed", { frameId, objectCount: 5 });
- * log.error("upload failed", { assetId, error: err.message });
+ * log.error("upload failed", { assetId, error: err });
  * ```
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+export interface LogException {
+  type: string;
+  message: string;
+  stack: string;
+}
+
 export interface LogEntry {
+  timestamp: string;
   level: LogLevel;
-  namespace: string;
   message: string;
   data?: Record<string, unknown>;
-  timestamp: string;
+  exception?: LogException;
 }
 
 export interface Logger {
@@ -40,20 +46,44 @@ export interface Logger {
 
 /** Match Python's ConsoleFormatter output exactly. */
 function formatConsole(entry: LogEntry): string {
-  const level = entry.level.padEnd(5);
-  const line = `${entry.timestamp}  ${level}  [${entry.namespace}]  ${entry.message}`;
-  if (entry.data && Object.keys(entry.data).length > 0) {
-    return `${line}\n  ${JSON.stringify(entry.data)}`;
-  }
-  return line;
+  const level = entry.level.toUpperCase().padEnd(5);
+  const line = `${entry.timestamp}  ${level}  ${singleLine(entry.message)}`;
+  const data = entry.data ? `  ${JSON.stringify(entry.data)}` : "";
+  const exception = entry.exception ? `  ${entry.exception.type}: ${singleLine(entry.exception.message)}` : "";
+
+  return `${line}${data}${exception}`;
 }
 
-/** Compact JSON (one object per line) for log aggregation. */
-function formatJson(entry: LogEntry): string {
-  return JSON.stringify(entry);
+function singleLine(value: string) {
+  return value.replaceAll("\r", "\\r").replaceAll("\n", "\\n");
 }
 
-const useJson = typeof process !== "undefined" && process.env?.FACILIX_LOG_FORMAT === "json";
+/** Convert values that Workers Logs cannot index reliably into plain JSON. */
+function normalizeData(data: Record<string, unknown>) {
+  const seen = new WeakSet<object>();
+
+  return JSON.parse(
+    JSON.stringify(data, (_key, value: unknown) => {
+      if (typeof value === "bigint") {
+        return value.toString();
+      }
+      if (value instanceof Error) {
+        return { type: value.name, message: value.message, stack: value.stack ?? `${value.name}: ${value.message}` };
+      }
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) {
+          return "[Circular]";
+        }
+        seen.add(value);
+      }
+      return value;
+    }),
+  ) as Record<string, unknown>;
+}
+
+const logFormat =
+  typeof process === "undefined" ? "console" : (process.env.LOG_FORMAT ?? process.env.FACILIX_LOG_FORMAT ?? "console");
+const useJson = logFormat.toLowerCase() === "json";
 
 /**
  * Create a namespaced logger.
@@ -63,19 +93,30 @@ const useJson = typeof process !== "undefined" && process.env?.FACILIX_LOG_FORMA
  * `warn` entries are emitted via `console.warn`.
  * `error` entries are emitted via `console.error`.
  */
-export function createLogger(namespace: string): Logger {
+export function createLogger(_namespace: string): Logger {
   function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
     const entry: LogEntry = {
-      level,
-      namespace,
-      message,
       timestamp: new Date().toISOString(),
+      level,
+      message,
     };
     if (data && Object.keys(data).length > 0) {
-      entry.data = data;
+      const { error, ...context } = data;
+      if (error instanceof Error) {
+        entry.exception = {
+          type: error.name,
+          message: error.message,
+          stack: error.stack ?? `${error.name}: ${error.message}`,
+        };
+      } else if (error !== undefined) {
+        context.error = error;
+      }
+      if (Object.keys(context).length > 0) {
+        entry.data = normalizeData(context);
+      }
     }
 
-    const output = useJson ? formatJson(entry) : formatConsole(entry);
+    const output = useJson ? entry : formatConsole(entry);
 
     switch (level) {
       case "error":

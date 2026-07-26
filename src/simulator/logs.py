@@ -1,10 +1,10 @@
 """
-Logging utilities for Facilix Python services.
+Consistent logging utilities for Facilix services.
 
 Two formatters are available:
 
-- **ConsoleFormatter** (default) — clean human-readable output for terminals / docker logs
-- **JsonFormatter** — compact JSON matching the TypeScript logger for log aggregation
+- **ConsoleFormatter** (default) — compact human-readable output for terminals and container logs
+- **JsonFormatter** — structured JSON matching the TypeScript logger for log aggregation
 
 Usage:
     from logs import configure_logging, ConsoleFormatter, JsonFormatter
@@ -37,32 +37,27 @@ class ConsoleFormatter(logging.Formatter):
 
     Output::
 
-        2026-06-17T13:40:15Z  INFO  [facilix]  monitoring starting
-        2026-06-17T13:40:15Z  WARN  [facilix]  missing env vars: FACILITY_ID
-        2026-06-17T13:40:15Z ERROR  [facilix.cctv]  upload failed  {"assetId":"abc-123"}
-        2026-06-17T13:40:15Z ERROR  [test]  something broke
-          \u2502 ZeroDivisionError: division by zero
+        2026-06-17T13:40:15.123Z  INFO   monitoring starting
+        2026-06-17T13:40:15.123Z  WARN   missing env vars: FACILITY_ID
+        2026-06-17T13:40:15.123Z  ERROR  upload failed  {"assetId":"abc-123"}
+        2026-06-17T13:40:15.123Z  ERROR  something broke  ZeroDivisionError: division by zero
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat().replace("+00:00", "Z")
-        level = record.levelname.lower()
-        namespace = record.name
-        message = record.getMessage()
+        timestamp = _format_timestamp(record.created)
+        level = _format_level(record.levelname).upper()
+        line = f"{timestamp}  {level:<5}  {_single_line(record.getMessage())}"
 
-        parts = [f"{timestamp}  {level:<5}  [{namespace}]  {message}"]
-
-        # Append structured data if the caller passed extra={"data": {...}}
+        # Keep structured context on the same line so collectors treat it as one event.
         data = getattr(record, "data", None)
         if isinstance(data, dict) and data:
-            parts.append(f"  {json.dumps(data, default=str, separators=(',', ':'))}")
+            line += f"  {json.dumps(data, default=str, ensure_ascii=False, separators=(',', ':'))}"
 
-        # Append exception summary on a continuation line
         if record.exc_info and record.exc_info[0] is not None:
             exc = record.exc_info[1]
-            parts.append(f"\n  \u2502 {type(exc).__name__}: {exc}")
+            line += f"  {type(exc).__name__}: {_single_line(exc)}"
 
-        return "\n".join(parts)
+        return line
 
 
 # ---------------------------------------------------------------------------
@@ -74,27 +69,31 @@ class JsonFormatter(logging.Formatter):
     """Emit log records as single-line JSON matching the TypeScript logger.
 
     Fields:
-        level     — lowercase level name  (debug|info|warn|error)
-        namespace — logger name            (e.g. "facilix.cctv")
-        message   — formatted log message  (% args resolved)
         timestamp — UTC ISO-8601 with Z suffix
-        exception — full traceback string  (only when exc_info is set)
+        level     — lowercase level name (debug|info|warn|error)
+        message   — formatted log message (% args resolved)
         data      — structured context     (only when extra={"data": {...}})
+        exception — structured error details (only when exc_info is set)
     """
 
     def format(self, record: logging.LogRecord) -> str:
         entry: dict[str, Any] = {
-            "level": record.levelname.lower(),
-            "namespace": record.name,
+            "timestamp": _format_timestamp(record.created),
+            "level": _format_level(record.levelname),
             "message": record.getMessage(),
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
         }
-        if record.exc_info and record.exc_info[0] is not None:
-            entry["exception"] = "".join(traceback.format_exception(*record.exc_info))
 
         data = getattr(record, "data", None)
         if isinstance(data, dict) and data:
             entry["data"] = data
+
+        if record.exc_info and record.exc_info[0] is not None:
+            exc = record.exc_info[1]
+            entry["exception"] = {
+                "type": type(exc).__name__,
+                "message": str(exc),
+                "stack": "".join(traceback.format_exception(*record.exc_info)).rstrip(),
+            }
 
         return json.dumps(entry, default=str, ensure_ascii=False, separators=(",", ":"))
 
@@ -109,6 +108,18 @@ _FORMATTERS = {
 }
 
 _installed_formatter: type[logging.Formatter] | None = None
+
+
+def _format_timestamp(created: float) -> str:
+    return datetime.fromtimestamp(created, tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _format_level(level: str) -> str:
+    return {"WARNING": "warn", "CRITICAL": "error"}.get(level, level.lower())
+
+
+def _single_line(value: Any) -> str:
+    return str(value).replace("\r", "\\r").replace("\n", "\\n")
 
 
 def configure_logging(level: str | None = None, fmt: str | None = None) -> None:
@@ -131,7 +142,7 @@ def configure_logging(level: str | None = None, fmt: str | None = None) -> None:
     if fmt is None:
         fmt = os.environ.get("LOG_FORMAT", "console")
 
-    cls = _FORMATTERS.get(fmt)
+    cls = _FORMATTERS.get(fmt.lower())
     if cls is None:
         cls = ConsoleFormatter
 
