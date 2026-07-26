@@ -11,11 +11,13 @@ export function MonitoringDetailsPanel({
   events,
   devices,
   facilityId,
+  onSelectDevice,
 }: {
   selection: MonitoringSelection;
   events: FacilityEventView[];
   devices: PlacedItem[];
   facilityId: string;
+  onSelectDevice: (deviceId: string) => void;
 }) {
   if (selection?.kind === "event") {
     const event = events.find((item) => item.id === selection.eventId);
@@ -39,6 +41,7 @@ export function MonitoringDetailsPanel({
     return (
       <ZoneDetailsPanel
         devices={devices}
+        onSelectDevice={onSelectDevice}
         selectedZone={devices.find((item) => item.id === selection.zoneId && item.type === "Zone") ?? null}
       />
     );

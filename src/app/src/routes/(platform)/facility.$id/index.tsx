@@ -1616,6 +1616,7 @@ function Page() {
               devices={placedItems}
               events={facilityEventViews}
               facilityId={facilityId}
+              onSelectDevice={selectMonitoringDevice}
               selection={monitoringSelection}
             />
           ) : (

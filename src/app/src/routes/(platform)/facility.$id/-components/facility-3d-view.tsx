@@ -1,9 +1,10 @@
 "use client";
 
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, RoundedBox } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { CuboidIcon } from "lucide-react";
 import { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Object3D } from "three";
 
 import {
   buildSceneDescriptor,
@@ -23,16 +24,45 @@ interface BoxPartProps {
   size: [number, number, number];
   position: [number, number, number];
   color: string;
+  emissive?: string;
+  emissiveIntensity?: number;
   metalness?: number;
+  radius?: number;
+  rotation?: [number, number, number];
   roughness?: number;
 }
 
-function BoxPart({ size, position, color, metalness = 0, roughness = 0.65 }: BoxPartProps) {
+function BoxPart({
+  size,
+  position,
+  color,
+  emissive,
+  emissiveIntensity,
+  metalness = 0,
+  radius,
+  rotation,
+  roughness = 0.65,
+}: BoxPartProps) {
+  const cornerRadius = radius ?? Math.min(0.035, ...size.map((dimension) => dimension / 5));
+
   return (
-    <mesh castShadow position={position}>
-      <boxGeometry args={size} />
-      <meshStandardMaterial color={color} metalness={metalness} roughness={roughness} />
-    </mesh>
+    <RoundedBox
+      args={size}
+      castShadow
+      position={position}
+      radius={cornerRadius}
+      receiveShadow
+      rotation={rotation}
+      smoothness={2}
+    >
+      <meshStandardMaterial
+        color={color}
+        emissive={emissive}
+        emissiveIntensity={emissiveIntensity}
+        metalness={metalness}
+        roughness={roughness}
+      />
+    </RoundedBox>
   );
 }
 
@@ -43,19 +73,67 @@ function DecorationMesh({ item }: { item: DecorationItem }) {
     <group position={[position.x, position.y, position.z]} rotation={[0, rotation, 0]} scale={scale}>
       {kind === "vehicle" && (
         <>
-          <BoxPart color="#2563eb" position={[0, 0.35, 0]} size={[1.65, 0.45, 0.82]} metalness={0.25} />
           <BoxPart
-            color="#93c5fd"
-            position={[-0.05, 0.7, 0]}
-            size={[0.82, 0.32, 0.72]}
-            metalness={0.45}
-            roughness={0.15}
+            color="#1d4ed8"
+            position={[0, 0.35, 0]}
+            size={[1.72, 0.42, 0.84]}
+            metalness={0.35}
+            roughness={0.32}
+          />
+          <BoxPart
+            color="#2563eb"
+            position={[0.61, 0.58, 0]}
+            size={[0.48, 0.22, 0.78]}
+            metalness={0.3}
+            roughness={0.3}
+          />
+          <BoxPart
+            color="#172554"
+            position={[-0.15, 0.7, 0]}
+            size={[0.78, 0.34, 0.7]}
+            metalness={0.55}
+            roughness={0.12}
+          />
+          <BoxPart
+            color="#0f172a"
+            position={[0.27, 0.7, 0]}
+            rotation={[0, 0, -0.38]}
+            size={[0.04, 0.28, 0.66]}
+            metalness={0.5}
+            roughness={0.08}
+          />
+          <BoxPart
+            color="#f8fafc"
+            emissive="#fef3c7"
+            emissiveIntensity={1.2}
+            position={[0.87, 0.43, -0.25]}
+            size={[0.035, 0.12, 0.18]}
+            radius={0.01}
+          />
+          <BoxPart
+            color="#f8fafc"
+            emissive="#fef3c7"
+            emissiveIntensity={1.2}
+            position={[0.87, 0.43, 0.25]}
+            size={[0.035, 0.12, 0.18]}
+            radius={0.01}
+          />
+          <BoxPart
+            color="#94a3b8"
+            position={[0.9, 0.26, 0]}
+            size={[0.05, 0.08, 0.7]}
+            metalness={0.8}
+            roughness={0.25}
           />
           {([-0.55, 0.55] as const).flatMap((x) =>
             ([-0.42, 0.42] as const).map((z) => (
               <mesh castShadow key={`${x}-${z}`} position={[x, 0.18, z]} rotation={[Math.PI / 2, 0, 0]}>
-                <cylinderGeometry args={[0.18, 0.18, 0.12, 12]} />
+                <cylinderGeometry args={[0.19, 0.19, 0.13, 16]} />
                 <meshStandardMaterial color="#18181b" roughness={0.8} />
+                <mesh position={[0, 0.07, 0]}>
+                  <cylinderGeometry args={[0.09, 0.09, 0.01, 12]} />
+                  <meshStandardMaterial color="#cbd5e1" metalness={0.85} roughness={0.25} />
+                </mesh>
               </mesh>
             )),
           )}
@@ -69,25 +147,58 @@ function DecorationMesh({ item }: { item: DecorationItem }) {
               <BoxPart color="#713f12" key={`${x}-${z}`} position={[x, 0.35, z]} size={[0.08, 0.7, 0.08]} />
             )),
           )}
+          <BoxPart
+            color="#1e293b"
+            position={[0, 1.02, -0.12]}
+            size={[0.5, 0.34, 0.05]}
+            metalness={0.15}
+            roughness={0.3}
+          />
+          <BoxPart
+            color="#38bdf8"
+            emissive="#0284c7"
+            emissiveIntensity={0.35}
+            position={[0, 1.02, -0.15]}
+            size={[0.43, 0.27, 0.015]}
+            radius={0.005}
+            roughness={0.18}
+          />
+          <BoxPart color="#475569" position={[0, 0.84, -0.12]} size={[0.06, 0.22, 0.06]} metalness={0.4} />
+          <BoxPart color="#334155" position={[0, 0.82, 0.08]} size={[0.42, 0.025, 0.16]} radius={0.006} />
         </>
       )}
       {kind === "conferenceTable" && (
         <>
-          <BoxPart color="#0f766e" position={[0, 0.76, 0]} size={[2.4, 0.13, 1.05]} roughness={0.45} />
+          <BoxPart color="#0f766e" position={[0, 0.76, 0]} radius={0.1} size={[2.4, 0.13, 1.05]} roughness={0.45} />
           <BoxPart color="#115e59" position={[0, 0.36, 0]} size={[0.35, 0.72, 0.48]} metalness={0.2} />
+          <BoxPart color="#99f6e4" position={[0, 0.83, 0]} size={[0.46, 0.018, 0.2]} radius={0.008} roughness={0.2} />
         </>
       )}
       {kind === "table" && (
         <>
           <BoxPart color="#a16207" position={[0, 0.7, 0]} size={[1.25, 0.12, 1.0]} />
-          <BoxPart color="#713f12" position={[0, 0.34, 0]} size={[0.14, 0.68, 0.14]} />
+          {([-0.48, 0.48] as const).flatMap((x) =>
+            ([-0.35, 0.35] as const).map((z) => (
+              <BoxPart color="#713f12" key={`${x}-${z}`} position={[x, 0.34, z]} size={[0.09, 0.68, 0.09]} />
+            )),
+          )}
         </>
       )}
       {kind === "chair" && (
         <>
           <BoxPart color="#475569" position={[0, 0.42, 0]} size={[0.48, 0.12, 0.48]} />
           <BoxPart color="#475569" position={[0, 0.72, 0.19]} size={[0.48, 0.55, 0.1]} />
-          <BoxPart color="#334155" position={[0, 0.2, 0]} size={[0.1, 0.4, 0.1]} metalness={0.25} />
+          {([-0.17, 0.17] as const).flatMap((x) =>
+            ([-0.16, 0.16] as const).map((z) => (
+              <BoxPart
+                color="#334155"
+                key={`${x}-${z}`}
+                position={[x, 0.2, z]}
+                size={[0.055, 0.4, 0.055]}
+                metalness={0.25}
+              />
+            )),
+          )}
         </>
       )}
       {kind === "stool" && (
@@ -102,27 +213,72 @@ function DecorationMesh({ item }: { item: DecorationItem }) {
       {(kind === "rack" || kind === "serverRack") && (
         <>
           <BoxPart
-            color={kind === "serverRack" ? "#111827" : "#57534e"}
+            color={kind === "serverRack" ? "#0f172a" : "#57534e"}
             position={[0, 0.9, 0]}
             size={[0.9, 1.8, 0.5]}
-            metalness={0.25}
+            metalness={0.4}
+            roughness={0.38}
           />
+          {[0.32, 0.65, 0.98, 1.31, 1.64].map((y) => (
+            <BoxPart
+              color={kind === "serverRack" ? "#1e293b" : "#a8a29e"}
+              key={y}
+              position={[0, y, 0.263]}
+              size={[0.7, 0.18, 0.025]}
+              metalness={0.55}
+              radius={0.006}
+              roughness={0.3}
+            />
+          ))}
           {kind === "serverRack" &&
-            [0.45, 0.9, 1.35].map((y) => (
-              <BoxPart color="#22d3ee" key={y} position={[0, y, 0.26]} size={[0.65, 0.03, 0.02]} metalness={0.5} />
+            [0.36, 0.69, 1.02, 1.35, 1.68].map((y) => (
+              <BoxPart
+                color="#22d3ee"
+                emissive="#0891b2"
+                emissiveIntensity={1.5}
+                key={y}
+                position={[0.25, y, 0.282]}
+                radius={0.004}
+                size={[0.1, 0.025, 0.012]}
+              />
             ))}
         </>
       )}
       {kind === "machine" && (
         <>
-          <BoxPart color="#64748b" position={[0, 0.52, 0]} size={[1.15, 1.04, 0.82]} metalness={0.35} />
-          <BoxPart color="#f59e0b" position={[0.28, 1.08, 0]} size={[0.26, 0.2, 0.48]} metalness={0.2} />
+          <BoxPart color="#334155" position={[0, 0.14, 0]} size={[1.24, 0.28, 0.9]} metalness={0.55} roughness={0.42} />
+          <BoxPart color="#64748b" position={[0, 0.65, 0]} size={[1.15, 0.82, 0.82]} metalness={0.4} roughness={0.38} />
+          <BoxPart
+            color="#0f172a"
+            position={[0, 0.69, 0.42]}
+            size={[0.74, 0.4, 0.035]}
+            metalness={0.35}
+            roughness={0.28}
+          />
+          <BoxPart
+            color="#38bdf8"
+            emissive="#0284c7"
+            emissiveIntensity={0.7}
+            position={[0, 0.74, 0.442]}
+            size={[0.54, 0.2, 0.012]}
+            radius={0.004}
+            roughness={0.15}
+          />
+          <BoxPart color="#f59e0b" position={[0.28, 1.13, 0]} size={[0.3, 0.22, 0.48]} metalness={0.2} />
+          <mesh castShadow position={[-0.35, 1.15, 0]}>
+            <cylinderGeometry args={[0.08, 0.08, 0.18, 16]} />
+            <meshStandardMaterial color="#ef4444" emissive="#dc2626" emissiveIntensity={0.8} roughness={0.3} />
+          </mesh>
         </>
       )}
       {kind === "labBench" && (
         <>
           <BoxPart color="#e2e8f0" position={[0, 0.78, 0]} size={[1.45, 0.14, 0.65]} metalness={0.1} />
           <BoxPart color="#94a3b8" position={[0, 0.38, 0]} size={[1.1, 0.7, 0.42]} metalness={0.2} />
+          <mesh position={[-0.38, 0.86, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.16, 0.025, 8, 20]} />
+            <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.22} />
+          </mesh>
           <mesh castShadow position={[0.4, 0.94, 0]}>
             <cylinderGeometry args={[0.11, 0.11, 0.28, 12]} />
             <meshStandardMaterial color="#0ea5e9" transparent opacity={0.75} />
@@ -133,30 +289,117 @@ function DecorationMesh({ item }: { item: DecorationItem }) {
         <>
           <BoxPart color="#166534" position={[0, 0.6, 0]} size={[1.8, 1.2, 0.58]} roughness={0.45} />
           <BoxPart color="#86efac" position={[0, 1.23, 0]} size={[1.95, 0.1, 0.68]} metalness={0.1} />
+          <BoxPart color="#14532d" position={[0, 0.62, 0.3]} size={[1.35, 0.62, 0.035]} radius={0.01} roughness={0.3} />
         </>
       )}
       {kind === "sofa" && (
         <>
           <BoxPart color="#0f766e" position={[0, 0.33, 0]} size={[1.25, 0.42, 0.6]} />
           <BoxPart color="#115e59" position={[0, 0.66, 0.24]} size={[1.25, 0.5, 0.12]} />
+          <BoxPart color="#134e4a" position={[-0.61, 0.46, 0]} size={[0.14, 0.5, 0.64]} />
+          <BoxPart color="#134e4a" position={[0.61, 0.46, 0]} size={[0.14, 0.5, 0.64]} />
+          <BoxPart
+            color="#14b8a6"
+            position={[0, 0.52, 0.06]}
+            size={[1.02, 0.08, 0.46]}
+            radius={0.04}
+            roughness={0.72}
+          />
         </>
       )}
-      {kind === "counter" && <BoxPart color="#94a3b8" position={[0, 0.55, 0]} size={[1.5, 1.1, 0.5]} metalness={0.2} />}
-      {kind === "cabinet" && (
-        <BoxPart color="#78716c" position={[0, 0.65, 0]} size={[0.85, 1.3, 0.5]} metalness={0.1} />
+      {kind === "counter" && (
+        <>
+          <BoxPart color="#64748b" position={[0, 0.55, 0]} size={[1.5, 1.1, 0.5]} metalness={0.25} />
+          <BoxPart
+            color="#e2e8f0"
+            position={[0, 1.13, 0]}
+            size={[1.62, 0.08, 0.62]}
+            metalness={0.18}
+            roughness={0.28}
+          />
+        </>
       )}
-      {kind === "crate" && <BoxPart color="#b45309" position={[0, 0.28, 0]} size={[0.55, 0.55, 0.55]} />}
-      {kind === "pallet" && <BoxPart color="#b45309" position={[0, 0.1, 0]} size={[1.05, 0.2, 0.8]} />}
+      {kind === "cabinet" && (
+        <>
+          <BoxPart color="#78716c" position={[0, 0.65, 0]} size={[0.85, 1.3, 0.5]} metalness={0.1} />
+          <BoxPart color="#57534e" position={[-0.21, 0.66, 0.258]} size={[0.015, 1.05, 0.015]} radius={0.003} />
+          <BoxPart color="#57534e" position={[0.21, 0.66, 0.258]} size={[0.015, 1.05, 0.015]} radius={0.003} />
+          <BoxPart
+            color="#d6d3d1"
+            position={[-0.07, 0.66, 0.273]}
+            size={[0.025, 0.18, 0.018]}
+            metalness={0.8}
+            radius={0.003}
+          />
+          <BoxPart
+            color="#d6d3d1"
+            position={[0.07, 0.66, 0.273]}
+            size={[0.025, 0.18, 0.018]}
+            metalness={0.8}
+            radius={0.003}
+          />
+        </>
+      )}
+      {kind === "crate" && (
+        <>
+          <BoxPart color="#b45309" position={[0, 0.28, 0]} size={[0.55, 0.55, 0.55]} roughness={0.82} />
+          {[-0.22, 0, 0.22].map((y) => (
+            <BoxPart
+              color="#78350f"
+              key={y}
+              position={[0, 0.28 + y, 0.285]}
+              size={[0.58, 0.045, 0.025]}
+              radius={0.006}
+              roughness={0.85}
+            />
+          ))}
+        </>
+      )}
+      {kind === "pallet" && (
+        <>
+          {[-0.34, 0, 0.34].map((z) => (
+            <BoxPart
+              color="#b45309"
+              key={z}
+              position={[0, 0.16, z]}
+              size={[1.05, 0.11, 0.14]}
+              radius={0.012}
+              roughness={0.88}
+            />
+          ))}
+          {[-0.38, 0, 0.38].map((x) => (
+            <BoxPart
+              color="#78350f"
+              key={x}
+              position={[x, 0.06, 0]}
+              size={[0.14, 0.12, 0.76]}
+              radius={0.01}
+              roughness={0.9}
+            />
+          ))}
+        </>
+      )}
       {kind === "plant" && (
         <>
           <mesh castShadow position={[0, 0.16, 0]}>
             <cylinderGeometry args={[0.18, 0.23, 0.32, 12]} />
             <meshStandardMaterial color="#92400e" />
           </mesh>
-          <mesh castShadow position={[0, 0.58, 0]}>
-            <sphereGeometry args={[0.34, 12, 12]} />
-            <meshStandardMaterial color="#16a34a" roughness={0.8} />
+          <mesh castShadow position={[0, 0.47, 0]}>
+            <cylinderGeometry args={[0.035, 0.055, 0.45, 8]} />
+            <meshStandardMaterial color="#3f6212" roughness={0.9} />
           </mesh>
+          {[
+            [-0.16, 0.6, 0.05, -0.5],
+            [0.16, 0.68, -0.04, 0.5],
+            [-0.08, 0.79, -0.1, -0.25],
+            [0.08, 0.87, 0.08, 0.25],
+          ].map(([x, y, z, rot], index) => (
+            <mesh castShadow key={index} position={[x, y, z]} rotation={[0, 0, rot]} scale={[0.68, 1, 0.42]}>
+              <sphereGeometry args={[0.25, 10, 8]} />
+              <meshStandardMaterial color={index % 2 === 0 ? "#15803d" : "#22c55e"} roughness={0.84} />
+            </mesh>
+          ))}
         </>
       )}
     </group>
@@ -169,7 +412,37 @@ function DecorationsGroup({ decorations }: { decorations: DecorationItem[] }) {
 
 // ─── Room rendering ─────────────────────────────────────────────────────
 
-function WallMesh({ seg }: { seg: WallSegment }) {
+const LIGHT_FLOOR_COLORS: Record<RoomDescriptor["zoneType"], string> = {
+  generic: "#e5e7eb",
+  office: "#e9e7f5",
+  "car-park": "#d6d3d1",
+  "factory-floor": "#dfe3e8",
+  warehouse: "#e4dfd5",
+  "loading-bay": "#ddd6ce",
+  storage: "#e2e0dc",
+  lobby: "#e3eee7",
+  "meeting-room": "#deedf0",
+  "break-room": "#e8eedc",
+  "server-room": "#d8dce2",
+  laboratory: "#e7eaed",
+};
+
+const DARK_FLOOR_COLORS: Record<RoomDescriptor["zoneType"], string> = {
+  generic: "#27272a",
+  office: "#2e2a3b",
+  "car-park": "#292827",
+  "factory-floor": "#282d33",
+  warehouse: "#302c26",
+  "loading-bay": "#312b26",
+  storage: "#2c2b29",
+  lobby: "#26332a",
+  "meeting-room": "#243238",
+  "break-room": "#2d3425",
+  "server-room": "#202631",
+  laboratory: "#2a2f34",
+};
+
+function WallMesh({ seg, isDark }: { seg: WallSegment; isDark: boolean }) {
   const isHorizontal = seg.start.z === seg.end.z;
   const length = isHorizontal ? Math.abs(seg.end.x - seg.start.x) : Math.abs(seg.end.z - seg.start.z);
   if (length < 0.02) return null;
@@ -180,19 +453,72 @@ function WallMesh({ seg }: { seg: WallSegment }) {
 
   if (seg.type === "wall" || seg.type === "wallAboveOpening") {
     return (
-      <mesh position={[centerX, y, centerZ]} rotation={isHorizontal ? [0, 0, 0] : [0, Math.PI / 2, 0]}>
+      <mesh
+        castShadow
+        position={[centerX, y, centerZ]}
+        receiveShadow
+        rotation={isHorizontal ? [0, 0, 0] : [0, Math.PI / 2, 0]}
+      >
         <boxGeometry args={[length, seg.height, seg.thickness]} />
-        <meshStandardMaterial color="#d4d4d8" roughness={0.6} />
+        <meshStandardMaterial color={isDark ? "#3f3f46" : "#e4e4e7"} roughness={0.72} />
       </mesh>
     );
   }
 
   if (seg.type === "windowOpening") {
     return (
-      <mesh position={[centerX, y, centerZ]} rotation={isHorizontal ? [0, 0, 0] : [0, Math.PI / 2, 0]}>
-        <boxGeometry args={[length, seg.height, 0.04]} />
-        <meshStandardMaterial color="#a1a1aa" roughness={0.1} metalness={0.2} transparent opacity={0.5} />
-      </mesh>
+      <group position={[centerX, y, centerZ]} rotation={isHorizontal ? [0, 0, 0] : [0, Math.PI / 2, 0]}>
+        <mesh receiveShadow>
+          <boxGeometry args={[length - 0.08, seg.height - 0.08, 0.035]} />
+          <meshPhysicalMaterial
+            color={isDark ? "#7dd3fc" : "#bae6fd"}
+            metalness={0.05}
+            opacity={0.32}
+            roughness={0.08}
+            transparent
+          />
+        </mesh>
+        <BoxPart
+          color={isDark ? "#71717a" : "#f4f4f5"}
+          position={[0, seg.height / 2, 0]}
+          size={[length + 0.08, 0.08, 0.11]}
+          metalness={0.25}
+          radius={0.01}
+          roughness={0.38}
+        />
+        <BoxPart
+          color={isDark ? "#71717a" : "#f4f4f5"}
+          position={[0, -seg.height / 2, 0]}
+          size={[length + 0.08, 0.08, 0.16]}
+          metalness={0.25}
+          radius={0.01}
+          roughness={0.38}
+        />
+        <BoxPart
+          color={isDark ? "#71717a" : "#f4f4f5"}
+          position={[-length / 2, 0, 0]}
+          size={[0.08, seg.height, 0.11]}
+          metalness={0.25}
+          radius={0.01}
+          roughness={0.38}
+        />
+        <BoxPart
+          color={isDark ? "#71717a" : "#f4f4f5"}
+          position={[length / 2, 0, 0]}
+          size={[0.08, seg.height, 0.11]}
+          metalness={0.25}
+          radius={0.01}
+          roughness={0.38}
+        />
+        <BoxPart
+          color={isDark ? "#71717a" : "#f4f4f5"}
+          position={[0, 0, 0]}
+          size={[0.045, seg.height - 0.08, 0.08]}
+          metalness={0.25}
+          radius={0.006}
+          roughness={0.38}
+        />
+      </group>
     );
   }
 
@@ -243,11 +569,15 @@ function RoomMesh({
         receiveShadow
       >
         <boxGeometry args={[room.rect.width, room.floor.thickness, room.rect.depth]} />
-        <meshStandardMaterial color={isDark ? "#27272a" : "#e4e4e7"} />
+        <meshStandardMaterial
+          color={isDark ? DARK_FLOOR_COLORS[room.zoneType] : LIGHT_FLOOR_COLORS[room.zoneType]}
+          metalness={room.zoneType === "factory-floor" || room.zoneType === "server-room" ? 0.12 : 0.02}
+          roughness={room.zoneType === "laboratory" || room.zoneType === "lobby" ? 0.48 : 0.76}
+        />
       </mesh>
 
       {room.walls.map((seg, i) => (
-        <WallMesh key={`${room.id}-wall-${i}`} seg={seg} />
+        <WallMesh isDark={isDark} key={`${room.id}-wall-${i}`} seg={seg} />
       ))}
 
       {selected && (
@@ -313,28 +643,113 @@ function DeviceMesh({
         onPointerOver?.(device.id);
       }}
     >
-      <mesh position={[0, device.position.y / 2, 0]}>
-        <cylinderGeometry args={[DEVICE_POLE_RADIUS, DEVICE_POLE_RADIUS, device.position.y, 6]} />
-        <meshStandardMaterial color="#9ca3af" />
+      <mesh castShadow position={[0, device.position.y / 2, 0]}>
+        <cylinderGeometry args={[DEVICE_POLE_RADIUS, DEVICE_POLE_RADIUS * 1.15, device.position.y, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.3} />
       </mesh>
 
-      <mesh position={[0, DEVICE_MARKER_HEIGHT / 2, 0]}>
+      <mesh castShadow position={[0, DEVICE_MARKER_HEIGHT / 2, 0]} receiveShadow>
         <cylinderGeometry args={[DEVICE_MARKER_RADIUS, DEVICE_MARKER_RADIUS * 1.2, DEVICE_MARKER_HEIGHT, 16]} />
-        <meshStandardMaterial color={markerColor} />
+        <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={0.18} roughness={0.52} />
       </mesh>
 
-      <mesh position={[0, device.position.y + DEVICE_MARKER_RADIUS, 0]}>
-        {isCCTV ? (
-          <sphereGeometry args={[DEVICE_MARKER_RADIUS * 0.9, 16, 16]} />
-        ) : isSensor ? (
-          <boxGeometry args={[DEVICE_MARKER_RADIUS * 1.2, DEVICE_MARKER_RADIUS * 1.2, DEVICE_MARKER_RADIUS * 1.2]} />
-        ) : (
-          <cylinderGeometry
-            args={[DEVICE_MARKER_RADIUS * 0.8, DEVICE_MARKER_RADIUS * 0.8, DEVICE_MARKER_RADIUS * 2, 6]}
+      {isCCTV && (
+        <group position={[0, device.position.y + 0.08, 0]}>
+          <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.13, 0.13, 0.18, 18]} />
+            <meshStandardMaterial color="#64748b" metalness={0.68} roughness={0.28} />
+          </mesh>
+          <BoxPart
+            color={col}
+            position={[0, 0, 0.2]}
+            radius={0.055}
+            size={[0.3, 0.24, 0.48]}
+            metalness={0.32}
+            roughness={0.35}
           />
-        )}
-        <meshStandardMaterial color={col} />
-      </mesh>
+          <BoxPart
+            color="#334155"
+            position={[0, 0.12, 0.22]}
+            radius={0.018}
+            size={[0.37, 0.035, 0.57]}
+            metalness={0.48}
+            roughness={0.3}
+          />
+          <mesh position={[0, 0, 0.45]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.09, 0.09, 0.035, 20]} />
+            <meshPhysicalMaterial color="#020617" clearcoat={0.9} metalness={0.55} roughness={0.08} />
+          </mesh>
+          <mesh position={[0, 0, 0.47]}>
+            <circleGeometry args={[0.045, 20]} />
+            <meshStandardMaterial color="#38bdf8" emissive="#0ea5e9" emissiveIntensity={0.85} roughness={0.12} />
+          </mesh>
+        </group>
+      )}
+
+      {isSensor && (
+        <group position={[0, device.position.y + 0.08, 0]}>
+          <BoxPart
+            color={col}
+            position={[0, 0, 0]}
+            radius={0.055}
+            size={[0.38, 0.46, 0.22]}
+            metalness={0.12}
+            roughness={0.45}
+          />
+          <BoxPart
+            color="#e2e8f0"
+            position={[0, 0.05, 0.116]}
+            radius={0.025}
+            size={[0.27, 0.24, 0.018]}
+            roughness={0.24}
+          />
+          <BoxPart
+            color={markerColor}
+            emissive={markerColor}
+            emissiveIntensity={1.25}
+            position={[0, 0.15, 0.13]}
+            radius={0.008}
+            size={[0.08, 0.025, 0.012]}
+          />
+          {[-0.07, 0, 0.07].map((x) => (
+            <BoxPart color="#64748b" key={x} position={[x, -0.05, 0.13]} radius={0.003} size={[0.025, 0.08, 0.012]} />
+          ))}
+        </group>
+      )}
+
+      {!isCCTV && !isSensor && (
+        <group position={[0, device.position.y + 0.08, 0]}>
+          <BoxPart
+            color={col}
+            position={[0, 0, 0]}
+            radius={0.045}
+            size={[0.42, 0.32, 0.26]}
+            metalness={0.22}
+            roughness={0.4}
+          />
+          {[-0.13, 0.13].map((x) => (
+            <group key={x} position={[x, 0.33, 0]}>
+              <mesh castShadow>
+                <cylinderGeometry args={[0.025, 0.025, 0.62, 10]} />
+                <meshStandardMaterial color="#64748b" metalness={0.75} roughness={0.25} />
+              </mesh>
+              <mesh position={[0, 0.31, 0]}>
+                <sphereGeometry args={[0.04, 12, 10]} />
+                <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={0.85} />
+              </mesh>
+            </group>
+          ))}
+          <BoxPart color="#0f172a" position={[0, 0, 0.136]} radius={0.015} size={[0.24, 0.12, 0.018]} roughness={0.2} />
+          <BoxPart
+            color={markerColor}
+            emissive={markerColor}
+            emissiveIntensity={1.1}
+            position={[0, 0, 0.148]}
+            radius={0.006}
+            size={[0.11, 0.025, 0.01]}
+          />
+        </group>
+      )}
 
       {selected && (
         <mesh position={[0, DEVICE_MARKER_HEIGHT + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -372,6 +787,62 @@ function ThemeBackground({ isDark }: { isDark: boolean }) {
   }, [gl, isDark]);
 
   return null;
+}
+
+function Lighting({
+  bounds,
+  isDark,
+}: {
+  bounds: { x: number; z: number; width: number; depth: number };
+  isDark: boolean;
+}) {
+  const scene = useThree((state) => state.scene);
+  const target = useMemo(() => new Object3D(), []);
+  const centerX = bounds.x + bounds.width / 2;
+  const centerZ = bounds.z + bounds.depth / 2;
+  const shadowExtent = Math.max(bounds.width, bounds.depth) * 0.65 + 2;
+  const lightHeight = Math.max(16, shadowExtent * 0.75);
+
+  useEffect(() => {
+    target.position.set(centerX, 0, centerZ);
+    scene.add(target);
+    return () => {
+      scene.remove(target);
+    };
+  }, [centerX, centerZ, scene, target]);
+
+  return (
+    <>
+      <hemisphereLight
+        color={isDark ? "#93c5fd" : "#dbeafe"}
+        groundColor={isDark ? "#111827" : "#78716c"}
+        intensity={isDark ? 0.45 : 0.7}
+      />
+      <directionalLight
+        castShadow
+        color={isDark ? "#dbeafe" : "#fff7ed"}
+        intensity={isDark ? 1.25 : 1.8}
+        position={[centerX + shadowExtent * 0.65, lightHeight, centerZ + shadowExtent * 0.45]}
+        shadow-bias={-0.00025}
+        shadow-camera-bottom={-shadowExtent}
+        shadow-camera-far={lightHeight + shadowExtent * 2}
+        shadow-camera-left={-shadowExtent}
+        shadow-camera-near={0.5}
+        shadow-camera-right={shadowExtent}
+        shadow-camera-top={shadowExtent}
+        shadow-mapSize-height={1536}
+        shadow-mapSize-width={1536}
+        shadow-normalBias={0.025}
+        target={target}
+      />
+      <directionalLight
+        color={isDark ? "#67e8f9" : "#bfdbfe"}
+        intensity={isDark ? 0.25 : 0.35}
+        position={[centerX - shadowExtent, 8, centerZ - shadowExtent]}
+        target={target}
+      />
+    </>
+  );
 }
 
 // ─── Scene content ──────────────────────────────────────────────────────
@@ -412,14 +883,8 @@ function SceneContent({
       <ThemeBackground isDark={isDark} />
       <CameraSetup bounds={descriptor.bounds} />
 
-      <ambientLight intensity={isDark ? 0.3 : 0.5} />
-      <directionalLight
-        position={[10, 20, 5]}
-        intensity={isDark ? 1 : 1.5}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
+      <ambientLight intensity={isDark ? 0.16 : 0.28} />
+      <Lighting bounds={descriptor.bounds} isDark={isDark} />
 
       {descriptor.rooms.map((room) => (
         <RoomMesh
@@ -459,7 +924,7 @@ function SceneContent({
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <planeGeometry args={[descriptor.bounds.width + 2, descriptor.bounds.depth + 2]} />
-          <meshStandardMaterial color={isDark ? "#18181b" : "#d4d4d4"} depthWrite={false} />
+          <meshStandardMaterial color={isDark ? "#18181b" : "#d6d3d1"} depthWrite={false} roughness={0.92} />
         </mesh>
       )}
 
@@ -560,9 +1025,12 @@ export function Facility3DView({
       >
         <Suspense fallback={<SceneLoading />}>
           <Canvas
+            camera={{ fov: 42, near: 0.1, far: 250 }}
             frameloop="demand"
             dpr={[1, 1.5]}
+            gl={{ antialias: true, powerPreference: "high-performance" }}
             performance={{ min: 0.5, max: 1 }}
+            shadows="percentage"
             onCreated={(state) => {
               const canvas = state.gl.domElement;
               canvas.addEventListener("webglcontextlost", (e) => {
