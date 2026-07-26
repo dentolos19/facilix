@@ -17,10 +17,10 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
 import { Field, FieldLabel } from "#/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
-import { Separator } from "#/components/ui/separator";
 import { Switch } from "#/components/ui/switch";
-import { signOut, useSession } from "#/lib/auth/client";
+import { hasAdminRole, signOut, useSession } from "#/lib/auth/client";
 import { getSimulationStatus, startSimulation, stopSimulation, type SimulationStatus } from "#/lib/functions/settings";
+import { getShowAllFacilitiesPreference, setShowAllFacilitiesPreference } from "#/lib/preferences";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
 
@@ -38,12 +38,30 @@ const THEME_OPTIONS = [
 
 function Page() {
   const { theme, setTheme } = useTheme();
+  const { data: session, isPending: isSessionPending } = useSession();
+  const isAdmin = hasAdminRole(session?.user);
+  const userId = session?.user.id;
   const [mounted, setMounted] = useState(false);
+  const [showAllFacilities, setShowAllFacilities] = useState(false);
+  const [isFacilityPreferenceLoaded, setIsFacilityPreferenceLoaded] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isSessionPending) return;
+
+    setShowAllFacilities(isAdmin && userId ? getShowAllFacilitiesPreference(userId) : false);
+    setIsFacilityPreferenceLoaded(true);
+  }, [isAdmin, isSessionPending, userId]);
+
+  const handleShowAllFacilitiesChange = (checked: boolean) => {
+    if (!userId) return;
+    setShowAllFacilitiesPreference(userId, checked);
+    setShowAllFacilities(checked);
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -85,7 +103,34 @@ function Page() {
           </CardContent>
         </Card>
 
-        {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl />}
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Facilities</CardTitle>
+              <CardDescription>Configure administrative facility visibility.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <label className="text-sm font-medium" htmlFor="show-all-facilities">
+                    Show all facilities
+                  </label>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    Include facilities where you are not listed as a member on the Facilities page.
+                  </p>
+                </div>
+                <Switch
+                  checked={showAllFacilities}
+                  disabled={!isFacilityPreferenceLoaded}
+                  id="show-all-facilities"
+                  onCheckedChange={handleShowAllFacilitiesChange}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl isAdmin={isAdmin} />}
 
         <Card>
           <CardHeader>
@@ -218,10 +263,7 @@ const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
   error: "Error",
 };
 
-function FlySimulatorControl() {
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "admin";
-
+function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
   const [status, setStatus] = useState<SimulationStatus | null>(null);
   const [health, setHealth] = useState<SimulatorHealth | null>(null);
   const [loading, setLoading] = useState(false);

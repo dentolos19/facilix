@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Building2Icon, LayoutDashboardIcon, MapIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import { Building2Icon, LayoutDashboardIcon, PanelLeftIcon, SettingsIcon, ShieldIcon } from "lucide-react";
 
 import {
   Sidebar,
@@ -13,19 +13,20 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "#/components/ui/sidebar";
 
 const NAV_MAIN = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboardIcon },
   { title: "Overview", url: "/overview", icon: Building2Icon },
   { title: "Security", url: "/security", icon: ShieldIcon },
-  { title: "Facility Panel", url: "/facility-panel", icon: MapIcon },
+  { title: "Settings", url: "/settings", icon: SettingsIcon },
 ] as const;
-
-const NAV_FOOTER = [{ title: "Settings", url: "/settings", icon: SettingsIcon }] as const;
 
 export function AppSidebar() {
   const location = useLocation();
+  const { state, toggleSidebar } = useSidebar();
+  const sidebarToggleLabel = state === "expanded" ? "Collapse sidebar" : "Expand sidebar";
 
   return (
     <Sidebar collapsible="icon">
@@ -69,16 +70,12 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
-          {NAV_FOOTER.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.url} tooltip={item.title}>
-                <Link to={item.url}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={toggleSidebar} tooltip={sidebarToggleLabel}>
+              <PanelLeftIcon />
+              <span>{sidebarToggleLabel}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
 

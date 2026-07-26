@@ -11,11 +11,12 @@ const log = createLogger("facility");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function toFacilityRow(f: typeof schema.facility.$inferSelect): FacilityRow {
+function toFacilityRow(f: typeof schema.facility.$inferSelect, isMember = true): FacilityRow {
   return {
     id: f.id,
     name: f.name,
     data: f.data as CanvasLayoutData,
+    isMember,
     createdAt: f.createdAt,
     updatedAt: f.updatedAt,
   };
@@ -27,6 +28,7 @@ export type FacilityRow = {
   id: string;
   name: string;
   data: CanvasLayoutData;
+  isMember: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -68,29 +70,41 @@ export interface SaveInput {
 
 // ─── CRUD server functions ────────────────────────────────────────────────
 
-export const getFacilities = createServerFn({ method: "GET" }).handler(async () => {
-  const db = createDatabase(env.DATABASE);
-  const ctx = await getAccessContext();
+export const getFacilities = createServerFn({ method: "GET" })
+  .validator((data?: { includeAll?: boolean }) => data)
+  .handler(async ({ data }) => {
+    const db = createDatabase(env.DATABASE);
+    const ctx = await getAccessContext();
 
-  if (!ctx) return [];
+    if (!ctx) return [];
 
-  const facilities = ctx.isAdmin
-    ? await db.select().from(schema.facility)
-    : await db
-        .select({
-          id: schema.facility.id,
-          name: schema.facility.name,
-          data: schema.facility.data,
-          settings: schema.facility.settings,
-          createdAt: schema.facility.createdAt,
-          updatedAt: schema.facility.updatedAt,
-        })
-        .from(schema.facility)
-        .innerJoin(schema.facilityMember, eq(schema.facility.id, schema.facilityMember.facilityId))
-        .where(eq(schema.facilityMember.userId, ctx.userId));
+    if (ctx.isAdmin && data?.includeAll) {
+      const [facilities, memberships] = await Promise.all([
+        db.select().from(schema.facility),
+        db
+          .select({ facilityId: schema.facilityMember.facilityId })
+          .from(schema.facilityMember)
+          .where(eq(schema.facilityMember.userId, ctx.userId)),
+      ]);
+      const memberFacilityIds = new Set(memberships.map((membership) => membership.facilityId));
+      return facilities.map((facility) => toFacilityRow(facility, memberFacilityIds.has(facility.id)));
+    }
 
-  return facilities.map(toFacilityRow);
-});
+    const facilities = await db
+      .select({
+        id: schema.facility.id,
+        name: schema.facility.name,
+        data: schema.facility.data,
+        settings: schema.facility.settings,
+        createdAt: schema.facility.createdAt,
+        updatedAt: schema.facility.updatedAt,
+      })
+      .from(schema.facility)
+      .innerJoin(schema.facilityMember, eq(schema.facility.id, schema.facilityMember.facilityId))
+      .where(eq(schema.facilityMember.userId, ctx.userId));
+
+    return facilities.map((facility) => toFacilityRow(facility));
+  });
 
 export const createFacility = createServerFn({ method: "POST" })
   .validator((data: { name: string }) => {
