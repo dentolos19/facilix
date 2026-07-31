@@ -38,13 +38,13 @@ import { useFacilityChat } from "#/hooks/use-chat";
 import type { UiPayload } from "#/lib/chat/ui";
 import { cn } from "#/lib/utils";
 
-import { DeviceListCard } from "./chat-assistant/device-list-card";
-import { EventListCard } from "./chat-assistant/event-list-card";
-import { FacilityMapCard } from "./chat-assistant/facility-map-card";
-import { FacilitySummaryCard } from "./chat-assistant/facility-summary-card";
-import { MediaGalleryCard } from "./chat-assistant/media-gallery-card";
-import { MediaInspectionCard } from "./chat-assistant/media-inspection-card";
-import { SensorHistoryCard } from "./chat-assistant/sensor-history-card";
+import { DeviceListCard } from "./chat/device-list-card";
+import { EventListCard } from "./chat/event-list-card";
+import { FacilityMapCard } from "./chat/facility-map-card";
+import { FacilitySummaryCard } from "./chat/facility-summary-card";
+import { MediaGalleryCard } from "./chat/media-gallery-card";
+import { MediaInspectionCard } from "./chat/media-inspection-card";
+import { SensorHistoryCard } from "./chat/sensor-history-card";
 
 type MessagePart = UIMessage["parts"][number];
 type ToolCallPart = Extract<MessagePart, { type: "tool-call" }>;

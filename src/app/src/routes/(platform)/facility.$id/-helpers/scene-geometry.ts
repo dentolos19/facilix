@@ -462,6 +462,75 @@ function gridPositions(rect: Rect, columns: number, rows: number, inset = DECOR_
   return positions;
 }
 
+function adaptiveGridPositions(
+  rect: Rect,
+  footprintWidth: number,
+  footprintDepth: number,
+  options: { gap?: number; inset?: number; maxColumns?: number; maxRows?: number } = {},
+): Vec2[] {
+  const gap = options.gap ?? 0.45;
+  const inset = options.inset ?? DECOR_MARGIN;
+  const usableWidth = rect.width - inset * 2;
+  const usableDepth = rect.depth - inset * 2;
+  if (usableWidth <= 0 || usableDepth <= 0) return [];
+
+  const columns = Math.max(
+    1,
+    Math.min(options.maxColumns ?? 6, Math.floor((usableWidth + gap) / (footprintWidth + gap))),
+  );
+  const rows = Math.max(1, Math.min(options.maxRows ?? 5, Math.floor((usableDepth + gap) / (footprintDepth + gap))));
+
+  return gridPositions(rect, columns, rows, inset);
+}
+
+function cornerPositions(rect: Rect, inset = 0.5): Vec2[] {
+  return [
+    { x: rect.x + inset, z: rect.z + inset },
+    { x: rect.x + rect.width - inset, z: rect.z + rect.depth - inset },
+    { x: rect.x + rect.width - inset, z: rect.z + inset },
+    { x: rect.x + inset, z: rect.z + rect.depth - inset },
+  ];
+}
+
+function edgePositions(
+  rect: Rect,
+  edge: "top" | "bottom" | "left" | "right",
+  spacing: number,
+  options: { inset?: number; max?: number; wallOffset?: number } = {},
+): Vec2[] {
+  const inset = options.inset ?? 0.75;
+  const max = options.max ?? 5;
+  const wallOffset = options.wallOffset ?? 0.5;
+  const horizontal = edge === "top" || edge === "bottom";
+  const edgeLength = horizontal ? rect.width : rect.depth;
+  const usableLength = edgeLength - inset * 2;
+  if (usableLength <= 0) return [];
+
+  const count = Math.max(1, Math.min(max, Math.floor((usableLength + spacing * 0.3) / spacing)));
+  return Array.from({ length: count }, (_, index) => {
+    const offset = inset + (usableLength * (index + 0.5)) / count;
+    if (horizontal) {
+      return {
+        x: rect.x + offset,
+        z: edge === "top" ? rect.z + wallOffset : rect.z + rect.depth - wallOffset,
+      };
+    }
+    return {
+      x: edge === "left" ? rect.x + wallOffset : rect.x + rect.width - wallOffset,
+      z: rect.z + offset,
+    };
+  });
+}
+
+function offsetPosition(position: Vec2, localX: number, localZ: number, rotation: number): Vec2 {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return {
+    x: position.x + localX * cos - localZ * sin,
+    z: position.z + localX * sin + localZ * cos,
+  };
+}
+
 function addDecoration(
   decorations: DecorationItem[],
   room: RoomDescriptor,
@@ -489,18 +558,43 @@ function addDecoration(
   }
 }
 
-function addGrid(
+function addAdaptiveGrid(
   decorations: DecorationItem[],
   room: RoomDescriptor,
   devices: DevicePlacement[],
   kind: string,
-  columns: number,
-  rows: number,
-  options: { inset?: number; rotation?: number; scale?: number } = {},
-): void {
-  for (const position of gridPositions(room.rect, columns, rows, options.inset)) {
+  footprintWidth: number,
+  footprintDepth: number,
+  options: {
+    gap?: number;
+    inset?: number;
+    maxColumns?: number;
+    maxRows?: number;
+    rotation?: number;
+    scale?: number;
+  } = {},
+): Vec2[] {
+  const positions = adaptiveGridPositions(room.rect, footprintWidth, footprintDepth, options);
+  for (const position of positions) {
     addDecoration(decorations, room, devices, kind, position, options.rotation, options.scale);
   }
+  return positions;
+}
+
+function addCornerAccents(
+  decorations: DecorationItem[],
+  room: RoomDescriptor,
+  devices: DevicePlacement[],
+  kinds: string[],
+  scale = 0.85,
+): void {
+  const area = room.rect.width * room.rect.depth;
+  const count = Math.min(kinds.length, Math.max(1, Math.min(4, Math.floor(area / 14))));
+  cornerPositions(room.rect)
+    .slice(0, count)
+    .forEach((position, index) => {
+      addDecoration(decorations, room, devices, kinds[index], position, 0, scale);
+    });
 }
 
 function buildZoneDecorations(room: RoomDescriptor, devices: DevicePlacement[]): DecorationItem[] {
@@ -516,17 +610,23 @@ function buildZoneDecorations(room: RoomDescriptor, devices: DevicePlacement[]):
 
   switch (room.zoneType) {
     case "car-park": {
-      const columns = Math.max(1, Math.min(4, Math.floor((room.rect.width - 1) / 2.3)));
-      const rows = Math.max(1, Math.min(3, Math.floor((room.rect.depth - 1) / 4.4)));
-      addGrid(decorations, room, devices, "vehicle", columns, rows, {
+      addAdaptiveGrid(decorations, room, devices, "vehicle", wide ? 2.35 : 2.65, wide ? 2.65 : 2.35, {
+        gap: 0.35,
         inset: 1.1,
+        maxColumns: 6,
+        maxRows: 4,
         rotation: wide ? 0 : Math.PI / 2,
-        scale: 1,
       });
+      addCornerAccents(decorations, room, devices, ["safetyCone", "safetyCone", "safetyCone", "safetyCone"], 0.8);
       break;
     }
     case "office": {
-      const desks = gridPositions(room.rect, 2, room.rect.depth > 5 ? 2 : 1, 1.1);
+      const desks = adaptiveGridPositions(room.rect, 1.55, 1.55, {
+        gap: 0.25,
+        inset: 0.9,
+        maxColumns: 6,
+        maxRows: 5,
+      });
       for (const position of desks) {
         addDecoration(decorations, room, devices, "desk", position, deskRotation);
         addDecoration(
@@ -534,80 +634,204 @@ function buildZoneDecorations(room: RoomDescriptor, devices: DevicePlacement[]):
           room,
           devices,
           "chair",
-          { x: position.x, z: position.z + (wide ? 0.75 : 0) },
+          offsetPosition(position, 0, 0.68, deskRotation),
           deskRotation,
         );
       }
-      addGrid(decorations, room, devices, "cabinet", 1, 1, { inset: 0.55, scale: 0.9 });
+      addCornerAccents(decorations, room, devices, ["cabinet", "plant", "plant", "wasteBin"], 0.85);
       break;
     }
     case "meeting-room": {
-      addDecoration(decorations, room, devices, "conferenceTable", center, deskRotation, 1.15);
-      const chairs = [
-        { x: center.x - 1.05, z: center.z },
-        { x: center.x + 1.05, z: center.z },
-        { x: center.x, z: center.z - 0.9 },
-        { x: center.x, z: center.z + 0.9 },
-      ];
-      for (const position of chairs) addDecoration(decorations, room, devices, "chair", position);
+      const tableScale = Math.max(0.8, Math.min(1.5, Math.min(room.rect.width / 5.5, room.rect.depth / 4.2)));
+      addDecoration(decorations, room, devices, "conferenceTable", center, deskRotation, tableScale);
+
+      const sideChairCount = Math.max(2, Math.min(4, Math.floor(tableScale * 2.6)));
+      for (let index = 0; index < sideChairCount; index++) {
+        const along =
+          sideChairCount === 1 ? 0 : -0.82 * tableScale + (1.64 * tableScale * index) / (sideChairCount - 1);
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "chair",
+          offsetPosition(center, along, -0.82 * tableScale, deskRotation),
+          deskRotation,
+          0.9,
+        );
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "chair",
+          offsetPosition(center, along, 0.82 * tableScale, deskRotation),
+          deskRotation + Math.PI,
+          0.9,
+        );
+      }
+      addDecoration(
+        decorations,
+        room,
+        devices,
+        "chair",
+        offsetPosition(center, -1.38 * tableScale, 0, deskRotation),
+        deskRotation + Math.PI / 2,
+        0.9,
+      );
+      addDecoration(
+        decorations,
+        room,
+        devices,
+        "chair",
+        offsetPosition(center, 1.38 * tableScale, 0, deskRotation),
+        deskRotation - Math.PI / 2,
+        0.9,
+      );
+      addCornerAccents(decorations, room, devices, ["plant", "plant", "cabinet", "wasteBin"], 0.82);
       break;
     }
     case "break-room": {
-      addGrid(decorations, room, devices, "table", 1, 1, { inset: 1.2 });
-      const chairs = gridPositions(room.rect, 2, 2, 1.05);
-      for (const position of chairs) addDecoration(decorations, room, devices, "chair", position);
-      addGrid(decorations, room, devices, "counter", 1, 1, { inset: 0.55 });
+      const tables = adaptiveGridPositions(room.rect, 2.5, 2.45, { inset: 1.25, maxColumns: 3, maxRows: 3 });
+      for (const position of tables) {
+        addDecoration(decorations, room, devices, "table", position, deskRotation, 0.9);
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "chair",
+          offsetPosition(position, 0, -0.72, deskRotation),
+          deskRotation,
+          0.82,
+        );
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "chair",
+          offsetPosition(position, 0, 0.72, deskRotation),
+          deskRotation + Math.PI,
+          0.82,
+        );
+      }
+      for (const position of edgePositions(room.rect, wide ? "top" : "left", 2.1, { max: 3, wallOffset: 0.38 })) {
+        addDecoration(decorations, room, devices, "counter", position, wide ? 0 : Math.PI / 2, 0.85);
+      }
+      addCornerAccents(decorations, room, devices, ["plant", "wasteBin", "plant", "cabinet"], 0.78);
       break;
     }
     case "lobby": {
-      addDecoration(decorations, room, devices, "receptionDesk", center, deskRotation);
-      addGrid(decorations, room, devices, "sofa", 2, 1, { inset: 0.9, rotation: deskRotation });
-      addGrid(decorations, room, devices, "plant", 2, 2, { inset: 0.6, scale: 0.9 });
+      const receptionPosition = wide ? { x: center.x, z: room.rect.z + 0.85 } : { x: room.rect.x + 0.85, z: center.z };
+      addDecoration(decorations, room, devices, "receptionDesk", receptionPosition, deskRotation, 0.95);
+      const sofaEdge = wide ? "bottom" : "right";
+      for (const position of edgePositions(room.rect, sofaEdge, 2.05, { max: 4, wallOffset: 0.65 })) {
+        addDecoration(decorations, room, devices, "sofa", position, deskRotation, 0.9);
+      }
+      addDecoration(decorations, room, devices, "table", center, deskRotation, 0.55);
+      addCornerAccents(decorations, room, devices, ["plant", "plant", "plant", "plant"], 0.9);
       break;
     }
     case "warehouse": {
-      addGrid(decorations, room, devices, "rack", wide ? 3 : 2, wide ? 2 : 3, {
-        inset: 0.9,
+      addAdaptiveGrid(decorations, room, devices, "rack", wide ? 1.85 : 1.55, wide ? 1.55 : 1.85, {
+        gap: 0.3,
+        inset: 1.05,
+        maxColumns: 7,
+        maxRows: 5,
         rotation: deskRotation,
       });
-      addGrid(decorations, room, devices, "pallet", 2, 1, { inset: 1.25 });
+      addCornerAccents(decorations, room, devices, ["pallet", "crate", "pallet", "crate"], 0.82);
       break;
     }
     case "loading-bay": {
-      addGrid(decorations, room, devices, "pallet", 2, 2, { inset: 1 });
-      addGrid(decorations, room, devices, "crate", 3, 1, { inset: 1.15, scale: 0.85 });
+      addAdaptiveGrid(decorations, room, devices, "pallet", 1.65, 1.45, {
+        gap: 0.3,
+        inset: 1,
+        maxColumns: 6,
+        maxRows: 5,
+      });
+      for (const position of edgePositions(room.rect, wide ? "bottom" : "right", 1.4, { max: 6, wallOffset: 0.45 })) {
+        addDecoration(decorations, room, devices, "crate", position, 0, 0.78);
+      }
+      addCornerAccents(decorations, room, devices, ["barrel", "safetyCone", "barrel", "safetyCone"], 0.82);
       break;
     }
     case "storage": {
-      addGrid(decorations, room, devices, "rack", 2, 2, { inset: 0.85, rotation: deskRotation, scale: 0.9 });
-      addGrid(decorations, room, devices, "crate", 2, 1, { inset: 1.1, scale: 0.8 });
+      addAdaptiveGrid(decorations, room, devices, "rack", wide ? 1.55 : 1.4, wide ? 1.4 : 1.55, {
+        gap: 0.25,
+        inset: 0.85,
+        maxColumns: 5,
+        maxRows: 4,
+        rotation: deskRotation,
+        scale: 0.9,
+      });
+      addCornerAccents(decorations, room, devices, ["crate", "crate", "pallet", "wasteBin"], 0.75);
       break;
     }
     case "factory-floor": {
-      addGrid(decorations, room, devices, "machine", wide ? 3 : 2, wide ? 2 : 3, {
-        inset: 1.1,
+      addAdaptiveGrid(decorations, room, devices, "machine", 2.2, 2.05, {
+        gap: 0.35,
+        inset: 1.15,
+        maxColumns: 6,
+        maxRows: 5,
         rotation: deskRotation,
       });
-      addGrid(decorations, room, devices, "pallet", 2, 1, { inset: 1.3 });
+      for (const position of edgePositions(room.rect, wide ? "bottom" : "right", 1.65, { max: 6, wallOffset: 0.55 })) {
+        addDecoration(decorations, room, devices, "pallet", position, deskRotation, 0.8);
+      }
+      addCornerAccents(decorations, room, devices, ["safetyCone", "barrel", "safetyCone", "wasteBin"], 0.8);
       break;
     }
     case "server-room": {
-      addGrid(decorations, room, devices, "serverRack", wide ? 3 : 2, wide ? 2 : 3, {
-        inset: 0.7,
+      addAdaptiveGrid(decorations, room, devices, "serverRack", wide ? 1.45 : 1.3, wide ? 1.3 : 1.45, {
+        gap: 0.25,
+        inset: 0.72,
+        maxColumns: 6,
+        maxRows: 5,
         rotation: deskRotation,
       });
+      addCornerAccents(decorations, room, devices, ["cabinet", "wasteBin", "cabinet", "wasteBin"], 0.7);
       break;
     }
     case "laboratory": {
-      addGrid(decorations, room, devices, "labBench", 2, 1, { inset: 1, rotation: deskRotation });
-      addGrid(decorations, room, devices, "stool", 2, 2, { inset: 1.15 });
-      addGrid(decorations, room, devices, "cabinet", 1, 1, { inset: 0.6, scale: 0.9 });
+      const benches = adaptiveGridPositions(room.rect, wide ? 1.8 : 1.65, wide ? 1.65 : 1.8, {
+        gap: 0.3,
+        inset: 0.9,
+        maxColumns: 5,
+        maxRows: 4,
+      });
+      for (const position of benches) {
+        addDecoration(decorations, room, devices, "labBench", position, deskRotation);
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "stool",
+          offsetPosition(position, 0, 0.72, deskRotation),
+          deskRotation,
+          0.85,
+        );
+      }
+      addCornerAccents(decorations, room, devices, ["cabinet", "plant", "cabinet", "wasteBin"], 0.78);
       break;
     }
     case "generic": {
-      addDecoration(decorations, room, devices, "desk", center, deskRotation);
-      addGrid(decorations, room, devices, "chair", 2, 1, { inset: 1.1 });
-      addGrid(decorations, room, devices, "plant", 1, 1, { inset: 0.55, scale: 0.8 });
+      const desks = adaptiveGridPositions(room.rect, 1.55, 1.35, {
+        gap: 0.25,
+        inset: 0.75,
+        maxColumns: 4,
+        maxRows: 4,
+      });
+      for (const position of desks) {
+        addDecoration(decorations, room, devices, "desk", position, deskRotation, 0.9);
+        addDecoration(
+          decorations,
+          room,
+          devices,
+          "chair",
+          offsetPosition(position, 0, 0.68, deskRotation),
+          deskRotation,
+          0.82,
+        );
+      }
+      addCornerAccents(decorations, room, devices, ["plant", "cabinet", "plant", "wasteBin"], 0.78);
       break;
     }
   }
