@@ -123,7 +123,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-temp-001",
         sensor_type=SensorType.TEMPERATURE,
-        label="Temperature Sensor — Main Lobby",
+        label="Temperature Sensor",
         value_min=18.0,
         value_max=30.0,
         value_unit="°C",
@@ -132,7 +132,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-humidity-001",
         sensor_type=SensorType.HUMIDITY,
-        label="Humidity Sensor — Warehouse A",
+        label="Humidity Sensor",
         value_min=30.0,
         value_max=70.0,
         value_unit="%RH",
@@ -141,7 +141,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-pressure-001",
         sensor_type=SensorType.PRESSURE,
-        label="Barometric Pressure — Outdoor",
+        label="Pressure Sensor",
         value_min=980.0,
         value_max=1040.0,
         value_unit="hPa",
@@ -150,7 +150,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-light-001",
         sensor_type=SensorType.LIGHT,
-        label="Ambient Light — Office South",
+        label="Light Sensor",
         value_min=0.0,
         value_max=1200.0,
         value_unit="lux",
@@ -159,7 +159,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-motion-001",
         sensor_type=SensorType.MOTION,
-        label="Motion Detector — Corridor B",
+        label="Motion Sensor",
         value_min=0.0,
         value_max=1.0,
         value_unit="detected",
@@ -172,7 +172,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-air-001",
         sensor_type=SensorType.AIR_QUALITY,
-        label="Air Quality — Server Room",
+        label="Air Quality Sensor",
         value_min=350.0,
         value_max=1200.0,
         value_unit="ppm",
@@ -185,7 +185,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-leak-001",
         sensor_type=SensorType.LEAK,
-        label="Leak Detector — Boiler Room",
+        label="Leak Sensor",
         value_min=0.0,
         value_max=1.0,
         value_unit="leak",
@@ -194,7 +194,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-vibration-001",
         sensor_type=SensorType.VIBRATION,
-        label="Vibration Sensor — Pump Unit 3",
+        label="Vibration Sensor",
         value_min=0.0,
         value_max=25.0,
         value_unit="mm/s",
@@ -203,7 +203,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-door-001",
         sensor_type=SensorType.DOOR_CONTACT,
-        label="Door Contact — Emergency Exit E1",
+        label="Door Contact Sensor",
         value_min=0.0,
         value_max=1.0,
         value_unit="open",
@@ -212,7 +212,7 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
     SensorDevice(
         device_id="sensor-battery-001",
         sensor_type=SensorType.BATTERY,
-        label="UPS Battery Health — Rack 4",
+        label="Battery Sensor",
         value_min=0.0,
         value_max=100.0,
         value_unit="%",

@@ -1,25 +1,179 @@
 {
   "videos": [
     {
-      "id": "factoryfloor",
-      "file": "factoryfloor.mp4",
+      "id": "factory-floor",
+      "file": "factory-floor.mp4",
       "label": "Factory Floor",
-      "description": "Sample CCTV Video for Testing.",
+      "description": "A fixed-camera view of an active factory floor.",
       "tags": ["indoor"]
     },
     {
-      "id": "factoryfloor2",
-      "file": "factoryfloor2.mp4",
-      "label": "Factory Floor 2",
-      "description": "Sampe CCTV Video for Testing.",
+      "id": "factory-floor-alt",
+      "file": "factory-floor-alt.mp4",
+      "label": "Factory Floor Alt",
+      "description": "A second factory-floor view with ongoing production activity.",
       "tags": ["indoor"]
     },
     {
-      "id": "parkinglot",
-      "file": "parkinglot.mp4",
+      "id": "parking-lot",
+      "file": "parking-lot.mp4",
       "label": "Parking Lot",
-      "description": "Sample CCTV Video for Testing.",
+      "description": "A wide outdoor view of vehicles in a parking lot.",
       "tags": ["outdoor"]
+    },
+    {
+      "id": "generic-living-room",
+      "file": "generic-living-room.mp4",
+      "label": "Generic Living Room",
+      "description": "A bright, modern living space with large windows.",
+      "tags": ["indoor", "generic"]
+    },
+    {
+      "id": "generic-corridor",
+      "file": "generic-corridor.mp4",
+      "label": "Generic Corridor",
+      "description": "A long illuminated corridor with a clean, neutral layout.",
+      "tags": ["indoor", "generic"]
+    },
+    {
+      "id": "office-workspace",
+      "file": "office-workspace.mp4",
+      "label": "Office Workspace",
+      "description": "Coworkers collaborate in a contemporary open workspace.",
+      "tags": ["indoor", "office"]
+    },
+    {
+      "id": "office-interior",
+      "file": "office-interior.mp4",
+      "label": "Office Interior",
+      "description": "A bright contemporary office interior with workstations.",
+      "tags": ["indoor", "office"]
+    },
+    {
+      "id": "car-park-aerial",
+      "file": "car-park-aerial.mp4",
+      "label": "Car Park Aerial",
+      "description": "An aerial view of a busy urban car park in daylight.",
+      "tags": ["outdoor", "car-park"]
+    },
+    {
+      "id": "car-park-road",
+      "file": "car-park-road.mp4",
+      "label": "Car Park by Road",
+      "description": "An aerial view of parked cars beside a busy road.",
+      "tags": ["outdoor", "car-park"]
+    },
+    {
+      "id": "factory-floor-production-line",
+      "file": "factory-floor-production-line.mp4",
+      "label": "Factory Production Line",
+      "description": "An overhead view of an automated factory production line.",
+      "tags": ["indoor", "factory-floor"]
+    },
+    {
+      "id": "factory-floor-high-tech",
+      "file": "factory-floor-high-tech.mp4",
+      "label": "High-Tech Factory Floor",
+      "description": "A high-tech manufacturing floor with robotics and conveyor belts.",
+      "tags": ["indoor", "factory-floor"]
+    },
+    {
+      "id": "warehouse-racks",
+      "file": "warehouse-racks.mp4",
+      "label": "Warehouse Racks",
+      "description": "A wide view of organized warehouse storage racks.",
+      "tags": ["indoor", "warehouse"]
+    },
+    {
+      "id": "storage-stock-room",
+      "file": "storage-stock-room.mp4",
+      "label": "Warehouse Stock Room",
+      "description": "A stock room with shelving and stored inventory.",
+      "tags": ["indoor", "warehouse", "storage"]
+    },
+    {
+      "id": "loading-bay-truck",
+      "file": "loading-bay-truck.mp4",
+      "label": "Loading Bay Truck",
+      "description": "An aerial view of a truck at an outdoor loading bay.",
+      "tags": ["outdoor", "loading-bay"]
+    },
+    {
+      "id": "loading-bay-trailers",
+      "file": "loading-bay-trailers.mp4",
+      "label": "Loading Bay Trailers",
+      "description": "A loading zone with trailers, forklifts, and warehouse activity.",
+      "tags": ["outdoor", "loading-bay"]
+    },
+    {
+      "id": "storage-box-aisles",
+      "file": "storage-box-aisles.mp4",
+      "label": "Storage Box Aisles",
+      "description": "Storage aisles lined with stacked cardboard boxes.",
+      "tags": ["indoor", "storage"]
+    },
+    {
+      "id": "lobby-reception",
+      "file": "lobby-reception.mp4",
+      "label": "Lobby Reception",
+      "description": "A guest checks in at a modern reception desk.",
+      "tags": ["indoor", "lobby"]
+    },
+    {
+      "id": "lobby-museum-hall",
+      "file": "lobby-museum-hall.mp4",
+      "label": "Lobby Hall",
+      "description": "A bright lobby hall with tall windows and open walkways.",
+      "tags": ["indoor", "lobby"]
+    },
+    {
+      "id": "meeting-room-presentation",
+      "file": "meeting-room-presentation.mp4",
+      "label": "Meeting Room Presentation",
+      "description": "A professional presents in a modern conference room.",
+      "tags": ["indoor", "meeting-room"]
+    },
+    {
+      "id": "meeting-room-team",
+      "file": "meeting-room-team.mp4",
+      "label": "Meeting Room Team",
+      "description": "A team meets around a conference table.",
+      "tags": ["indoor", "meeting-room"]
+    },
+    {
+      "id": "break-room-pantry",
+      "file": "break-room-pantry.mp4",
+      "label": "Break Room Pantry",
+      "description": "Coworkers talk in an office pantry during a break.",
+      "tags": ["indoor", "break-room"]
+    },
+    {
+      "id": "break-room-coffee",
+      "file": "break-room-coffee.mp4",
+      "label": "Break Room Coffee",
+      "description": "An employee takes a coffee break in a modern office.",
+      "tags": ["indoor", "break-room"]
+    },
+    {
+      "id": "server-room-racks",
+      "file": "server-room-racks.mp4",
+      "label": "Server Room Racks",
+      "description": "Close-up server racks with illuminated status indicators.",
+      "tags": ["indoor", "server-room"]
+    },
+    {
+      "id": "server-room-data-center",
+      "file": "server-room-data-center.mp4",
+      "label": "Server Room Data Center",
+      "description": "A corridor of server racks in a modern data center.",
+      "tags": ["indoor", "server-room"]
+    },
+    {
+      "id": "laboratory-microscope",
+      "file": "laboratory-microscope.mp4",
+      "label": "Laboratory Microscope",
+      "description": "Researchers work with a microscope in a bright laboratory.",
+      "tags": ["indoor", "laboratory"]
     }
   ]
 }
