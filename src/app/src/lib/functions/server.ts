@@ -13,11 +13,13 @@ const log = createLogger("server-functions");
 const APP_URL = env.APP_URL ?? "https://facilix.dennise.me";
 
 /** Simulator base URL (API + HLS) passed to the monitoring container. */
-const SIMULATOR_URL = (env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix-simulator.fly.dev";
+const SIMULATOR_URL = (env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix.fly.dev";
 
 /** Roboflow API configuration passed to the container for video processing. */
 const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
 const ROBOFLOW_API_BASE = "https://serverless.roboflow.com";
+const STOP_GRACE_PERIOD_MS = 5_000;
+const STOP_POLL_INTERVAL_MS = 250;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -25,7 +27,7 @@ const ROBOFLOW_API_BASE = "https://serverless.roboflow.com";
  * Map Container state from `getState()` to our simplified MonitoringStatus.
  *
  * Container states from @cloudflare/containers:
- *   - "starting"      (pre-health, booting)
+ *   - "running"       (pre-health, booting)
  *   - "healthy"       (fully running, accepting traffic)
  *   - "stopping"      (shutting down in response to stop/destroy)
  *   - "stopped"       (exited cleanly)
@@ -35,6 +37,7 @@ function mapContainerState(state: { status: string }): MonitoringStatus {
   switch (state.status) {
     case "healthy":
       return "running";
+    case "running":
     case "starting":
       return "starting";
     case "stopping":
@@ -44,6 +47,21 @@ function mapContainerState(state: { status: string }): MonitoringStatus {
     default:
       return "stopped";
   }
+}
+
+function isContainerStopped(state: { status: string }) {
+  return state.status === "stopped" || state.status === "stopped_with_code";
+}
+
+async function waitForContainerToStop(stub: { getState(): Promise<{ status: string }> }) {
+  const deadline = Date.now() + STOP_GRACE_PERIOD_MS;
+
+  while (Date.now() < deadline) {
+    if (isContainerStopped(await stub.getState())) return true;
+    await new Promise((resolve) => setTimeout(resolve, STOP_POLL_INTERVAL_MS));
+  }
+
+  return isContainerStopped(await stub.getState());
 }
 
 // ─── Exported types ───────────────────────────────────────────────────────
@@ -89,6 +107,11 @@ export const startMonitoring = createServerFn({ method: "POST" })
     await requireFacilityAccess(data.facilityId);
     try {
       const stub = env.SERVER.getByName(data.facilityId);
+      const state = await stub.getState();
+      if (state.status === "healthy") {
+        return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
+      }
+
       await stub.startAndWaitForPorts({
         startOptions: {
           envVars: {
@@ -102,8 +125,9 @@ export const startMonitoring = createServerFn({ method: "POST" })
         },
       });
       return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
-    } catch {
-      return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
+    } catch (err) {
+      log.error("startMonitoring failed", { error: String(err), facilityId: data.facilityId });
+      throw new Error(`Failed to start monitoring for facility ${data.facilityId}`, { cause: err });
     }
   });
 
@@ -119,12 +143,21 @@ export const stopMonitoring = createServerFn({ method: "POST" })
     await requireFacilityAccess(data.facilityId);
     try {
       const stub = env.SERVER.getByName(data.facilityId);
+      const state = await stub.getState();
+      if (isContainerStopped(state)) {
+        return { facilityId: data.facilityId, status: "stopped" } satisfies MonitoringActionResult;
+      }
+
       await stub.stop();
-      // Give the container a moment to transition to stopped state
-      const ret = await stub.getState();
-      return { facilityId: data.facilityId, status: mapContainerState(ret) } satisfies MonitoringActionResult;
-    } catch {
-      return { facilityId: data.facilityId, status: "error" } satisfies MonitoringActionResult;
+      if (!(await waitForContainerToStop(stub))) {
+        log.warn("Graceful monitoring stop timed out; destroying container", { facilityId: data.facilityId });
+        await stub.destroy();
+      }
+
+      return { facilityId: data.facilityId, status: "stopped" } satisfies MonitoringActionResult;
+    } catch (err) {
+      log.error("stopMonitoring failed", { error: String(err), facilityId: data.facilityId });
+      throw new Error(`Failed to stop monitoring for facility ${data.facilityId}`, { cause: err });
     }
   });
 

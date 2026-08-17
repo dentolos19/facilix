@@ -203,6 +203,8 @@ function Page() {
   // ── Monitoring container status ────────────────────────────────────────
   const [monitoringStatus, setMonitoringStatus] = useState<MonitoringStatus>("stopped");
   const [isMonitoringChanging, setIsMonitoringChanging] = useState(false);
+  const monitoringActionInFlightRef = useRef<number | null>(null);
+  const monitoringRequestVersionRef = useRef(0);
   const [editConfirmOpen, setEditConfirmOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -336,15 +338,55 @@ function Page() {
 
   // ── Fetch initial monitoring status on mount ───────────────────────────
   useEffect(() => {
+    const requestVersion = ++monitoringRequestVersionRef.current;
+    monitoringActionInFlightRef.current = null;
+    setIsMonitoringChanging(false);
+    let canceled = false;
+
     (async () => {
       try {
         const result = await getMonitoringStatus({ data: { facilityId } });
-        setMonitoringStatus(result.status);
+        if (!canceled && requestVersion === monitoringRequestVersionRef.current) {
+          setMonitoringStatus(result.status);
+        }
       } catch {
         // Non-critical; default to stopped
       }
     })();
+
+    return () => {
+      canceled = true;
+    };
   }, [facilityId]);
+
+  // Keep externally observed start/stop transitions moving toward a terminal state.
+  useEffect(() => {
+    if (isMonitoringChanging || (monitoringStatus !== "starting" && monitoringStatus !== "stopping")) return;
+
+    const requestVersion = monitoringRequestVersionRef.current;
+    let canceled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const refreshStatus = async () => {
+      try {
+        const result = await getMonitoringStatus({ data: { facilityId } });
+        if (canceled || requestVersion !== monitoringRequestVersionRef.current) return;
+
+        setMonitoringStatus(result.status);
+        if (result.status === "starting" || result.status === "stopping") {
+          timer = setTimeout(refreshStatus, 500);
+        }
+      } catch {
+        if (!canceled) timer = setTimeout(refreshStatus, 1_000);
+      }
+    };
+
+    timer = setTimeout(refreshStatus, 500);
+    return () => {
+      canceled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [facilityId, isMonitoringChanging, monitoringStatus]);
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
@@ -596,6 +638,53 @@ function Page() {
 
   // ── Monitoring container controls ────────────────────────────────────────
 
+  const runMonitoringAction = useCallback(
+    async (action: "start" | "stop") => {
+      if (monitoringActionInFlightRef.current !== null) return false;
+
+      const requestVersion = ++monitoringRequestVersionRef.current;
+      monitoringActionInFlightRef.current = requestVersion;
+      const targetStatus: MonitoringStatus = action === "start" ? "running" : "stopped";
+      setMonitoringStatus(action === "start" ? "starting" : "stopping");
+      setIsMonitoringChanging(true);
+
+      let confirmedStatus: MonitoringStatus = "error";
+      try {
+        const result =
+          action === "start"
+            ? await startMonitoring({ data: { facilityId } })
+            : await stopMonitoring({ data: { facilityId } });
+        confirmedStatus = result.status;
+      } catch {
+        try {
+          const result = await getMonitoringStatus({ data: { facilityId } });
+          confirmedStatus = result.status;
+        } catch {
+          confirmedStatus = "error";
+        }
+      } finally {
+        if (monitoringActionInFlightRef.current === requestVersion) {
+          monitoringActionInFlightRef.current = null;
+        }
+        if (requestVersion === monitoringRequestVersionRef.current) {
+          setMonitoringStatus(confirmedStatus);
+          setIsMonitoringChanging(false);
+        }
+      }
+
+      if (requestVersion !== monitoringRequestVersionRef.current) return false;
+
+      if (confirmedStatus === targetStatus) {
+        toast.success(action === "start" ? "Monitoring started" : "Monitoring stopped");
+        return true;
+      }
+
+      toast.error(action === "start" ? "Failed to start monitoring" : "Failed to stop monitoring");
+      return false;
+    },
+    [facilityId],
+  );
+
   const handleStartMonitoring = useCallback(async () => {
     // Validate CCTV devices have required stream config
     const items = placedItemsRef.current;
@@ -617,32 +706,12 @@ function Page() {
       }
     }
 
-    setIsMonitoringChanging(true);
-    try {
-      const result = await startMonitoring({ data: { facilityId } });
-      setMonitoringStatus(result.status);
-      toast.success("Monitoring started");
-    } catch {
-      toast.error("Failed to start monitoring");
-      setMonitoringStatus("error");
-    } finally {
-      setIsMonitoringChanging(false);
-    }
-  }, [facilityId]);
+    await runMonitoringAction("start");
+  }, [runMonitoringAction]);
 
   const handleStopMonitoring = useCallback(async () => {
-    setIsMonitoringChanging(true);
-    try {
-      const result = await stopMonitoring({ data: { facilityId } });
-      setMonitoringStatus(result.status);
-      toast.success("Monitoring stopped");
-    } catch {
-      toast.error("Failed to stop monitoring");
-      setMonitoringStatus("error");
-    } finally {
-      setIsMonitoringChanging(false);
-    }
-  }, [facilityId]);
+    await runMonitoringAction("stop");
+  }, [runMonitoringAction]);
 
   // ── Save ─────────────────────────────────────────────────────────────────
 
@@ -921,19 +990,11 @@ function Page() {
 
   const handleConfirmEdit = useCallback(async () => {
     setEditConfirmOpen(false);
-    setIsMonitoringChanging(true);
-    try {
-      await stopMonitoring({ data: { facilityId } });
-      setMonitoringStatus("stopped");
-      setSelectedItemId(monitoringDeviceId);
-      setEditMode("edit");
-    } catch {
-      toast.error("Failed to stop monitoring before editing");
-      setMonitoringStatus("error");
-    } finally {
-      setIsMonitoringChanging(false);
-    }
-  }, [facilityId, monitoringDeviceId, setEditMode]);
+    if (!(await runMonitoringAction("stop"))) return;
+
+    setSelectedItemId(monitoringDeviceId);
+    setEditMode("edit");
+  }, [monitoringDeviceId, runMonitoringAction, setEditMode]);
 
   // ── Keyboard shortcuts (edit mode only) ─────────────────────────────────
   useHotkeys([
