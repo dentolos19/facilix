@@ -103,12 +103,7 @@ jobs:
         env:
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
         run: |
-          test -n "$SIMULATOR_TOKEN"
           printf 'SIMULATOR_TOKEN=%s\n' "$SIMULATOR_TOKEN" | flyctl secrets import
-
-      - name: Scale Machines
-        working-directory: src/simulator
-        run: flyctl scale count 1 --region sin --max-per-region 1 --yes
 
       - name: Deploy Simulator to Fly
         working-directory: src/simulator

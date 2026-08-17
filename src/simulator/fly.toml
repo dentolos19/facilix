@@ -8,9 +8,9 @@ cpu_kind = "performance"
 
 [[services]]
 internal_port = 8000
-protocol = 'tcp'
+protocol = "tcp"
 auto_start_machines = false
-auto_stop_machines = true
+auto_stop_machines = false
 
 [[services.ports]]
 port = 80
