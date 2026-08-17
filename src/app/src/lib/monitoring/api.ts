@@ -14,18 +14,18 @@ const MAX_SEGMENT_SIZE = 50 * 1024 * 1024; // 50 MB
 /**
  * Resolve a CCTV device's stream URL based on its video source.
  *
- * - "simulation": build RTSP URL from env.SIMULATION_RTSP_URL + stream name.
+ * - "simulation": build public HLS URL from env.SIMULATOR_URL + stream name.
  * - "rtsp"/"rtmp"/"http": use the raw streamUrl as-is.
  * - Returns empty string if the required fields are missing.
  */
-function resolveCctvStreamUrl(data: JsonObject, simulationRtspBase: string): string {
+function resolveCctvStreamUrl(data: JsonObject, simulatorUrl: string): string {
   const videoSource = String(data.videoSource ?? "simulation");
 
   if (videoSource === "simulation") {
     const streamName = String(data.simulationStream ?? "");
     if (!streamName) return "";
-    const base = simulationRtspBase.replace(/\/$/, "");
-    return `${base}/${encodeURIComponent(streamName)}`;
+    const base = simulatorUrl.replace(/\/$/, "");
+    return `${base}/cctv/${encodeURIComponent(streamName)}/hls/index.m3u8`;
   }
 
   return String(data.streamUrl ?? "");
@@ -146,7 +146,7 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
 
   const devices = await db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, facilityId));
 
-  const simulationRtspBase = String(env.SIMULATION_RTSP_URL ?? "rtsp://localhost:3003");
+  const simulatorUrl = String(env.SIMULATOR_URL ?? "https://facilix.fly.dev");
 
   return Response.json({
     facilityId,
@@ -156,7 +156,7 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
       .map((d) => ({
         id: d.id,
         name: d.name,
-        streamUrl: resolveCctvStreamUrl(d.data, simulationRtspBase),
+        streamUrl: resolveCctvStreamUrl(d.data, simulatorUrl),
         videoSource: String(d.data.videoSource ?? "simulation"),
         simulationStream: String(d.data.simulationStream ?? ""),
         status: d.status,

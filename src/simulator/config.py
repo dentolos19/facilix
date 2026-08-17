@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load local simulator settings without overriding Docker or Fly environment variables.
+load_dotenv(Path(__file__).with_name(".env"), override=False)
 
 # ---------------------------------------------------------------------------
 # Samples — the single override point for the sample directory.
@@ -22,9 +28,12 @@ MEDIAMTX_RTSP_PORT = 8554
 MEDIAMTX_RTMP_PORT = 1935
 MEDIAMTX_HLS_URL = "http://localhost:8888"
 
-# While low-latency HLS is assembling the first segment the endpoint can
-# block; this is the fetch timeout for the proxy.
-MEDIAMTX_HLS_TIMEOUT_SECONDS = 30
+# Stream startup waits separately for HLS readiness. Keep proxy requests short
+# so an unavailable MediaMTX endpoint becomes a clear 504 instead of tying up
+# the API worker for half a minute.
+MEDIAMTX_HLS_TIMEOUT_SECONDS = 5
+HLS_HEALTH_TIMEOUT_SECONDS = 3
+HLS_STARTUP_TIMEOUT_SECONDS = 10
 
 # ---------------------------------------------------------------------------
 # CCTV health
@@ -62,6 +71,7 @@ if _seed_raw is not None:
 # ---------------------------------------------------------------------------
 
 LOG_LEVEL = "info"
+SIMULATOR_TOKEN = os.environ.get("SIMULATOR_TOKEN", "")
 
 # Comma-separated origins allowed to call the simulator from a browser.
 DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://localhost:3001,http://localhost:5173,https://local.dennise.me,https://facilix.dennise.me"

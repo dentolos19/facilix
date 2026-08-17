@@ -1,13 +1,15 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ExternalLinkIcon, ShieldAlertIcon } from "lucide-react";
+import { ExternalLinkIcon, Loader2Icon, PlayIcon, ShieldAlertIcon, SquareIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "#/components/ui/button";
 import { ScrollArea } from "#/components/ui/scroll-area";
 import type { FacilityEventView } from "#/lib/functions/events";
 import type { SensorReadingRow } from "#/lib/functions/sensors";
 import { getLatestSensorReading } from "#/lib/functions/sensors";
+import { startSimulationStream, stopSimulationStream } from "#/lib/functions/settings";
 import { getPlugin, normalizePlugins } from "#/lib/monitoring/plugins";
-import { simulationHlsUrl } from "#/lib/simulation/cctv";
+import { fetchSimulationStreams, simulationHlsUrl, type SimulationStream } from "#/lib/simulation/cctv";
 
 import type { PlacedItem } from "../-helpers/types";
 import { CctvPlayer } from "./cctv-player";
@@ -162,10 +164,17 @@ export function DeviceDetailsPanel({
   const navigate = useNavigate();
   const isCCTV = selectedDevice?.type === "CCTV";
   const isSensor = selectedDevice?.type === "Sensor";
+  const simulationStreamName =
+    isCCTV && String(selectedDevice.props.videoSource ?? "simulation") === "simulation"
+      ? String(selectedDevice.props.simulationStream ?? "")
+      : "";
 
   // Fetch the latest sensor reading for sensor devices to determine real status
   const [sensorReading, setSensorReading] = useState<SensorReadingRow | null>(null);
   const [readingLoading, setReadingLoading] = useState(false);
+  const [simulationStream, setSimulationStream] = useState<SimulationStream | null>(null);
+  const [simulationStreamActionLoading, setSimulationStreamActionLoading] = useState(false);
+  const [simulationStreamError, setSimulationStreamError] = useState<string | null>(null);
 
   useEffect(() => {
     setSensorReading(null);
@@ -189,6 +198,41 @@ export function DeviceDetailsPanel({
       cancelled = true;
     };
   }, [isSensor, facilityId, selectedDevice]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSimulationStream(null);
+    setSimulationStreamError(null);
+    if (!simulationStreamName) return;
+
+    fetchSimulationStreams().then((streams) => {
+      if (!cancelled) setSimulationStream(streams.find((stream) => stream.name === simulationStreamName) ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [simulationStreamName]);
+
+  async function toggleSimulationStream() {
+    if (!simulationStreamName) return;
+
+    setSimulationStreamActionLoading(true);
+    setSimulationStreamError(null);
+    try {
+      if (simulationStream?.status === "running" || simulationStream?.status === "starting") {
+        await stopSimulationStream({ data: { name: simulationStreamName } });
+      } else {
+        await startSimulationStream({ data: { name: simulationStreamName } });
+      }
+      const streams = await fetchSimulationStreams();
+      setSimulationStream(streams.find((stream) => stream.name === simulationStreamName) ?? null);
+    } catch (error) {
+      setSimulationStreamError(error instanceof Error ? error.message : "Unable to update simulation stream.");
+    } finally {
+      setSimulationStreamActionLoading(false);
+    }
+  }
 
   // Derive the real device status
   const deviceStatus = isSensor
@@ -246,14 +290,18 @@ export function DeviceDetailsPanel({
                     )}
                   </div>
                 </div>
-                <button
-                  aria-label="View device details"
-                  className="text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground flex size-6 items-center justify-center rounded transition-colors"
-                  onClick={() => navigate({ to: "/device/$id", params: { id: selectedDevice.id } })}
-                >
-                  <ExternalLinkIcon className="size-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    aria-label="View device details"
+                    className="text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground flex size-6 items-center justify-center rounded transition-colors"
+                    onClick={() => navigate({ to: "/device/$id", params: { id: selectedDevice.id } })}
+                  >
+                    <ExternalLinkIcon className="size-3.5" />
+                  </button>
+                </div>
               </div>
+
+              {simulationStreamError && <p className="text-destructive mt-2 text-[10px]">{simulationStreamError}</p>}
 
               {/* Inline properties */}
               {(() => {
@@ -331,12 +379,41 @@ export function DeviceDetailsPanel({
                 <h4 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                   Live Feed
                 </h4>
-                <CctvPlayer
-                  hlsUrl={cctvHlsUrl}
-                  streamName={
-                    selectedDevice.type === "CCTV" ? String(selectedDevice.props.simulationStream ?? "") : undefined
-                  }
-                />
+                <div className="relative">
+                  <CctvPlayer
+                    hlsUrl={cctvHlsUrl}
+                    key={`${simulationStreamName}:${simulationStream?.status ?? "unknown"}`}
+                    streamName={
+                      selectedDevice.type === "CCTV" ? String(selectedDevice.props.simulationStream ?? "") : undefined
+                    }
+                  />
+                  {simulationStreamName && (
+                    <Button
+                      aria-label={
+                        simulationStream?.status === "running" || simulationStream?.status === "starting"
+                          ? "Stop simulation stream"
+                          : "Start simulation stream"
+                      }
+                      className="absolute top-2 right-2 z-30 bg-background/85 backdrop-blur-sm"
+                      disabled={simulationStreamActionLoading}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void toggleSimulationStream();
+                      }}
+                      size="icon-xs"
+                      type="button"
+                      variant="outline"
+                    >
+                      {simulationStreamActionLoading ? (
+                        <Loader2Icon className="animate-spin" />
+                      ) : simulationStream?.status === "running" || simulationStream?.status === "starting" ? (
+                        <SquareIcon />
+                      ) : (
+                        <PlayIcon />
+                      )}
+                    </Button>
+                  )}
+                </div>
                 {cctvHlsUrl && <p className="text-muted-foreground/50 text-[10px] break-all">{cctvHlsUrl}</p>}
               </div>
             )}

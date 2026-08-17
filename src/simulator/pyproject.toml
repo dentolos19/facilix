@@ -2,7 +2,11 @@
 name = "facilix-simulator"
 version = "1.0.0"
 requires-python = ">=3.12"
-dependencies = ["fastapi", "uvicorn"]
+dependencies = [
+    "fastapi",
+    "python-dotenv>=1.2.3",
+    "uvicorn",
+]
 
 [dependency-groups]
 dev = ["ruff"]

@@ -43,20 +43,41 @@ jobs:
 
       - name: Upload Secrets
         working-directory: src/app
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          SERVER_SECRET: ${{ secrets.SERVER_SECRET }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_TITLE: ${{ vars.OPENROUTER_TITLE }}
+          OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
+          VITE_SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
+          SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
+          SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
         run: |
-          echo "${{ vars.APP_URL }}" | bun wrangler secret put APP_URL
-          echo "${{ secrets.SERVER_SECRET }}" | bun wrangler secret put SERVER_SECRET
-          echo "${{ vars.BETTER_AUTH_URL }}" | bun wrangler secret put BETTER_AUTH_URL
-          echo "${{ secrets.BETTER_AUTH_SECRET }}" | bun wrangler secret put BETTER_AUTH_SECRET
-          echo "${{ secrets.OPENROUTER_API_KEY }}" | bun wrangler secret put OPENROUTER_API_KEY
-          echo "${{ vars.OPENROUTER_TITLE }}" | bun wrangler secret put OPENROUTER_TITLE
-          echo "${{ vars.OPENROUTER_REFERER }}" | bun wrangler secret put OPENROUTER_REFERER
-          echo "${{ vars.OPENROUTER_MODEL }}" | bun wrangler secret put OPENROUTER_MODEL
-          echo "${{ secrets.ROBOFLOW_API_KEY }}" | bun wrangler secret put ROBOFLOW_API_KEY
-          echo "${{ vars.VITE_SIMULATOR_API_URL }}" | bun wrangler secret put VITE_SIMULATOR_API_URL
-          echo "${{ vars.SIMULATOR_URL }}" | bun wrangler secret put SIMULATOR_URL
-          echo "${{ secrets.FLY_API_TOKEN }}" | bun wrangler secret put FLY_API_TOKEN
-          echo "${{ vars.FLY_APP_NAME }}" | bun wrangler secret put FLY_APP_NAME
+          bun wrangler secret list |
+            jq 'map({(.name): null}) | add // {}' |
+            bun wrangler secret bulk
+          jq -n '$ENV | {
+            APP_URL,
+            SERVER_SECRET,
+            BETTER_AUTH_URL,
+            BETTER_AUTH_SECRET,
+            OPENROUTER_API_KEY,
+            OPENROUTER_TITLE,
+            OPENROUTER_REFERER,
+            OPENROUTER_MODEL,
+            ROBOFLOW_API_KEY,
+            VITE_SIMULATOR_API_URL,
+            SIMULATOR_URL,
+            SIMULATOR_TOKEN,
+            FLY_API_TOKEN,
+            FLY_APP_NAME
+          }' | bun wrangler secret bulk
 
       - name: Deploy App to Cloudflare
         working-directory: src/app
@@ -77,6 +98,18 @@ jobs:
       - name: Setup Flyctl
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
+      - name: Upload Secrets
+        working-directory: src/simulator
+        env:
+          SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
+        run: |
+          test -n "$SIMULATOR_TOKEN"
+          printf 'SIMULATOR_TOKEN=%s\n' "$SIMULATOR_TOKEN" | flyctl secrets import
+
+      - name: Scale Machines
+        working-directory: src/simulator
+        run: flyctl scale count 1 --region sin --max-per-region 1 --yes
+
       - name: Deploy Simulator to Fly
         working-directory: src/simulator
-        run: flyctl deploy
+        run: flyctl deploy --ha=false --strategy immediate

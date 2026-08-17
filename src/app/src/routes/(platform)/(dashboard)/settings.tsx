@@ -19,7 +19,16 @@ import { Field, FieldLabel } from "#/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Switch } from "#/components/ui/switch";
 import { hasAdminRole, signOut, useSession } from "#/lib/auth/client";
-import { getSimulationStatus, startSimulation, stopSimulation, type SimulationStatus } from "#/lib/functions/settings";
+import {
+  getSimulationStatus,
+  getSimulationStreams,
+  startSimulation,
+  startSimulationStream,
+  stopSimulation,
+  stopSimulationStream,
+  type SimulationStatus,
+  type SimulationStream,
+} from "#/lib/functions/settings";
 import { getShowAllFacilitiesPreference, setShowAllFacilitiesPreference } from "#/lib/preferences";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
@@ -130,7 +139,7 @@ function Page() {
           </Card>
         )}
 
-        {isLocal ? <LocalSimulatorStatus /> : <FlySimulatorControl isAdmin={isAdmin} />}
+        {isLocal ? <LocalSimulatorStatus isAdmin={isAdmin} /> : <FlySimulatorControl isAdmin={isAdmin} />}
 
         <Card>
           <CardHeader>
@@ -155,29 +164,44 @@ function Page() {
 
 interface SimulatorHealth {
   ok: boolean;
-  cctv: { alive: number; total: number };
+  cctv: { total: number; requested: number; running: number; hlsReady: number; starting: number; failed: number };
   sensors: { total: number; online: number };
+}
+
+function simulatorApiUrl() {
+  return import.meta.env?.VITE_SIMULATOR_API_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
 }
 
 // ---------------------------------------------------------------------------
 // Local Simulator Status
 // ---------------------------------------------------------------------------
 
-function LocalSimulatorStatus() {
+function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
   const [health, setHealth] = useState<SimulatorHealth | null>(null);
+  const [streams, setStreams] = useState<SimulationStream[]>([]);
   const [loading, setLoading] = useState(false);
+  const [streamAction, setStreamAction] = useState<string | null>(null);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setStreamError(null);
     try {
-      const res = await fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002"}/health`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        setHealth((await res.json()) as SimulatorHealth);
+      const [healthResult, streamsResult] = await Promise.allSettled([
+        fetch(`${simulatorApiUrl()}/health`, { signal: AbortSignal.timeout(5000) }),
+        isAdmin ? getSimulationStreams() : Promise.resolve<SimulationStream[]>([]),
+      ]);
+      if (healthResult.status === "fulfilled" && healthResult.value.ok) {
+        setHealth((await healthResult.value.json()) as SimulatorHealth);
       } else {
         setHealth(null);
+      }
+      if (streamsResult.status === "fulfilled") {
+        setStreams(streamsResult.value);
+      } else {
+        setStreams([]);
+        setStreamError("Unable to load simulator streams. Check SIMULATOR_URL.");
       }
     } catch {
       setHealth(null);
@@ -185,13 +209,30 @@ function LocalSimulatorStatus() {
       setLoading(false);
       setChecked(true);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const down = checked && !health;
+
+  const handleStreamToggle = async (stream: SimulationStream) => {
+    setStreamAction(stream.name);
+    setStreamError(null);
+    try {
+      const updated =
+        stream.status === "running" || stream.status === "starting"
+          ? await stopSimulationStream({ data: { name: stream.name } })
+          : await startSimulationStream({ data: { name: stream.name } });
+      setStreams((current) => current.map((item) => (item.name === updated.name ? updated : item)));
+      await refresh();
+    } catch (err) {
+      setStreamError(err instanceof Error ? err.message : `Failed to update ${stream.name}`);
+    } finally {
+      setStreamAction(null);
+    }
+  };
 
   return (
     <Card>
@@ -220,7 +261,7 @@ function LocalSimulatorStatus() {
               <span className="text-sm font-medium">{!checked ? "Checking\u2026" : down ? "Down" : "Healthy"}</span>
               {health && (
                 <span className="text-muted-foreground text-xs">
-                  {health.cctv.alive}/{health.cctv.total} streams &middot; {health.sensors.online}/
+                  {health.cctv.hlsReady}/{health.cctv.requested} active streams &middot; {health.sensors.online}/
                   {health.sensors.total} sensors
                 </span>
               )}
@@ -233,7 +274,7 @@ function LocalSimulatorStatus() {
               <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
                 <span className="text-xs">CCTV Streams</span>
                 <span className="text-xs tabular-nums">
-                  {health.cctv.alive}/{health.cctv.total} alive
+                  {health.cctv.hlsReady}/{health.cctv.requested} HLS-ready
                 </span>
               </div>
               <div className="flex items-center justify-between px-3 py-2">
@@ -243,6 +284,16 @@ function LocalSimulatorStatus() {
                 </span>
               </div>
             </div>
+          )}
+
+          {isAdmin && (
+            <CctvStreamControls
+              action={streamAction}
+              disabled={loading}
+              error={streamError}
+              onToggle={handleStreamToggle}
+              streams={streams}
+            />
           )}
         </div>
       </CardContent>
@@ -266,8 +317,10 @@ const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
 function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
   const [status, setStatus] = useState<SimulationStatus | null>(null);
   const [health, setHealth] = useState<SimulatorHealth | null>(null);
+  const [streams, setStreams] = useState<SimulationStream[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [streamAction, setStreamAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isRunning = status?.overall === "running";
@@ -279,22 +332,38 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
     try {
       const result = await getSimulationStatus();
       setStatus(result);
-      if (result.error) setError(result.error);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch status");
-    }
+      if (result.error) {
+        setError(result.error);
+        setHealth(null);
+        setStreams([]);
+        return;
+      }
 
-    try {
-      const hres = await fetch(`${import.meta.env?.VITE_SIMULATOR_API_URL ?? "https://facilix.fly.dev"}/health`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (hres.ok) {
-        setHealth((await hres.json()) as SimulatorHealth);
+      if (!result.machines.some((machine) => machine.state === "started")) {
+        setHealth(null);
+        setStreams([]);
+        return;
+      }
+
+      const [healthResult, streamsResult] = await Promise.allSettled([
+        fetch(`${simulatorApiUrl()}/health`, { signal: AbortSignal.timeout(5000) }),
+        getSimulationStreams(),
+      ]);
+
+      if (healthResult.status === "fulfilled" && healthResult.value.ok) {
+        setHealth((await healthResult.value.json()) as SimulatorHealth);
       } else {
         setHealth(null);
       }
+      if (streamsResult.status === "fulfilled") {
+        setStreams(streamsResult.value);
+      } else {
+        setStreams([]);
+      }
     } catch {
+      setError("Failed to fetch simulator status");
       setHealth(null);
+      setStreams([]);
     } finally {
       setLoading(false);
     }
@@ -322,6 +391,23 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
       setError(err instanceof Error ? err.message : "Operation failed");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleStreamToggle = async (stream: SimulationStream) => {
+    setStreamAction(stream.name);
+    setError(null);
+    try {
+      const updated =
+        stream.status === "running" || stream.status === "starting"
+          ? await stopSimulationStream({ data: { name: stream.name } })
+          : await startSimulationStream({ data: { name: stream.name } });
+      setStreams((current) => current.map((item) => (item.name === updated.name ? updated : item)));
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to update ${stream.name}`);
+    } finally {
+      setStreamAction(null);
     }
   };
 
@@ -364,7 +450,7 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
               <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
                 <span className="text-xs">CCTV Streams</span>
                 <span className="text-xs tabular-nums">
-                  {health.cctv.alive}/{health.cctv.total} alive
+                  {health.cctv.hlsReady}/{health.cctv.requested} HLS-ready
                 </span>
               </div>
               <div className="flex items-center justify-between px-3 py-2">
@@ -408,8 +494,66 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
               ))}
             </div>
           )}
+
+          {status?.overall === "running" && (
+            <CctvStreamControls
+              action={streamAction}
+              disabled={actionLoading || isTransitioning}
+              error={null}
+              onToggle={handleStreamToggle}
+              streams={streams}
+            />
+          )}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function CctvStreamControls({
+  action,
+  disabled,
+  error,
+  onToggle,
+  streams,
+}: {
+  action: string | null;
+  disabled: boolean;
+  error: string | null;
+  onToggle: (stream: SimulationStream) => Promise<void>;
+  streams: SimulationStream[];
+}) {
+  return (
+    <div className="rounded-md border">
+      <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">CCTV Streams</div>
+      {error && <p className="text-destructive bg-destructive/10 px-3 py-2 text-xs">{error}</p>}
+      {streams.length === 0 ? (
+        <p className="text-muted-foreground px-3 py-2 text-xs">No streams are registered.</p>
+      ) : (
+        streams.map((stream) => {
+          const active = stream.status === "running" || stream.status === "starting";
+          const pending = action === stream.name;
+          return (
+            <div className="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0" key={stream.name}>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium">{stream.label ?? stream.name}</p>
+                <p className="text-muted-foreground truncate font-mono text-[10px]">
+                  {stream.name} &middot; {stream.hlsReady ? "HLS ready" : stream.hlsError ?? stream.status}
+                </p>
+              </div>
+              <Button
+                disabled={pending || disabled}
+                onClick={() => void onToggle(stream)}
+                size="sm"
+                variant={active ? "outline" : "default"}
+              >
+                {pending ? <Loader2Icon className="animate-spin" /> : active ? <SquareIcon /> : <PlayIcon />}
+                {active ? "Stop" : "Start"}
+              </Button>
+            </div>
+          );
+        })
+      )}
+    </div>
   );
 }

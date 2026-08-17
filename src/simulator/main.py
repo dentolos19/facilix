@@ -145,21 +145,30 @@ app.include_router(sensor_router)
 @app.get("/health")
 async def health() -> JSONResponse:
     """Combined health check for CCTV streams and sensor devices."""
-    cctv_alive = sum(1 for sp in cctv_module.streams.values() if sp.is_alive)
-    cctv_total = len(cctv_module.streams)
+    cctv = cctv_module.health_summary()
 
     sensor_total = len(sensor_engine.get_devices())
     sensor_online = sum(1 for d in sensor_engine.get_devices() if d.status.value in ("ok", "degraded"))
 
-    overall = "ok" if cctv_alive == cctv_total and sensor_online == sensor_total else "degraded"
+    overall = "ok" if cctv["status"] == "ok" and sensor_online == sensor_total else "degraded"
 
     return JSONResponse(
         {
             "status": overall,
-            "cctv": {"alive": cctv_alive, "total": cctv_total},
+            "cctv": cctv,
             "sensors": {"total": sensor_total, "online": sensor_online},
         }
     )
+
+
+@app.get("/health/live")
+async def live_health() -> JSONResponse:
+    """Lightweight liveness endpoint for Fly health checks.
+
+    Stream availability is reported by ``/health`` but must not make the
+    sole autostopping Machine unhealthy while a stream is intentionally off.
+    """
+    return JSONResponse({"status": "ok"})
 
 
 # ---------------------------------------------------------------------------

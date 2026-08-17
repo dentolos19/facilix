@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 
 import fastapi
 import config as sim_config
+from control import require_token
 from fastapi.responses import JSONResponse
 
 # ======================================================================
@@ -531,7 +532,7 @@ async def get_sensor_readings(identifier: str, limit: int = 100) -> JSONResponse
 
 
 @router.post("/sensors/{identifier}/read")
-async def read_now(identifier: str) -> JSONResponse:
+async def read_now(identifier: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
     """Trigger a single immediate reading for a sensor."""
     reading = read_single(identifier)
     if reading is None:
@@ -540,7 +541,7 @@ async def read_now(identifier: str) -> JSONResponse:
 
 
 @router.post("/sensors/{identifier}/start")
-async def start_sensor(identifier: str) -> JSONResponse:
+async def start_sensor(identifier: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
     """Enable automatic reading generation for a sensor."""
     ok = set_enabled(identifier, True)
     if not ok:
@@ -550,7 +551,7 @@ async def start_sensor(identifier: str) -> JSONResponse:
 
 
 @router.post("/sensors/{identifier}/stop")
-async def stop_sensor(identifier: str) -> JSONResponse:
+async def stop_sensor(identifier: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
     """Disable automatic reading generation for a sensor."""
     ok = set_enabled(identifier, False)
     if not ok:

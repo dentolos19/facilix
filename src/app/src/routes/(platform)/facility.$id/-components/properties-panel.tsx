@@ -1,4 +1,15 @@
-import { ChevronDownIcon, ChevronUpIcon, PlusIcon, RefreshCwIcon, ShieldAlertIcon, Trash2, XIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  Loader2Icon,
+  PlayIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  ShieldAlertIcon,
+  SquareIcon,
+  Trash2,
+  XIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "#/components/ui/accordion";
@@ -9,6 +20,7 @@ import { Label } from "#/components/ui/label";
 import { ScrollArea } from "#/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import { Switch } from "#/components/ui/switch";
+import { startSimulationStream, stopSimulationStream } from "#/lib/functions/settings";
 import {
   DEFAULT_COUNTING_OPERATOR,
   DEFAULT_COUNTING_THRESHOLD,
@@ -52,6 +64,7 @@ export function PropertiesPanel({
   const [fetchedStreams, setFetchedStreams] = useState<SimulationStream[]>([]);
   const [streamsLoading, setStreamsLoading] = useState(false);
   const [streamsError, setStreamsError] = useState<string | null>(null);
+  const [streamActionLoading, setStreamActionLoading] = useState(false);
 
   async function refreshSimulationStreams() {
     setStreamsLoading(true);
@@ -93,6 +106,26 @@ export function PropertiesPanel({
 
   // Only use streams fetched live from the simulator (no static fallbacks)
   const allStreams = fetchedStreams;
+  const selectedSimulationStream = allStreams.find((stream) => stream.name === selected?.props.simulationStream);
+
+  async function toggleSelectedSimulationStream() {
+    if (!selectedSimulationStream) return;
+
+    setStreamActionLoading(true);
+    setStreamsError(null);
+    try {
+      if (selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting") {
+        await stopSimulationStream({ data: { name: selectedSimulationStream.name } });
+      } else {
+        await startSimulationStream({ data: { name: selectedSimulationStream.name } });
+      }
+      await refreshSimulationStreams();
+    } catch (error) {
+      setStreamsError(error instanceof Error ? error.message : "Unable to update simulation stream.");
+    } finally {
+      setStreamActionLoading(false);
+    }
+  }
 
   // Fetch available simulation sensor devices from the live simulator
   const [fetchedSensorDevices, setFetchedSensorDevices] = useState<SimulationSensorDevice[]>([]);
@@ -385,18 +418,54 @@ export function PropertiesPanel({
                                 />
                               </SelectTrigger>
                               <SelectContent>
-                                {allStreams.map((s) => (
-                                  <SelectItem key={s.name} value={s.name}>
-                                    {s.label ?? s.name}
-                                  </SelectItem>
-                                ))}
+                                {allStreams.map((stream) => {
+                                  const isOnline = stream.status === "running" && stream.hlsReady;
+                                  return (
+                                    <SelectItem key={stream.name} value={stream.name}>
+                                      <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                                        <span className="truncate">{stream.label ?? stream.name}</span>
+                                        <span
+                                          className={`flex shrink-0 items-center gap-1 text-[10px] ${isOnline ? "text-emerald-500" : "text-muted-foreground"}`}
+                                        >
+                                          <span
+                                            aria-hidden
+                                            className={`size-1.5 rounded-full ${isOnline ? "bg-emerald-500" : "bg-muted-foreground/50"}`}
+                                          />
+                                          {isOnline ? "Online" : "Offline"}
+                                        </span>
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
+                            {selectedSimulationStream && (
+                              <Button
+                                aria-label={
+                                  selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting"
+                                    ? "Stop selected simulation stream"
+                                    : "Start selected simulation stream"
+                                }
+                                disabled={streamsLoading || streamActionLoading}
+                                onClick={() => void toggleSelectedSimulationStream()}
+                                size="icon"
+                                type="button"
+                                variant="outline"
+                              >
+                                {streamActionLoading ? (
+                                  <Loader2Icon className="size-3.5 animate-spin" />
+                                ) : selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting" ? (
+                                  <SquareIcon className="size-3.5" />
+                                ) : (
+                                  <PlayIcon className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
                             <Button
                               aria-label="Refresh simulation streams"
                               disabled={streamsLoading}
                               onClick={() => void refreshSimulationStreams()}
-                              size="icon-sm"
+                              size="icon"
                               type="button"
                               variant="outline"
                             >

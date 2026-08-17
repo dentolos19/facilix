@@ -24,6 +24,14 @@ export interface SimulationStatus {
   error?: string;
 }
 
+export interface SimulationStream {
+  name: string;
+  label?: string;
+  status: "stopped" | "starting" | "running" | "error";
+  hlsReady: boolean;
+  hlsError: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Fly Machines API helper
 // ---------------------------------------------------------------------------
@@ -40,6 +48,16 @@ function flyHeaders(): Record<string, string> {
 
 function getAppName(): string {
   return (env as { FLY_APP_NAME?: string }).FLY_APP_NAME ?? "facilix";
+}
+
+function getSimulatorUrl(): string {
+  return ((env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix.fly.dev").replace(/\/$/, "");
+}
+
+function simulatorHeaders(): Record<string, string> {
+  const token = (env as { SIMULATOR_TOKEN?: string }).SIMULATOR_TOKEN ?? "";
+  if (!token) throw new Error("Simulator token is not configured");
+  return { Authorization: `Bearer ${token}` };
 }
 
 async function fetchFlyMachines(): Promise<
@@ -75,6 +93,41 @@ async function controlMachine(machineId: string, action: "start" | "stop"): Prom
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "Request failed" };
   }
+}
+
+function normalizeStream(raw: Record<string, unknown>): SimulationStream {
+  const status = String(raw.status ?? "error");
+  return {
+    name: String(raw.name ?? ""),
+    label: raw.label ? String(raw.label) : undefined,
+    status: status === "stopped" || status === "starting" || status === "running" ? status : "error",
+    hlsReady: Boolean(raw.hls_ready),
+    hlsError: raw.hls_error ? String(raw.hls_error) : null,
+  };
+}
+
+async function fetchSimulationStreams(): Promise<SimulationStream[]> {
+  const res = await fetch(`${getSimulatorUrl()}/cctv`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`Simulator returned ${res.status} while listing streams`);
+  const data = (await res.json()) as { streams?: Record<string, unknown>[] };
+  return (data.streams ?? []).map(normalizeStream);
+}
+
+async function controlStream(name: string, action: "start" | "stop"): Promise<SimulationStream> {
+  const res = await fetch(`${getSimulatorUrl()}/cctv/${encodeURIComponent(name)}/${action}`, {
+    method: "POST",
+    headers: simulatorHeaders(),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    detail?: string;
+    error?: string;
+    stream?: Record<string, unknown>;
+  };
+  if (!res.ok || !data.stream) {
+    throw new Error(data.detail ?? data.error ?? `Simulator returned ${res.status} while ${action}ing stream`);
+  }
+  return normalizeStream(data.stream);
 }
 
 function normalizeMachines(raw: Record<string, unknown>[]): MachineState[] {
@@ -135,7 +188,7 @@ export const getSimulationStatus = createServerFn({ method: "GET" }).handler(asy
 });
 
 /**
- * Start all stopped machines for the Fly app. Admin only.
+ * Start the single configured simulator Machine. Admin only.
  */
 export const startSimulation = createServerFn({ method: "POST" }).handler(async (): Promise<SimulationStatus> => {
   const ctx = await requireAccessContext();
@@ -149,6 +202,15 @@ export const startSimulation = createServerFn({ method: "POST" }).handler(async 
   }
 
   const machines = normalizeMachines(machinesResult.machines);
+  if (machines.length !== 1) {
+    return {
+      overall: "error",
+      source: "fly",
+      appName,
+      machines,
+      error: "Simulator must be scaled to exactly one Machine before it can be started.",
+    };
+  }
   const stopped = machines.filter((m) => m.state === "stopped");
 
   const errors: string[] = [];
@@ -197,3 +259,32 @@ export const stopSimulation = createServerFn({ method: "POST" }).handler(async (
     error: errors.length > 0 ? errors.join("; ") : undefined,
   };
 });
+
+/** List registered simulator streams. Admin only. */
+export const getSimulationStreams = createServerFn({ method: "GET" }).handler(async (): Promise<SimulationStream[]> => {
+  const ctx = await requireAccessContext();
+  if (!ctx.isAdmin) throw new Error("Admin access required");
+  return fetchSimulationStreams();
+});
+
+/** Start a single simulator stream and wait for bounded HLS readiness. */
+export const startSimulationStream = createServerFn({ method: "POST" })
+  .validator((data: { name: string }) => {
+    if (!data.name) throw new Error("Stream name is required");
+    return data;
+  })
+  .handler(async ({ data }): Promise<SimulationStream> => {
+    await requireAccessContext();
+    return controlStream(data.name, "start");
+  });
+
+/** Stop a single simulator stream. */
+export const stopSimulationStream = createServerFn({ method: "POST" })
+  .validator((data: { name: string }) => {
+    if (!data.name) throw new Error("Stream name is required");
+    return data;
+  })
+  .handler(async ({ data }): Promise<SimulationStream> => {
+    await requireAccessContext();
+    return controlStream(data.name, "stop");
+  });

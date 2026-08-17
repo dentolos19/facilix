@@ -12,6 +12,9 @@
 export interface SimulationStream {
   name: string;
   alive: boolean;
+  status: "stopped" | "starting" | "running" | "error";
+  hlsReady: boolean;
+  hlsError: string | null;
   rtspUrl: string;
   rtmpUrl: string;
   hlsUrl: string;
@@ -47,23 +50,27 @@ export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
 
 export async function fetchSimulationHealth(): Promise<{
   ok: boolean;
-  alive: number;
+  running: number;
+  hlsReady: number;
+  requested: number;
   total: number;
 }> {
   try {
     const res = await fetch(`${getApiBase()}/health`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return { ok: false, alive: 0, total: 0 };
+    if (!res.ok) return { ok: false, running: 0, hlsReady: 0, requested: 0, total: 0 };
     const data = (await res.json()) as {
       status: string;
-      cctv: { alive: number; total: number };
+      cctv: { running: number; hlsReady: number; requested: number; total: number };
     };
     return {
       ok: data.status === "ok",
-      alive: data.cctv.alive,
+      running: data.cctv.running,
+      hlsReady: data.cctv.hlsReady,
+      requested: data.cctv.requested,
       total: data.cctv.total,
     };
   } catch {
-    return { ok: false, alive: 0, total: 0 };
+    return { ok: false, running: 0, hlsReady: 0, requested: 0, total: 0 };
   }
 }
 
@@ -84,6 +91,12 @@ function toStream(raw: Record<string, unknown>): SimulationStream {
   return {
     name,
     alive: Boolean(raw.alive),
+    status: (() => {
+      const status = String(raw.status ?? "error");
+      return status === "stopped" || status === "starting" || status === "running" ? status : "error";
+    })(),
+    hlsReady: Boolean(raw.hls_ready),
+    hlsError: raw.hls_error ? String(raw.hls_error) : null,
     rtspUrl: String(raw.rtsp_url ?? ""),
     rtmpUrl: String(raw.rtmp_url ?? ""),
     hlsUrl: simulationHlsUrl(name),

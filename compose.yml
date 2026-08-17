@@ -4,11 +4,13 @@ services:
       context: src/simulator
     container_name: facilix-simulator
     restart: unless-stopped
+    environment:
+      SIMULATOR_TOKEN: "${SIMULATOR_TOKEN:-}"
     ports:
       - "3002:8000"
       - "3003:8554"
     healthcheck:
-      test: [ "CMD", "curl", "-sf", "http://localhost:8000/health" ]
+      test: [ "CMD", "curl", "-sf", "http://localhost:8000/health/live" ]
       interval: 10s
       timeout: 5s
       retries: 3
