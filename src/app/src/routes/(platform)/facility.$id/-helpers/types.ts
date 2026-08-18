@@ -292,6 +292,7 @@ export interface CanvasEditorProps {
   onAddItem: (type: PlacedItemType, x: number, y: number) => void;
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
   onSelectItem: (id: string | null) => void;
+  onOpenDevice?: (id: string) => void;
   onHoverItem?: (id: string | null) => void;
   onHoverMove?: (x: number, y: number) => void;
   onMoveUp?: (id: string) => void;

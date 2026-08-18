@@ -107,6 +107,7 @@ export function CanvasEditor({
   onAddItem,
   onUpdateItem,
   onSelectItem,
+  onOpenDevice,
   onHoverItem,
   onHoverMove,
   onMoveUp,
@@ -484,6 +485,7 @@ export function CanvasEditor({
                 onDragStart={() => handleMultiDragStart(item)}
                 onHoverItem={onHoverItem}
                 onHoverMove={onHoverMove}
+                onOpenDevice={onOpenDevice}
                 onSelectItem={(e) => handleItemClick(item, e)}
                 onUpdateItem={onUpdateItem}
                 onZoneDragEnd={(e) => handleZoneDragEnd(item, e)}
@@ -570,6 +572,7 @@ function PlacedShape({
   readOnly = false,
   onUpdateItem,
   onSelectItem,
+  onOpenDevice,
   onContextMenu,
   onDragStart,
   onDragMove,
@@ -584,6 +587,7 @@ function PlacedShape({
   readOnly?: boolean;
   onUpdateItem: (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => void;
   onSelectItem: (e: Konva.KonvaEventObject<MouseEvent> | Konva.KonvaEventObject<TouchEvent>) => void;
+  onOpenDevice?: (id: string) => void;
   onContextMenu: (e: Konva.KonvaEventObject<PointerEvent>) => void;
   onDragStart?: () => void;
   onDragMove?: () => void;
@@ -752,6 +756,7 @@ function PlacedShape({
           name={`placed-${item.id}`}
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
+          onDblClick={() => onOpenDevice?.(item.id)}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}
@@ -788,6 +793,7 @@ function PlacedShape({
           name={`placed-${item.id}`}
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
+          onDblClick={() => onOpenDevice?.(item.id)}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}
@@ -824,6 +830,7 @@ function PlacedShape({
           name={`placed-${item.id}`}
           onClick={onSelectItem}
           onContextMenu={onContextMenu}
+          onDblClick={() => onOpenDevice?.(item.id)}
           onDragEnd={readOnly ? undefined : handleDragEnd}
           onDragMove={readOnly ? undefined : handleDragMove}
           onDragStart={readOnly ? undefined : handleDragStart}

@@ -261,30 +261,11 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
               <span className="text-sm font-medium">{!checked ? "Checking\u2026" : down ? "Down" : "Healthy"}</span>
               {health && (
                 <span className="text-muted-foreground text-xs">
-                  {health.cctv.hlsReady}/{health.cctv.requested} active streams &middot; {health.sensors.online}/
-                  {health.sensors.total} sensors
+                  {health.sensors.online}/{health.sensors.total} sensors online
                 </span>
               )}
             </div>
           </div>
-
-          {health && (
-            <div className="rounded-md border">
-              <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">Details</div>
-              <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
-                <span className="text-xs">CCTV Streams</span>
-                <span className="text-xs tabular-nums">
-                  {health.cctv.hlsReady}/{health.cctv.requested} HLS-ready
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-xs">Sensors</span>
-                <span className="text-xs tabular-nums">
-                  {health.sensors.online}/{health.sensors.total} online
-                </span>
-              </div>
-            </div>
-          )}
 
           {isAdmin && (
             <CctvStreamControls
@@ -316,7 +297,6 @@ const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
 
 function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
   const [status, setStatus] = useState<SimulationStatus | null>(null);
-  const [health, setHealth] = useState<SimulatorHealth | null>(null);
   const [streams, setStreams] = useState<SimulationStream[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -334,35 +314,22 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
       setStatus(result);
       if (result.error) {
         setError(result.error);
-        setHealth(null);
         setStreams([]);
         return;
       }
 
       if (!result.machines.some((machine) => machine.state === "started")) {
-        setHealth(null);
         setStreams([]);
         return;
       }
 
-      const [healthResult, streamsResult] = await Promise.allSettled([
-        fetch(`${simulatorApiUrl()}/health`, { signal: AbortSignal.timeout(5000) }),
-        getSimulationStreams(),
-      ]);
-
-      if (healthResult.status === "fulfilled" && healthResult.value.ok) {
-        setHealth((await healthResult.value.json()) as SimulatorHealth);
-      } else {
-        setHealth(null);
-      }
-      if (streamsResult.status === "fulfilled") {
-        setStreams(streamsResult.value);
-      } else {
+      try {
+        setStreams(await getSimulationStreams());
+      } catch {
         setStreams([]);
       }
     } catch {
       setError("Failed to fetch simulator status");
-      setHealth(null);
       setStreams([]);
     } finally {
       setLoading(false);
@@ -444,57 +411,6 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
 
           {error && <p className="text-destructive bg-destructive/10 rounded-md px-3 py-2 text-xs">{error}</p>}
 
-          {health && (
-            <div className="rounded-md border">
-              <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">Devices</div>
-              <div className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
-                <span className="text-xs">CCTV Streams</span>
-                <span className="text-xs tabular-nums">
-                  {health.cctv.hlsReady}/{health.cctv.requested} HLS-ready
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-xs">Sensors</span>
-                <span className="text-xs tabular-nums">
-                  {health.sensors.online}/{health.sensors.total} online
-                </span>
-              </div>
-            </div>
-          )}
-
-          {status && status.machines.length > 0 && (
-            <div className="rounded-md border">
-              <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">Machines</div>
-              {status.machines.map((m) => (
-                <div key={m.id} className="flex items-center justify-between border-b px-3 py-2 last:border-b-0">
-                  <div className="flex flex-col">
-                    <span className="font-mono text-xs">{m.id}</span>
-                    <span className="text-muted-foreground text-[10px]">
-                      {m.region} &middot; {m.imageRef}
-                    </span>
-                  </div>
-                  <span
-                    className={
-                      m.state === "started"
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : m.state === "stopped"
-                          ? "text-muted-foreground"
-                          : "text-amber-600 dark:text-amber-400"
-                    }
-                  >
-                    {m.state === "started" ? (
-                      <PlayIcon className="size-3" />
-                    ) : m.state === "stopped" ? (
-                      <SquareIcon className="size-3" />
-                    ) : (
-                      <Loader2Icon className="size-3 animate-spin" />
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
           {status?.overall === "running" && (
             <CctvStreamControls
               action={streamAction}
@@ -508,6 +424,13 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
       </CardContent>
     </Card>
   );
+}
+
+function formatStreamLabel(value: string) {
+  return value
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function CctvStreamControls({
@@ -536,9 +459,9 @@ function CctvStreamControls({
           return (
             <div className="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0" key={stream.name}>
               <div className="min-w-0">
-                <p className="truncate text-xs font-medium">{stream.label ?? stream.name}</p>
+                <p className="truncate text-xs font-medium">{formatStreamLabel(stream.label ?? stream.name)}</p>
                 <p className="text-muted-foreground truncate font-mono text-[10px]">
-                  {stream.name} &middot; {stream.hlsReady ? "HLS ready" : stream.hlsError ?? stream.status}
+                  {stream.name} &middot; {stream.hlsReady ? "HLS-ready" : stream.hlsError ?? stream.status}
                 </p>
               </div>
               <Button

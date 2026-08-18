@@ -504,6 +504,13 @@ function Page() {
     setSelectedItemId(deviceId);
   }, []);
 
+  const openDevice = useCallback(
+    (deviceId: string) => {
+      navigate({ to: "/device/$id", params: { id: deviceId } });
+    },
+    [navigate],
+  );
+
   const updatePlacedItem = useCallback(
     (id: string, patch: Partial<Pick<PlacedItem, "x" | "y" | "width" | "height">>) => {
       saveSnapshot();
@@ -1633,6 +1640,7 @@ function Page() {
                 onMoveToBack={moveItemToBack}
                 onMoveToFront={moveItemToFront}
                 onMoveUp={moveItemUp}
+                onOpenDevice={editMode === "monitoring" ? openDevice : undefined}
                 onSelectItem={(id) => {
                   if (editMode === "monitoring") {
                     if (id) selectMonitoringDevice(id);

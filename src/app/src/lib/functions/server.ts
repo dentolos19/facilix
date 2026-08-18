@@ -27,7 +27,7 @@ const STOP_POLL_INTERVAL_MS = 250;
  * Map Container state from `getState()` to our simplified MonitoringStatus.
  *
  * Container states from @cloudflare/containers:
- *   - "running"       (pre-health, booting)
+ *   - "running"       (container process is running)
  *   - "healthy"       (fully running, accepting traffic)
  *   - "stopping"      (shutting down in response to stop/destroy)
  *   - "stopped"       (exited cleanly)
@@ -38,6 +38,7 @@ function mapContainerState(state: { status: string }): MonitoringStatus {
     case "healthy":
       return "running";
     case "running":
+      return "running";
     case "starting":
       return "starting";
     case "stopping":
@@ -112,16 +113,17 @@ export const startMonitoring = createServerFn({ method: "POST" })
         return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
       }
 
-      await stub.startAndWaitForPorts({
-        startOptions: {
-          envVars: {
-            FACILITY_ID: data.facilityId,
-            APP_URL: APP_URL,
-            SERVER_SECRET: env.SERVER_SECRET ?? "",
-            SIMULATOR_URL,
-            ROBOFLOW_API_KEY,
-            ROBOFLOW_API_BASE,
-          },
+      // Local Containers can run the process without completing the SDK port
+      // readiness probe. Starting the container is sufficient here; requests to
+      // the monitoring service still use the Container SDK's port checks.
+      await stub.start({
+        envVars: {
+          FACILITY_ID: data.facilityId,
+          APP_URL: APP_URL,
+          SERVER_SECRET: env.SERVER_SECRET ?? "",
+          SIMULATOR_URL,
+          ROBOFLOW_API_KEY,
+          ROBOFLOW_API_BASE,
         },
       });
       return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
