@@ -5,7 +5,15 @@ import { and, eq, inArray } from "drizzle-orm";
 import { createDatabase, schema } from "#/lib/database";
 import { getAccessContext, requireAccessContext, requireFacilityAccess } from "#/lib/functions/access";
 import { createLogger } from "#/lib/logs";
-import type { CanvasLayoutData, JsonObject, PlacedItemType } from "#/routes/(platform)/facility.$id/-helpers/types";
+import {
+  toCanvasData,
+  toDevicePayloads,
+  toZonePayloads,
+  type CanvasLayoutData,
+  type JsonObject,
+  type PlacedItem,
+  type PlacedItemType,
+} from "#/routes/(platform)/facility.$id/-helpers/types";
 
 const log = createLogger("facility");
 
@@ -107,21 +115,25 @@ export const getFacilities = createServerFn({ method: "GET" })
   });
 
 export const createFacility = createServerFn({ method: "POST" })
-  .validator((data: { name: string }) => {
-    if (!data.name || typeof data.name !== "string") {
+  .validator((data: { name: string; initialItems?: PlacedItem[] }) => {
+    if (typeof data.name !== "string" || !data.name.trim()) {
       throw new Error("Name is required");
     }
-    return data;
+    if (data.initialItems !== undefined && !Array.isArray(data.initialItems)) {
+      throw new Error("Initial layout items must be an array");
+    }
+    return { ...data, name: data.name.trim() };
   })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
     const ctx = await requireAccessContext();
+    const initialItems = data.initialItems ?? [];
 
     const [facility] = await db
       .insert(schema.facility)
       .values({
         name: data.name,
-        data: { version: 1, items: [] },
+        data: toCanvasData(initialItems),
       })
       .returning();
 
@@ -129,6 +141,16 @@ export const createFacility = createServerFn({ method: "POST" })
       facilityId: facility.id,
       userId: ctx.userId,
     });
+
+    const zones = toZonePayloads(facility.id, initialItems);
+    if (zones.length > 0) {
+      await db.insert(schema.facilityZone).values(zones);
+    }
+
+    const devices = toDevicePayloads(facility.id, initialItems);
+    if (devices.length > 0) {
+      await db.insert(schema.facilityDevice).values(devices);
+    }
 
     return toFacilityRow(facility);
   });

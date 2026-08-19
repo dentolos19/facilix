@@ -39,11 +39,15 @@ export const Route = createFileRoute("/api/layouts")({
             height: dimension(formData.get("canvasHeight"), 700),
           };
           const result = await generateFacilityLayoutFromImage(await image.arrayBuffer(), image.type, canvas);
-          if (!result) {
-            return Response.json({ error: "The AI did not return a usable JSON layout." }, { status: 422 });
+
+          let layout;
+          try {
+            layout = parseGeneratedFacilityLayout(result, canvas);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "The AI returned an invalid facility layout.";
+            return Response.json({ error: message }, { status: 422 });
           }
 
-          const layout = parseGeneratedFacilityLayout(JSON.parse(result) as unknown, canvas);
           return Response.json(layout);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to generate the facility layout.";

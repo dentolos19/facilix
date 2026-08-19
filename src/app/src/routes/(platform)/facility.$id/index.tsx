@@ -65,6 +65,7 @@ import {
   getFacilityEvents,
 } from "#/lib/functions/events";
 import { deleteFacility, duplicateFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import { generateFacilityLayoutFromFile } from "#/lib/functions/facility-layout";
 import {
   type FacilityMemberRow,
   addFacilityMember,
@@ -789,17 +790,6 @@ function Page() {
   const processImport = useCallback(async (file: File) => {
     const isJson = file.type === "application/json" || file.name.endsWith(".json");
 
-    if (!isJson) {
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        toast.error("Choose an image (JPEG, PNG, WebP) or a JSON file.");
-        return;
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        toast.error("The image must be smaller than 8 MB.");
-        return;
-      }
-    }
-
     setIsImporting(true);
     try {
       if (isJson) {
@@ -818,19 +808,10 @@ function Page() {
         });
       } else {
         const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
-        const formData = new FormData();
-        formData.append("image", file);
-        formData.append("canvasWidth", String(Math.round(canvasRect?.width ?? 1000)));
-        formData.append("canvasHeight", String(Math.round(canvasRect?.height ?? 700)));
-
-        const response = await fetch("/api/layouts", { method: "POST", body: formData });
-        const payload = (await response.json().catch(() => null)) as
-          | (FacilityLayoutDocument & { error?: never })
-          | { error?: string }
-          | null;
-        if (!response.ok || !payload || !("items" in payload)) {
-          throw new Error(payload?.error || "Failed to generate the facility layout.");
-        }
+        const payload = await generateFacilityLayoutFromFile(file, {
+          width: Math.round(canvasRect?.width ?? 1000),
+          height: Math.round(canvasRect?.height ?? 700),
+        });
 
         saveSnapshot();
         setPlacedItems(payload.items);

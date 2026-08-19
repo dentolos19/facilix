@@ -350,7 +350,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
       if (name === "count") continue;
       if (!dataOutputNames.has(name)) continue;
 
-      const detections = extractDetections(value);
+      const rawDetections = extractDetections(value);
       // Capture image metadata from the detections output (same structure as Python parser)
       let imageMeta: WorkflowDetection["image"] | undefined;
       if (isRecord(value)) {
@@ -360,7 +360,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
         }
       }
 
-      for (const raw of detections) {
+      for (const raw of rawDetections) {
         const detection = toDetection(raw, {}, imageMeta);
         if (detection) detections.push(detection);
       }
