@@ -442,7 +442,8 @@ export function PropertiesPanel({
                             {selectedSimulationStream && (
                               <Button
                                 aria-label={
-                                  selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting"
+                                  selectedSimulationStream.status === "running" ||
+                                  selectedSimulationStream.status === "starting"
                                     ? "Stop selected simulation stream"
                                     : "Start selected simulation stream"
                                 }
@@ -454,7 +455,8 @@ export function PropertiesPanel({
                               >
                                 {streamActionLoading ? (
                                   <Loader2Icon className="size-3.5 animate-spin" />
-                                ) : selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting" ? (
+                                ) : selectedSimulationStream.status === "running" ||
+                                  selectedSimulationStream.status === "starting" ? (
                                   <SquareIcon className="size-3.5" />
                                 ) : (
                                   <PlayIcon className="size-3.5" />

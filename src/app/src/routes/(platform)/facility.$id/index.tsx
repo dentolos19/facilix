@@ -80,9 +80,9 @@ import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/t
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
 import { fetchSimulationSensors } from "#/lib/simulation/sensors";
 
-import { AllEventsDialog } from "./-components/all-events-dialog";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
+import { FacilityLogsDialog } from "./-components/facility-logs-dialog";
 import { GlobalEventsPanel } from "./-components/global-events-panel";
 import { MonitoringDetailsPanel } from "./-components/monitoring-details-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
@@ -1268,15 +1268,20 @@ function Page() {
             <TooltipContent>{editMode === "monitoring" ? "Edit" : "Monitor"}</TooltipContent>
           </Tooltip>
 
-          {/* Container Logs button (monitoring mode only) */}
+          {/* Facility logs and workflow processes (monitoring mode only) */}
           {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="View logs" onClick={() => setLogsOpen(true)} size="icon-sm" variant="ghost">
+                <Button
+                  aria-label="View logs and workflows"
+                  onClick={() => setLogsOpen(true)}
+                  size="icon-sm"
+                  variant="ghost"
+                >
                   <TerminalIcon className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Logs</TooltipContent>
+              <TooltipContent>Logs &amp; Workflows</TooltipContent>
             </Tooltip>
           )}
 
@@ -1565,9 +1570,10 @@ function Page() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Logs Dialog (all events) ── */}
-      <AllEventsDialog
+      {/* ── Facility Logs Dialog ── */}
+      <FacilityLogsDialog
         events={allEvents}
+        facilityId={facilityId}
         onClearLogs={handleClearContainerLogs}
         onOpenChange={setLogsOpen}
         open={logsOpen}

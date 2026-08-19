@@ -22,7 +22,7 @@ const log = createLogger("openrouter");
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
-/** Model id to request. Falls back to `OPENROUTER_MODEL` then to Qwen3.6 35B A3B. */
+/** Model id to request. Uses OpenRouter's automatic routing when none is configured. */
 function resolveModel(): string {
   const m = env.OPENROUTER_MODEL;
   return m && m.length > 0 ? m : "openrouter/auto";
@@ -352,6 +352,7 @@ export async function summarizeSceneFrames(
  * @param mimeType - MIME type of the video (default "video/mp4").
  * @param descriptions - Array of natural-language descriptions to check.
  * @param contextSuffix - Optional extra context appended to the prompt (e.g. detection counts).
+ * @param guidance - Optional plugin-specific instructions for analyzing the video.
  * @returns Structured analysis with per-description match results, or null on failure.
  */
 export async function analyzeSceneAlerts(
@@ -359,6 +360,7 @@ export async function analyzeSceneAlerts(
   mimeType: string,
   descriptions: string[],
   contextSuffix: string = "",
+  guidance?: string,
 ): Promise<SceneAlertAnalysis | null> {
   if (descriptions.length === 0) return null;
 
@@ -392,7 +394,7 @@ Rules:
 - confidence should reflect how certain you are about the match
 - evidence should list specific visual elements that support your judgment`;
 
-  const userPrompt = `Evaluate the following scenarios against this CCTV video:
+  const userPrompt = `${guidance ? `${guidance}\n\n` : ""}Evaluate the following scenarios against this CCTV video:
 
 ${descriptionList}${contextSuffix}`;
 

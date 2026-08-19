@@ -150,7 +150,7 @@ export const DEFAULT_PLUGIN_CONFIDENCE = 0.4;
 export const DEFAULT_COUNTING_OPERATOR = "gte" as const;
 export const DEFAULT_COUNTING_THRESHOLD = 1;
 export const DEFAULT_SEGMENT_PROMPT =
-  "Review the original and annotated CCTV frames for the configured operational risks. Describe only visible evidence.";
+  "Review the complete CCTV video segment for the configured operational risks. Describe only visible evidence.";
 
 export const DEFAULT_OBJECT_DETECTION_WORKFLOW: PluginWorkflowConfig = {
   workspaceName: "dentolos19",

@@ -1,14 +1,10 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { and, desc, eq, ne } from "drizzle-orm";
 
-import { analyzeSceneFrames, summarizeSceneFrames } from "#/lib/ai";
+import { analyzeSceneAlerts, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
-import {
-  selectAnalysisContextFrame,
-  selectRepresentativeFrames,
-  type StoredDetectionRef,
-} from "#/lib/monitoring/event-evidence";
+import { selectRepresentativeFrames, type StoredDetectionRef } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
   evaluateCountThreshold,
@@ -25,8 +21,6 @@ import {
   type PluginCategory,
   type ResolvedPlugin,
   type SceneMatchAlertRule,
-  type SegmentAnalysisDeviceConfig,
-  type SegmentUnderstandingPlugin,
   type WorkflowObjectDetectionPlugin,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
@@ -44,12 +38,12 @@ import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types
  *
  * Segment uploads are persisted to R2 by the HTTP handlers
  * (`monitoring/api.ts`), then the workflow is dispatched with a JSON pointer
- * (`assetId` + metadata). Each AI inference / DB write runs inside `step.do`,
- * which retries automatically on transient failures.
+ * (`assetId` + metadata). External inference and DB writes run inside durable
+ * `step.do` boundaries.
  *
  * Enabled plugins are grouped by Roboflow workflow so each distinct workflow
- * runs once per segment. Vision-language plugins then review one original /
- * annotated frame pair from the shared Roboflow output.
+ * runs once per segment. Vision-language plugins then review the complete
+ * source video segment.
  *
  * Triggered from `handleSegment` via `env.PROCESSOR.create({ params })`.
  */
@@ -63,6 +57,7 @@ export type SegmentPayload = {
   startedAt: string; // ISO timestamp
   endedAt: string; // ISO timestamp
   durationSec: number;
+  processId: string;
 };
 
 export type ProcessorPayload = SegmentPayload;
@@ -72,12 +67,84 @@ const STEP_RETRIES = {
   timeout: "3 minutes" as const,
 };
 
+type FacilityProcessStatus =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "paused"
+  | "errored"
+  | "terminated"
+  | "complete"
+  | "unknown";
+
+type FacilityProcessUpdate = {
+  status?: FacilityProcessStatus;
+  step?: string | null;
+  attempt?: number | null;
+  error?: { name: string; message: string } | null;
+  output?: JsonObject | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+};
+
+function toProcessError(error: unknown): { name: string; message: string } {
+  if (error instanceof Error) return { name: error.name, message: error.message };
+  return { name: "WorkflowError", message: String(error) };
+}
+
 export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
   #log = createLogger("processor");
 
   async run(event: WorkflowEvent<ProcessorPayload>, step: WorkflowStep): Promise<unknown> {
-    const payload = event.payload;
-    return this.runSegment(payload, step);
+    const { payload } = event;
+    await this.startProcess(payload.processId);
+    try {
+      const result = await this.runSegment(payload, step);
+      await this.updateProcess(payload.processId, {
+        status: "complete",
+        output: result,
+        completedAt: new Date(),
+      });
+      return result;
+    } catch (error) {
+      await this.updateProcess(payload.processId, {
+        status: "errored",
+        error: toProcessError(error),
+        completedAt: new Date(),
+      });
+      throw error;
+    }
+  }
+
+  private async updateProcess(processId: string, update: FacilityProcessUpdate) {
+    const db = createDatabase(this.env.DATABASE);
+    await db
+      .update(schema.facilityProcess)
+      .set({ ...update, updatedAt: new Date() })
+      .where(eq(schema.facilityProcess.id, processId));
+  }
+
+  private async startProcess(processId: string) {
+    const db = createDatabase(this.env.DATABASE);
+    const [process] = await db
+      .select({ startedAt: schema.facilityProcess.startedAt })
+      .from(schema.facilityProcess)
+      .where(eq(schema.facilityProcess.id, processId))
+      .limit(1);
+    await this.updateProcess(processId, {
+      status: "running",
+      startedAt: process?.startedAt ?? new Date(),
+      error: null,
+    });
+  }
+
+  private async beginStep(processId: string, stepName: string, attempt: number) {
+    await this.updateProcess(processId, {
+      status: "running",
+      step: stepName,
+      attempt,
+      error: null,
+    });
   }
 
   // ── Segment processing ────────────────────────────────────────────────────
@@ -89,14 +156,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const { facilityId, deviceId, segmentId } = payload;
 
     // Load all enabled plugins for this device
-    const resolvedPlugins: ResolvedPlugin[] = [];
-    const segmentPlugins: Array<{
-      plugin: SegmentUnderstandingPlugin;
-      config: SegmentAnalysisDeviceConfig;
-    }> = [];
-    const cooldownByPlugin = new Map<string, number>();
-
-    await step.do("load-device-plugins", STEP_RETRIES, async () => {
+    const resolvedPlugins = await step.do<ResolvedPlugin[]>("load-plugins", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const db = createDatabase(this.env.DATABASE);
       const [row] = await db
         .select({ data: schema.facilityDevice.data })
@@ -104,32 +165,39 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         .where(eq(schema.facilityDevice.id, deviceId))
         .limit(1);
       const configs = normalizePlugins((row?.data as JsonObject | undefined)?.plugins);
-      const enabled = resolveEnabledPlugins(configs);
-      for (const resolved of enabled) {
-        resolvedPlugins.push(resolved);
-        cooldownByPlugin.set(resolved.plugin.id, resolved.config.cooldownSec ?? 0);
-        if (resolved.kind === "segment-understanding") {
-          segmentPlugins.push(resolved);
-        }
-      }
+      return resolveEnabledPlugins(configs);
     });
+    const segmentPlugins = resolvedPlugins.filter(
+      (resolved): resolved is Extract<ResolvedPlugin, { kind: "segment-understanding" }> =>
+        resolved.kind === "segment-understanding",
+    );
+    const cooldownByPlugin = new Map(
+      resolvedPlugins.map((resolved) => [resolved.plugin.id, resolved.config.cooldownSec ?? 0]),
+    );
     const workflowGroups = groupPluginsByWorkflow(resolvedPlugins);
 
     // Validate the segment exists without returning the video bytes from a
     // workflow step. Step results are persisted by Cloudflare Workflows and
     // must stay small (currently 1MiB), so the actual bytes are loaded inside
     // the steps that consume them.
-    const segmentMetadata = await step.do("load-segment-metadata", STEP_RETRIES, async () => {
+    const segmentMetadata = await step.do("load-metadata", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const object = await this.env.BUCKET.head(payload.assetId);
       if (!object) throw new Error(`segment not found in R2: ${payload.assetId}`);
-      return { size: object.size };
+      return {
+        size: object.size,
+        contentType: object.httpMetadata?.contentType?.startsWith("video/")
+          ? object.httpMetadata.contentType
+          : "video/mp4",
+      };
     });
 
     // Load previous segment data for enter/leave transition detection
     const previousSegmentData = await step.do<PreviousSegmentData | null>(
       "load-previous-segment",
       STEP_RETRIES,
-      async () => {
+      async (context) => {
+        await this.beginStep(payload.processId, context.step.name, context.attempt);
         return loadPreviousSegmentData(this.env.DATABASE, facilityId, deviceId, segmentId);
       },
     );
@@ -143,8 +211,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     let detectionVideo: DetectionVideoMeta | null = null;
 
     for (const [groupIndex, group] of workflowGroups.entries()) {
-      const stepName = `run-workflow-${sanitizeWorkflowKey(group.workflow.workflowId)}-${groupIndex}`;
-      const result = await step.do(stepName, STEP_RETRIES, async () => {
+      const stepName = `detect-${sanitizeWorkflowKey(group.workflow.workflowId)}-${groupIndex}`;
+      const result = await step.do(stepName, STEP_RETRIES, async (context) => {
+        await this.beginStep(payload.processId, context.step.name, context.attempt);
         const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
         this.#log.info("running Roboflow workflow", {
           pluginIds: group.plugins.map((entry) => entry.plugin.id),
@@ -183,7 +252,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             : {};
 
         // Never return base64 image payloads from a Workflow step. Workflows
-        // serializes step outputs and has a 32MiB serialized value limit.
+        // persists non-stream step outputs with a 1 MiB limit.
         return {
           detections: workflowResult.detections,
           storedDetectionOutputsByPlugin,
@@ -238,28 +307,28 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         box: d.box,
       }));
 
-    // Run optional vision-language analysis from a representative original /
-    // annotated Roboflow frame pair. This avoids sending the complete video.
-    const sceneResults = await step.do<SceneAnalysisResult[]>("summarize-scene", STEP_RETRIES, async () => {
+    // Run optional vision-language analysis against the complete source video.
+    const sceneResults = await step.do<SceneAnalysisResult[]>("analyze-segment", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const results: SceneAnalysisResult[] = [];
+      if (segmentPlugins.length === 0) return results;
+
+      const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
 
       for (const segmentPlugin of segmentPlugins) {
         const config = segmentPlugin.config;
         const alerts = config.alerts.filter((a): a is SceneMatchAlertRule => a.kind === "scene-match" && a.enabled);
         const detectionResult = pluginResults.find((result) => result.pluginId === segmentPlugin.plugin.id);
-        const contextFrame = selectAnalysisContextFrame(detectionResult?.storedDetectionOutputs ?? []);
-        if (!contextFrame) {
-          this.#log.warn("vision-language plugin has no Roboflow frame context", {
-            pluginId: segmentPlugin.plugin.id,
-            segmentId: payload.segmentId,
-          });
-          continue;
-        }
+        const roboflowContext = buildRoboflowVideoContext(detectionResult, detectionVideo);
 
         if (alerts.length === 0) {
           try {
-            const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
-            const summary = await summarizeSceneFrames(frameImage, config.prompt);
+            const summary = await summarizeVideo(
+              segmentBytes,
+              segmentMetadata.contentType,
+              `${config.prompt}${roboflowContext}`,
+              { maxTokens: 800 },
+            );
             if (summary) {
               results.push({
                 pluginId: segmentPlugin.plugin.id,
@@ -271,7 +340,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
               });
             }
           } catch (err) {
-            this.#log.error("summarizeSceneFrames failed", {
+            this.#log.error("summarizeVideo failed", {
               error: String(err),
               segmentId: payload.segmentId,
               pluginId: segmentPlugin.plugin.id,
@@ -280,15 +349,15 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           continue;
         }
 
-        const labelList = Object.entries(detectionResult?.detectionCounts ?? {})
-          .map(([label, count]) => `${count}x ${label}`)
-          .join(", ");
-        const detectionContext = labelList ? `\n\nRoboflow detected in this frame: ${labelList}` : "";
-
         try {
-          const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
           const alertDescriptions = alerts.map((a) => a.description);
-          const analysis = await analyzeSceneFrames(frameImage, alertDescriptions, config.prompt, detectionContext);
+          const analysis = await analyzeSceneAlerts(
+            segmentBytes,
+            segmentMetadata.contentType,
+            alertDescriptions,
+            roboflowContext,
+            config.prompt,
+          );
 
           if (analysis) {
             results.push({
@@ -305,29 +374,9 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
                 severity: alerts.find((a) => a.description === m.description)?.severity ?? "warn",
               })),
             });
-
-            // Collect matched scene alerts for event recording
-            for (const match of analysis.matches) {
-              if (match.matched) {
-                const rule = alerts.find((a) => a.description === match.description);
-                if (rule) {
-                  matchedAlerts.push({
-                    kind: "scene-match",
-                    matched: true,
-                    pluginId: segmentPlugin.plugin.id,
-                    pluginName: segmentPlugin.plugin.name,
-                    category: segmentPlugin.plugin.category,
-                    description: rule.description,
-                    severity: rule.severity,
-                    confidence: match.confidence,
-                    evidence: match.evidence,
-                  });
-                }
-              }
-            }
           }
         } catch (err) {
-          this.#log.error("analyzeSceneFrames failed", {
+          this.#log.error("analyzeSceneAlerts failed", {
             error: String(err),
             segmentId: payload.segmentId,
             pluginId: segmentPlugin.plugin.id,
@@ -337,6 +386,23 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
 
       return results;
     });
+
+    for (const result of sceneResults) {
+      for (const match of result.alertMatches) {
+        if (!match.matched) continue;
+        matchedAlerts.push({
+          kind: "scene-match",
+          matched: true,
+          pluginId: result.pluginId,
+          pluginName: result.pluginName,
+          category: result.category,
+          description: match.description,
+          severity: match.severity,
+          confidence: match.confidence,
+          evidence: match.evidence,
+        });
+      }
+    }
 
     const evaluatedAt = new Date(payload.endedAt || payload.startedAt);
     const cooldownResult = applyAlertCooldown(
@@ -348,12 +414,13 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const emittedAlerts = cooldownResult.alerts;
 
     // Persist results to video_segments.data
-    await step.do("persist", STEP_RETRIES, async () => {
+    await step.do("save-findings", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const db = createDatabase(this.env.DATABASE);
 
       const data = {
         source: "facilix-processor",
-        analysisVersion: 10,
+        analysisVersion: 12,
         workflowExecutions: workflowGroups.map((group) => ({
           workflowId: group.workflow.workflowId,
           pluginIds: group.plugins.map((entry) => entry.plugin.id),
@@ -641,6 +708,43 @@ interface PluginDetectionResult {
   matchedAlerts: MatchedAlert[];
 }
 
+function buildRoboflowVideoContext(
+  result: PluginDetectionResult | undefined,
+  video: DetectionVideoMeta | null,
+): string {
+  if (!result && !video) return "";
+
+  const detections = result?.detections ?? [];
+  const maxDetections = 200;
+  const sampledDetections =
+    detections.length <= maxDetections
+      ? detections
+      : Array.from({ length: maxDetections }, (_, index) => {
+          const sourceIndex = Math.round((index * (detections.length - 1)) / (maxDetections - 1));
+          return detections[sourceIndex];
+        });
+  const context = {
+    workflowId: result?.workflowId,
+    videoMetadata: video ?? undefined,
+    detectionCounts: result?.detectionCounts ?? {},
+    configuredCountValue: result?.maxCount,
+    operationalState: result?.operationalState,
+    totalDetections: detections.length,
+    includedDetections: sampledDetections.length,
+    omittedDetections: Math.max(0, detections.length - sampledDetections.length),
+    detections: sampledDetections.map((detection) => ({
+      label: detection.label,
+      confidence: Number(detection.confidence.toFixed(4)),
+      atSec: detection.atSec === undefined ? undefined : Number(detection.atSec.toFixed(3)),
+      frameIndex: detection.frameIndex,
+      trackId: detection.trackId,
+      box: detection.box,
+    })),
+  };
+
+  return `\n\nUse this Roboflow output as supplemental machine-generated context. Verify it against the video rather than treating it as ground truth. Detection totals can include repeated appearances across sampled frames:\n${JSON.stringify(context)}`;
+}
+
 function buildAlertAttachments(
   payload: SegmentPayload,
   alert: MatchedAlert,
@@ -786,18 +890,6 @@ function formatAlertReason(alert: MatchedAlert): string {
 
 function sanitizeWorkflowKey(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "-");
-}
-
-async function loadAnalysisFrame(
-  bucket: R2Bucket,
-  frame: StoredDetectionRef,
-): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const object = await bucket.get(frame.assetId);
-  if (!object) {
-    throw new Error(`Video frame not found for frame ${frame.frameIndex}`);
-  }
-  const bytes = await object.bytes();
-  return { bytes, mimeType: "image/jpeg" };
 }
 
 async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint8Array> {

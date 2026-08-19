@@ -4,8 +4,8 @@ services:
       context: src/simulator
     container_name: facilix-simulator
     restart: unless-stopped
-    environment:
-      SIMULATOR_TOKEN: "${SIMULATOR_TOKEN:-}"
+    env_file:
+      - ./src/simulator/.env
     ports:
       - "3002:8000"
       - "3003:8554"

@@ -394,7 +394,7 @@ export function DeviceDetailsPanel({
                           ? "Stop simulation stream"
                           : "Start simulation stream"
                       }
-                      className="absolute top-2 right-2 z-30 bg-background/85 backdrop-blur-sm"
+                      className="bg-background/85 absolute top-2 right-2 z-30 backdrop-blur-sm"
                       disabled={simulationStreamActionLoading}
                       onClick={(event) => {
                         event.stopPropagation();

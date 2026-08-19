@@ -261,6 +261,48 @@ export const videoSegment = sqliteTable("video_segments", {
     .$default(() => new Date()),
 });
 
+export const facilityProcess = sqliteTable(
+  "facility_processes",
+  {
+    id: text("id").primaryKey(),
+    facilityId: text("facility_id")
+      .notNull()
+      .references(() => facility.id, { onDelete: "cascade" }),
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => facilityDevice.id, { onDelete: "cascade" }),
+    segmentId: text("segment_id")
+      .notNull()
+      .references(() => videoSegment.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["segment"] }).notNull(),
+    name: text("name").notNull(),
+    status: text("status", {
+      enum: ["queued", "running", "waiting", "paused", "errored", "terminated", "complete", "unknown"],
+    })
+      .notNull()
+      .default("queued"),
+    step: text("step"),
+    attempt: integer("attempt"),
+    error: text("error", { mode: "json" }).$type<{ name: string; message: string } | null>(),
+    output: text("output", { mode: "json" }).$type<JsonObject | null>(),
+    startedAt: integer("started_at", { mode: "timestamp_ms" }),
+    completedAt: integer("completed_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$default(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$default(() => new Date())
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("facility_processes_facility_created_idx").on(table.facilityId, table.createdAt),
+    index("facility_processes_facility_status_idx").on(table.facilityId, table.status),
+    index("facility_processes_device_id_idx").on(table.deviceId),
+    index("facility_processes_segment_id_idx").on(table.segmentId),
+  ],
+);
+
 /**
  * Sensor readings persisted for history and latest-value queries.
  * Each reading from the monitoring container gets a row here.
@@ -364,6 +406,7 @@ export type FacilityDevice = typeof facilityDevice.$inferSelect;
 export type FacilityEvent = typeof facilityEvent.$inferSelect;
 export type EventAttachment = typeof eventAttachment.$inferSelect;
 export type VideoSegment = typeof videoSegment.$inferSelect;
+export type FacilityProcess = typeof facilityProcess.$inferSelect;
 export type SensorReading = typeof sensorReading.$inferSelect;
 export type IdempotencyKey = typeof idempotencyKey.$inferSelect;
 export type VideoFrame = typeof videoFrame.$inferSelect;
