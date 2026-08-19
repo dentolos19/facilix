@@ -169,7 +169,7 @@ interface SimulatorHealth {
 }
 
 function simulatorApiUrl() {
-  return import.meta.env?.VITE_SIMULATOR_API_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
+  return import.meta.env?.VITE_SIMULATOR_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
 }
 
 // ---------------------------------------------------------------------------

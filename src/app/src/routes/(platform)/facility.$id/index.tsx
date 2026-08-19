@@ -63,6 +63,7 @@ import {
   type FacilityEventView,
   getAllFacilityEvents,
   getFacilityEvents,
+  groupFacilityEvents,
 } from "#/lib/functions/events";
 import { deleteFacility, duplicateFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import { generateFacilityLayoutFromFile } from "#/lib/functions/facility-layout";
@@ -196,7 +197,7 @@ function Page() {
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // ── D1-backed facility events (filtered by settings for global events panel) ─────
-  const [facilityEvents, setFacilityEvents] = useState<FacilityEventRow[]>([]);
+  const [facilityEvents, setFacilityEvents] = useState<FacilityEventView[]>([]);
 
   // ── D1-backed ALL events (unfiltered, for logs dialog) ─────
   const [allEvents, setAllEvents] = useState<FacilityEventRow[]>([]);
@@ -292,8 +293,8 @@ function Page() {
             case "snapshot":
             case "event":
               // Refetch both filtered and unfiltered events from D1
-              getFacilityEvents({ data: { facilityId } })
-                .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+              getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
+                .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
                 .catch(() => {});
               getAllFacilityEvents({ data: { facilityId } })
                 .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
@@ -329,8 +330,8 @@ function Page() {
 
   // ── Fetch initial facility events from D1 on mount ─────────────────────
   useEffect(() => {
-    getFacilityEvents({ data: { facilityId } })
-      .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+    getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
+      .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
       .catch(() => {});
     getAllFacilityEvents({ data: { facilityId } })
       .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
@@ -487,6 +488,8 @@ function Page() {
       };
     });
   }, [facilityEvents, placedItems]);
+  const deviceEventViews = useMemo(() => facilityEventViews.slice(0, 200), [facilityEventViews]);
+  const globalEventViews = useMemo(() => groupFacilityEvents(facilityEventViews).slice(0, 200), [facilityEventViews]);
 
   const monitoringDeviceId = selectedDeviceId(monitoringSelection);
 
@@ -1566,7 +1569,7 @@ function Page() {
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
             <GlobalEventsPanel
-              events={facilityEventViews}
+              events={globalEventViews}
               onSelectDevice={selectMonitoringDevice}
               onSelectEvent={selectMonitoringEvent}
               selection={monitoringSelection}
@@ -1670,8 +1673,9 @@ function Page() {
           {editMode === "monitoring" ? (
             <MonitoringDetailsPanel
               devices={placedItems}
-              events={facilityEventViews}
+              events={deviceEventViews}
               facilityId={facilityId}
+              incidentEvents={globalEventViews}
               onSelectDevice={selectMonitoringDevice}
               selection={monitoringSelection}
             />

@@ -107,9 +107,18 @@ export interface RunVideoDetectionOptions {
 export interface DetectionVideoMeta {
   fps: number;
   frameCount: number;
+  decodedFrameCount?: number;
   frameInterval: number;
+  attemptedFrameCount?: number;
   sampledFrameCount?: number;
   failedFrameCount?: number;
+  skippedFrameCount?: number;
+  circuitOpen?: boolean;
+  processingDurationMs?: number;
+  requestTimeoutSec?: number;
+  queueWaitTimeoutSec?: number;
+  videoBudgetSec?: number;
+  maxConcurrency?: number;
 }
 
 /** A sampled frame's detection output. */
@@ -131,16 +140,6 @@ export interface VideoDetectionResult {
   detections: WorkflowDetection[];
   detectionOutputs: DetectionFrame[];
   video: DetectionVideoMeta | null;
-}
-
-class NonRetryableRoboflowError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "NonRetryableRoboflowError";
-  }
 }
 
 /**
@@ -188,67 +187,49 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
   const body = new ArrayBuffer(segmentBytes.byteLength);
   new Uint8Array(body).set(segmentBytes);
 
-  // Retry with exponential backoff (no AbortSignal — step timeout handles cancellation)
-  const maxRetries = 2;
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await containerStub.containerFetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "video/mp4",
-          ...(roboflowApiKey ? { "X-Roboflow-Api-Key": roboflowApiKey } : {}),
-          ...(roboflowApiBase ? { "X-Roboflow-Api-Base": roboflowApiBase } : {}),
-        },
-        body,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        const message = `Python backend error (${response.status}): ${errorText}`;
-        if (response.status >= 400 && response.status < 500) {
-          throw new NonRetryableRoboflowError(message, response.status);
-        }
-        throw new Error(message);
-      }
-
-      const result: unknown = await response.json();
-      if (isRecord(result) && typeof result.error === "string") {
-        throw new Error(`Python backend error: ${result.error}`);
-      }
-      let detections = parseWorkflowResponse(result, pluginWorkflow);
-
-      // Apply confidence filter
-      detections = detections.filter((d) => d.confidence >= minConfidence);
-
-      // Apply class filter
-      if (classFilter && classFilter.length > 0) {
-        const allowedLabels = new Set(classFilter.map((l) => l.toLowerCase()));
-        detections = detections.filter((d) => allowedLabels.has(d.label));
-      }
-
-      // Extract detection outputs from Python backend
-      const detectionOutputs = extractDetectionOutputs(result);
-
-      // Extract video metadata from Python backend response
-      const video = extractVideoMeta(result);
-
-      return { detections, detectionOutputs, video };
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (err instanceof NonRetryableRoboflowError) {
-        throw err;
-      }
-      if (attempt === maxRetries) {
-        throw lastError;
-      }
-      // Exponential backoff: 1s, 2s
-      await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-    }
+  // Frame retries happen inside the container. Replaying the complete video
+  // here would repeat successful frame inference and amplify provider load.
+  let response: Response;
+  try {
+    response = await containerStub.containerFetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "video/mp4",
+        ...(roboflowApiKey ? { "X-Roboflow-Api-Key": roboflowApiKey } : {}),
+        ...(roboflowApiBase ? { "X-Roboflow-Api-Base": roboflowApiBase } : {}),
+      },
+      body,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Video detection request failed for workflow ${pluginWorkflow.workflowId}: ${message}`, {
+      cause: error,
+    });
   }
 
-  throw lastError ?? new Error("Unknown error in runVideoObjectDetection");
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Python backend error (${response.status}): ${errorText}`);
+  }
+
+  const result: unknown = await response.json();
+  if (isRecord(result) && typeof result.error === "string") {
+    throw new Error(`Python backend error: ${result.error}`);
+  }
+  let detections = parseWorkflowResponse(result, pluginWorkflow);
+
+  detections = detections.filter((d) => d.confidence >= minConfidence);
+
+  if (classFilter && classFilter.length > 0) {
+    const allowedLabels = new Set(classFilter.map((label) => label.toLowerCase()));
+    detections = detections.filter((d) => allowedLabels.has(d.label));
+  }
+
+  return {
+    detections,
+    detectionOutputs: extractDetectionOutputs(result),
+    video: extractVideoMeta(result),
+  };
 }
 
 // ── REST response parsing ──────────────────────────────────────────────────
@@ -270,9 +251,18 @@ function extractVideoMeta(result: unknown): DetectionVideoMeta | null {
   return {
     fps: video.fps,
     frameCount: video.frameCount,
+    decodedFrameCount: typeof video.decodedFrameCount === "number" ? video.decodedFrameCount : undefined,
     frameInterval: video.frameInterval,
+    attemptedFrameCount: typeof video.attemptedFrameCount === "number" ? video.attemptedFrameCount : undefined,
     sampledFrameCount: typeof video.sampledFrameCount === "number" ? video.sampledFrameCount : undefined,
     failedFrameCount: typeof video.failedFrameCount === "number" ? video.failedFrameCount : undefined,
+    skippedFrameCount: typeof video.skippedFrameCount === "number" ? video.skippedFrameCount : undefined,
+    circuitOpen: typeof video.circuitOpen === "boolean" ? video.circuitOpen : undefined,
+    processingDurationMs: typeof video.processingDurationMs === "number" ? video.processingDurationMs : undefined,
+    requestTimeoutSec: typeof video.requestTimeoutSec === "number" ? video.requestTimeoutSec : undefined,
+    queueWaitTimeoutSec: typeof video.queueWaitTimeoutSec === "number" ? video.queueWaitTimeoutSec : undefined,
+    videoBudgetSec: typeof video.videoBudgetSec === "number" ? video.videoBudgetSec : undefined,
+    maxConcurrency: typeof video.maxConcurrency === "number" ? video.maxConcurrency : undefined,
   };
 }
 

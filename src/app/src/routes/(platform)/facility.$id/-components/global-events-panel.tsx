@@ -87,14 +87,22 @@ export function GlobalEventsPanel({
                 <div className="flex items-center gap-1.5">
                   <span className="text-foreground/80 shrink-0 font-medium">{event.deviceName}</span>
                   <EventSeverityBadge severity={event.severity} />
+                  {event.occurrenceCount > 1 && (
+                    <span className="bg-foreground/7 text-foreground/65 px-1 font-mono text-[9px]">
+                      {event.occurrenceCount} observations
+                    </span>
+                  )}
                   {event.attachments.length > 0 && (
                     <span className="text-muted-foreground/50 font-mono text-[9px]">
-                      {event.attachments.length} attachments
+                      {event.attachments.length} {event.attachments.length === 1 ? "attachment" : "attachments"}
                     </span>
                   )}
                 </div>
                 <span className="text-muted-foreground/70">{event.message}</span>
-                <span className="text-muted-foreground/40">{new Date(event.createdAt).toLocaleString()}</span>
+                <span className="text-muted-foreground/40">
+                  {event.occurrenceCount > 1 ? "Last observed " : ""}
+                  {new Date(event.lastSeen).toLocaleString()}
+                </span>
               </button>
             );
           })}

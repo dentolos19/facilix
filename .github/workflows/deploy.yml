@@ -34,7 +34,7 @@ jobs:
       - name: Build Project
         working-directory: src/app
         env:
-          VITE_SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
+          VITE_SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
         run: bun run build
 
       - name: Migrate Database
@@ -53,7 +53,6 @@ jobs:
           OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          VITE_SIMULATOR_API_URL: ${{ vars.VITE_SIMULATOR_API_URL }}
           SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -72,7 +71,6 @@ jobs:
             OPENROUTER_REFERER,
             OPENROUTER_MODEL,
             ROBOFLOW_API_KEY,
-            VITE_SIMULATOR_API_URL,
             SIMULATOR_URL,
             SIMULATOR_TOKEN,
             FLY_API_TOKEN,

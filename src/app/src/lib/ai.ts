@@ -23,6 +23,7 @@ const log = createLogger("openrouter");
  */
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_TIMEOUT_MS = 45_000;
 
 /** Model id to request. Uses OpenRouter's automatic routing when none is configured. */
 function resolveModel(): string {
@@ -137,15 +138,22 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
   const provider = resolveProvider(model);
   if (provider) request.provider = provider;
 
-  const response = await fetch(`${baseUrl()}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${requireApiKey()}`,
-      "Content-Type": "application/json",
-      ...attributionHeaders(),
-    },
-    body: JSON.stringify(request),
-  });
+  const startedAt = Date.now();
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requireApiKey()}`,
+        "Content-Type": "application/json",
+        ...attributionHeaders(),
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(`OpenRouter request failed after ${Date.now() - startedAt}ms`, { cause: error });
+  }
 
   if (!response.ok) {
     const tail = (await response.text()).slice(0, 500);
@@ -161,7 +169,11 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") return null;
   const trimmed = content.trim();
-  log.info("OpenRouter completion ok", { model: request.model, outputLength: trimmed.length });
+  log.info("OpenRouter completion ok", {
+    model: request.model,
+    outputLength: trimmed.length,
+    durationMs: Date.now() - startedAt,
+  });
   return trimmed.length > 0 ? trimmed : null;
 }
 
@@ -527,16 +539,24 @@ async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens
   const provider = resolveProvider(model);
   if (provider) request.provider = provider;
 
-  const sendRequest = () =>
-    fetch(`${baseUrl()}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${requireApiKey()}`,
-        "Content-Type": "application/json",
-        ...attributionHeaders(),
-      },
-      body: JSON.stringify(request),
-    });
+  const startedAt = Date.now();
+  const signal = AbortSignal.timeout(OPENROUTER_TIMEOUT_MS);
+  const sendRequest = async () => {
+    try {
+      return await fetch(`${baseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${requireApiKey()}`,
+          "Content-Type": "application/json",
+          ...attributionHeaders(),
+        },
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (error) {
+      throw new Error(`OpenRouter JSON request failed after ${Date.now() - startedAt}ms`, { cause: error });
+    }
+  };
 
   let response = await sendRequest();
   if (!response.ok && response.status === 400) {
@@ -571,7 +591,11 @@ async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens
 
   const extracted = extractJsonObject(trimmed);
   if (extracted) {
-    log.info("OpenRouter JSON completion ok", { model: request.model, outputLength: extracted.length });
+    log.info("OpenRouter JSON completion ok", {
+      model: request.model,
+      outputLength: extracted.length,
+      durationMs: Date.now() - startedAt,
+    });
     return extracted;
   }
 

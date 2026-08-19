@@ -9,18 +9,20 @@ import { ZoneDetailsPanel } from "./zone-details-panel";
 export function MonitoringDetailsPanel({
   selection,
   events,
+  incidentEvents,
   devices,
   facilityId,
   onSelectDevice,
 }: {
   selection: MonitoringSelection;
   events: FacilityEventView[];
+  incidentEvents: FacilityEventView[];
   devices: PlacedItem[];
   facilityId: string;
   onSelectDevice: (deviceId: string) => void;
 }) {
   if (selection?.kind === "event") {
-    const event = events.find((item) => item.id === selection.eventId);
+    const event = incidentEvents.find((item) => item.id === selection.eventId);
     if (event) {
       return <EventDetailsPanel event={event} />;
     }

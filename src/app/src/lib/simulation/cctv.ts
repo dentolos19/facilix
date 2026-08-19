@@ -30,7 +30,7 @@ export interface SimulationStream {
 // ---------------------------------------------------------------------------
 
 function getApiBase(): string {
-  return import.meta.env?.VITE_SIMULATOR_API_URL ?? "http://localhost:3002";
+  return import.meta.env?.VITE_SIMULATOR_URL ?? "http://localhost:3002";
 }
 
 // ---------------------------------------------------------------------------

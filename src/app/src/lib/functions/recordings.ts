@@ -111,15 +111,23 @@ export interface RecordingRow {
     detectionVideo?: {
       fps: number;
       frameCount: number;
+      decodedFrameCount?: number;
       frameInterval: number;
+      attemptedFrameCount?: number;
       sampledFrameCount?: number;
       failedFrameCount?: number;
+      circuitOpen?: boolean;
+      processingDurationMs?: number;
+      requestTimeoutSec?: number;
+      maxConcurrency?: number;
     };
     detections?: RecordingDetection[];
     detectionCounts?: Record<string, number>;
     anomalies?: RecordingAnomaly[];
     pluginResults?: RecordingPluginResult[];
     sceneResults?: RecordingSceneResult[];
+    sceneAnalysis?: { durationMs: number; requestCount: number; pluginCount: number };
+    processing?: { partial: boolean; failedFrameCount: number; skippedFrameCount: number; circuitOpen: boolean };
     matchedAlerts?: RecordingAlert[];
     alertState?: Record<string, string>;
     alerts?: RecordingAlert[];
