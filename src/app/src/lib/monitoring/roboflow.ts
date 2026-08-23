@@ -1,7 +1,7 @@
 /**
- * Roboflow Workflow video client.
+ * Video model client.
  *
- * Uses the Roboflow REST API (`POST /{workspace}/workflows/{workflow}`) to run workflow
+ * Uses the vision REST API (`POST /{workspace}/workflows/{workflow}`) to run a model
  * object detection on uploaded video segments. The SDK's built-in WebRTC
  * transport (`webrtc.useVideoFile`) requires browser-level RTCPeerConnection
  * globals that are unavailable in Cloudflare Workers, so we bypass the SDK
@@ -29,9 +29,9 @@ export interface WorkflowDetection {
   frameIndex?: number;
   /** Tracking ID for multi-frame tracking (if available). */
   trackId?: string;
-  /** Roboflow class ID (if available). */
+  /** Class ID returned by the model, if available. */
   classId?: number;
-  /** Raw Roboflow prediction geometry (center-based coordinates and detection ID). */
+  /** Raw vision prediction geometry (center-based coordinates and detection ID). */
   prediction?: {
     x: number;
     y: number;
@@ -46,7 +46,7 @@ export interface WorkflowDetection {
   };
 }
 
-/** Raw Roboflow workflow prediction shape. */
+/** Raw vision model prediction shape. */
 interface RawDetection {
   x?: number;
   y?: number;
@@ -65,7 +65,7 @@ interface RawDetection {
   [key: string]: unknown;
 }
 
-/** Runtime settings for the Roboflow workflow (shared across all plugins). */
+/** Runtime settings for the vision model shared across all plugins. */
 export interface WorkflowRuntimeConfig {
   processingTimeoutSec: number;
   requestedPlan: string;
@@ -97,9 +97,9 @@ export interface RunVideoDetectionOptions {
   frameInterval?: number;
   /** The Durable Object namespace for getting the container stub. */
   serverNamespace: DurableObjectNamespace;
-  /** Roboflow API key from the Worker environment, forwarded to the Python container. */
+  /** Model API key from the Worker environment, forwarded to the Python container. */
   roboflowApiKey?: string;
-  /** Roboflow API base URL from the Worker environment, forwarded to the Python container. */
+  /** Model API base URL from the Worker environment, forwarded to the Python container. */
   roboflowApiBase?: string;
 }
 
@@ -143,10 +143,10 @@ export interface VideoDetectionResult {
 }
 
 /**
- * Run a specific Roboflow workflow on a video segment via the Python backend.
+ * Run a specific vision model on a video segment via the Python backend.
  *
  * The Python backend (running in a Cloudflare Container) extracts frames using
- * OpenCV and calls the Roboflow REST API for each frame. This avoids the WebRTC
+ * OpenCV and calls the vision REST API for each frame. This avoids the WebRTC
  * requirement that's unavailable in Cloudflare Workers.
  *
  * @returns Detections plus video metadata for playback alignment.
@@ -301,7 +301,7 @@ function extractDetectionOutputs(result: unknown): DetectionFrame[] {
     .filter((f): f is DetectionFrame => f !== null);
 }
 
-/** Normalise the various shapes the Roboflow REST API may return. */
+/** Normalise the various shapes the vision REST API may return. */
 function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowConfig): WorkflowDetection[] {
   if (!result || typeof result !== "object") return [];
 
@@ -317,7 +317,7 @@ function parseWorkflowResponse(result: unknown, pluginWorkflow: PluginWorkflowCo
       .filter((d): d is WorkflowDetection => d !== null);
   }
 
-  // Roboflow REST API shapes (fallback):
+  // vision REST API shapes (fallback):
   //   { outputs: [ { detections: [...], image: … } ] }
   //   { output:  { detections: [...], image: … }   }
   //   { detections: [...] }                          (single-image shorthand)
@@ -399,7 +399,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
 
-/** Normalize a raw Roboflow workflow prediction into our shared detection shape. */
+/** Normalize a raw vision model prediction into our shared detection shape. */
 function toDetection(
   p: RawDetection,
   fallback: { frameIndex?: number; atSec?: number },

@@ -348,7 +348,7 @@ export const idempotencyKey = sqliteTable("idempotency_keys", {
 });
 
 /**
- * Roboflow workflow detection outputs stored per sampled frame.
+ * Model detection outputs stored per sampled frame.
  * Each row stores the raw frame image and detections JSON.
  * Bounding boxes are rendered by the frontend from the detections data.
  */

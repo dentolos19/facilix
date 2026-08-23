@@ -1,7 +1,7 @@
-"""Roboflow workflow video processing via REST API.
+"""Video processing for vision models via the REST API.
 
 Extracts frames from a video segment using OpenCV and sends each frame
-to the Roboflow serverless workflow endpoint. Aggregates detections
+to the vision serverless workflow endpoint. Aggregates detections
 into a normalized detection format.
 
 Each sampled frame produces a detection output containing:
@@ -25,7 +25,7 @@ import cv2
 import httpx
 import numpy as np
 
-log = logging.getLogger("facilix.roboflow")
+log = logging.getLogger("facilix.vision")
 
 ROBOFLOW_API_BASE = os.getenv("ROBOFLOW_API_BASE", "https://serverless.roboflow.com")
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "")
@@ -50,7 +50,7 @@ async def process_video_workflow(
     roboflow_api_key: str | None = None,
     roboflow_api_base: str | None = None,
 ) -> dict[str, Any]:
-    """Process a video segment through a Roboflow workflow.
+    """Process a video segment through a vision model.
 
     Extracts frames at regular intervals and sends each to the workflow endpoint.
     Returns detections, detection outputs with frame images, and video metadata.
@@ -218,7 +218,7 @@ async def process_video_workflow(
         if frame_idx == 0:
             raise ValueError("Video contains no decodable frames")
         if attempted_frames > 0 and failed_frames == attempted_frames:
-            log.error("Roboflow inference failed for all %d sampled frames", attempted_frames)
+            log.error("vision inference failed for all %d sampled frames", attempted_frames)
 
         log.info(
             "processed %d frames, %d detections, %d detection outputs (%d inference failures)",
@@ -268,7 +268,7 @@ async def _process_frame(
     api_key: str,
     api_base: str,
 ) -> dict[str, Any] | None:
-    """Send a single frame to the Roboflow workflow and return a detection output dict.
+    """Send a single frame to the vision model and return a detection output dict.
 
     Returns None if the request fails. The dict contains:
     - frameIndex, atSec: frame timing
@@ -291,7 +291,7 @@ async def _process_frame(
                 )
             except TimeoutError:
                 log.warning(
-                    "roboflow frame %d skipped after waiting %.1fs for inference capacity",
+                    "vision frame %d skipped after waiting %.1fs for inference capacity",
                     frame_index,
                     ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC,
                 )
@@ -332,7 +332,7 @@ async def _process_frame(
 
             retryable = resp.status_code == 429 or resp.status_code >= 500
             log.warning(
-                "roboflow frame %d failed: HTTP %d (attempt %d/%d) — %s",
+                "vision frame %d failed: HTTP %d (attempt %d/%d) — %s",
                 frame_index,
                 resp.status_code,
                 attempt + 1,
@@ -343,7 +343,7 @@ async def _process_frame(
                 return None
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             log.warning(
-                "roboflow frame %d transport error (attempt %d/%d): %s",
+                "vision frame %d transport error (attempt %d/%d): %s",
                 frame_index,
                 attempt + 1,
                 ROBOFLOW_FRAME_RETRIES + 1,
@@ -352,7 +352,7 @@ async def _process_frame(
             if attempt >= ROBOFLOW_FRAME_RETRIES:
                 return None
         except Exception as exc:
-            log.exception("roboflow frame %d error: %s", frame_index, exc)
+            log.exception("vision frame %d error: %s", frame_index, exc)
             return None
 
         await asyncio.sleep(2**attempt)
@@ -408,12 +408,12 @@ def _parse_frame_response(
     allowed_labels: set[str],
     default_image_meta: dict[str, int],
 ) -> dict[str, Any]:
-    """Parse the Roboflow REST API response into detections + image metadata.
+    """Parse the vision REST API response into detections + image metadata.
 
     Returns an output even if no valid detections are found so sampled frames
     can still be persisted for debugging/review.
     """
-    # Roboflow Workflows commonly returns a top-level list. Direct model
+    # Workflows commonly return a top-level list. Direct model
     # responses and some workflow versions return an object instead.
     if isinstance(result, list):
         outputs = result
@@ -484,7 +484,7 @@ def _to_detection(
     at_sec: float,
     image_meta: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
-    """Normalize a Roboflow prediction into our detection format.
+    """Normalize a vision prediction into our detection format.
 
     Returns both normalized bounding boxes and raw prediction geometry
     so the frontend can render boxes and use source-image dimensions.

@@ -249,7 +249,7 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                   <div className="min-w-0">
                     <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
                     <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
-                      {plugin.category} · {plugin.workflow.workflowId}
+                      {plugin.category} · vision
                     </p>
                   </div>
                   <span

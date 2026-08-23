@@ -6,7 +6,7 @@ import { createDatabase, schema } from "#/lib/database";
 import { requireFacilityAccess } from "#/lib/functions/access";
 import { getPlugin } from "#/lib/monitoring/plugins";
 
-/** A detection from the Roboflow workflow. */
+/** A detection from the vision model. */
 export interface RecordingDetection {
   label: string;
   confidence: number;
@@ -20,7 +20,7 @@ export interface RecordingDetection {
   frameIndex?: number;
   trackId?: string;
   classId?: number;
-  /** Raw Roboflow prediction geometry (center-based coordinates and detection ID). */
+  /** Raw vision prediction geometry (center-based coordinates and detection ID). */
   prediction?: {
     x: number;
     y: number;
@@ -103,7 +103,7 @@ export interface RecordingRow {
   startedAt: Date;
   endedAt: Date | null;
   createdAt: Date;
-  /** Roboflow workflow detections and optional OpenRouter scene summary. */
+  /** Model detections and an optional OpenRouter scene summary. */
   data: {
     source?: string;
     analysisVersion?: number;
@@ -192,7 +192,7 @@ export interface VideoFrameRow {
 }
 
 /**
- * Get Roboflow prediction outputs for a device, newest-first.
+ * Get vision prediction outputs for a device, newest-first.
  * Limited to `limit` rows (default 100, max 500).
  */
 export const getDeviceDetections = createServerFn({ method: "GET" })

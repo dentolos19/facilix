@@ -154,11 +154,11 @@ Since the factory has 2 loading bays, visibility and planning are important to p
 
 Facilix should support configurable, outcome-oriented intelligence plugins for CCTV video analysis. Plugins should describe an operational job that facility staff recognize rather than exposing underlying AI capabilities such as generic person, vehicle, object, or natural-language detection.
 
-Each CCTV device can have multiple plugins enabled. Every plugin must use a Roboflow Workflow. The standard `object-detection` workflow is the default when a plugin does not require a specialized workflow.
+Each CCTV device can have multiple plugins enabled. Every plugin uses a vision model. The configured object model is the default when a plugin does not require the vehicle model.
 
-Plugins that share the same workflow must reuse one inference pass for each CCTV segment. The result is filtered per plugin after inference to avoid duplicate Roboflow processing cost.
+Plugins that share the same vision model must reuse one inference pass for each CCTV segment. The result is filtered per plugin after inference to avoid duplicate processing cost.
 
-Plugins that additionally use a vision-language model must provide both the original frame and its Roboflow-annotated frame as analysis context. The original frame remains the source of truth; annotations are treated as location hints.
+Plugins that additionally use a vision-language model must provide both the original frame and its vision-annotated frame as analysis context. The original frame remains the source of truth; annotations are treated as location hints.
 
 ### Plugin Types
 

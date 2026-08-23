@@ -120,7 +120,7 @@ async def process_video(
     frame_interval: Annotated[int, Query(ge=1)] = 30,
     min_confidence: Annotated[float, Query(ge=0, le=1)] = 0.4,
 ) -> dict[str, Any]:
-    """Process a video segment through a Roboflow workflow.
+    """Process a video segment through a vision model.
 
     Accepts video bytes as the request body (raw bytes with content-type video/mp4).
     Called by the Worker processor to run object detection on CCTV segments.

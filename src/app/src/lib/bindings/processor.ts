@@ -41,8 +41,8 @@ import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types
  * (`assetId` + metadata). External inference and DB writes run inside durable
  * `step.do` boundaries.
  *
- * Enabled plugins are grouped by Roboflow workflow so each distinct workflow
- * runs once per segment. Vision-language plugins then review the complete
+ * Enabled plugins are grouped by vision model so each distinct model
+ * runs once per segment. vision-language plugins then review the complete
  * source video segment.
  *
  * Triggered from `handleSegment` via `env.PROCESSOR.create({ params })`.
@@ -207,7 +207,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       },
     );
 
-    // Run each distinct Roboflow workflow once, then fan its results out to
+    // Run each distinct vision model once, then fan its results out to
     // every plugin that uses it.
     const pluginResults: PluginDetectionResult[] = [];
     const allDetections: WorkflowDetection[] = [];
@@ -220,7 +220,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
       const result = await step.do(stepName, INFERENCE_STEP_RETRIES, async (context) => {
         await this.beginStep(payload.processId, context.step.name, context.attempt);
         const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
-        this.#log.info("running Roboflow workflow", {
+        this.#log.info("running vision model", {
           pluginIds: group.plugins.map((entry) => entry.plugin.id),
           workspace: group.workflow.workspaceName,
           workflow: group.workflow.workflowId,
@@ -343,7 +343,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         const relevantDetectionResults = pluginResults.filter((result) =>
           segmentPlugins.some((segmentPlugin) => segmentPlugin.plugin.id === result.pluginId),
         );
-        const roboflowContext = buildRoboflowVideoContext(relevantDetectionResults, detectionVideo);
+        const visionContext = buildVisionContext(relevantDetectionResults, detectionVideo);
         let error: string | null = null;
 
         try {
@@ -351,7 +351,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             const summary = await summarizeVideo(
               segmentBytes,
               segmentMetadata.contentType,
-              `${guidance}${roboflowContext}`,
+              `${guidance}${visionContext}`,
               { maxTokens: 800 },
             );
             if (summary) {
@@ -371,7 +371,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
               segmentBytes,
               segmentMetadata.contentType,
               alertDescriptions,
-              roboflowContext,
+              visionContext,
               guidance,
             );
             if (analysis) {
@@ -797,7 +797,7 @@ interface PluginDetectionResult {
   matchedAlerts: MatchedAlert[];
 }
 
-function buildRoboflowVideoContext(results: PluginDetectionResult[], video: DetectionVideoMeta | null): string {
+function buildVisionContext(results: PluginDetectionResult[], video: DetectionVideoMeta | null): string {
   if (results.length === 0 && !video) return "";
 
   const detections = [
@@ -835,7 +835,7 @@ function buildRoboflowVideoContext(results: PluginDetectionResult[], video: Dete
     })),
   };
 
-  return `\n\nUse this Roboflow output as supplemental machine-generated context. Verify it against the video rather than treating it as ground truth. Detection totals can include repeated appearances across sampled frames:\n${JSON.stringify(context)}`;
+  return `\n\nUse this vision output as supplemental machine-generated context. Verify it against the video rather than treating it as ground truth. Detection totals can include repeated appearances across sampled frames:\n${JSON.stringify(context)}`;
 }
 
 function mergeDetectionVideoMetadata(videos: DetectionVideoMeta[]): DetectionVideoMeta | null {

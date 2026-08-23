@@ -325,7 +325,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     },
   );
 
-  // Dispatch the durable processor — runs Roboflow object detection on the
+  // Dispatch the durable processor to run vision object detection on the
   // video segment and writes the resulting detections onto video_segments.data.
   try {
     await env.PROCESSOR.create({

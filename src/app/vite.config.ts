@@ -6,6 +6,7 @@ import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const config = defineConfig({
+  envPrefix: ["VITE_", "VISION_"],
   server: {
     port: 3000,
     allowedHosts: true,

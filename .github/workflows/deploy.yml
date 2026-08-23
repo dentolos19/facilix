@@ -53,6 +53,8 @@ jobs:
           OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
+          VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
+          VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
           SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -71,6 +73,8 @@ jobs:
             OPENROUTER_REFERER,
             OPENROUTER_MODEL,
             ROBOFLOW_API_KEY,
+            VISION_OBJECT_MODEL,
+            VISION_VEHICLE_MODEL,
             SIMULATOR_URL,
             SIMULATOR_TOKEN,
             FLY_API_TOKEN,
