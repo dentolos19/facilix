@@ -81,7 +81,7 @@ jobs:
             FLY_APP_NAME
           }' | bun wrangler secret bulk
 
-      - name: Deploy App to Cloudflare
+      - name: Deploy App
         working-directory: src/app
         run: bun run deploy
 
@@ -107,6 +107,10 @@ jobs:
         run: |
           printf 'SIMULATOR_TOKEN=%s\n' "$SIMULATOR_TOKEN" | flyctl secrets import
 
-      - name: Deploy Simulator to Fly
+      - name: Deploy Simulator
         working-directory: src/simulator
         run: flyctl deploy --ha=false --strategy immediate
+
+      - name: Scale Machines
+        working-directory: src/simulator
+        run: flyctl scale count 1 --yes
