@@ -1,14 +1,10 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { and, desc, eq, ne } from "drizzle-orm";
 
-import { analyzeSceneFrames, summarizeSceneFrames } from "#/lib/ai";
+import { analyzeSceneAlerts, summarizeVideo } from "#/lib/ai";
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
-import {
-  selectAnalysisContextFrame,
-  selectRepresentativeFrames,
-  type StoredDetectionRef,
-} from "#/lib/monitoring/event-evidence";
+import { selectRepresentativeFrames, type StoredDetectionRef } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
   evaluateCountThreshold,
@@ -25,8 +21,6 @@ import {
   type PluginCategory,
   type ResolvedPlugin,
   type SceneMatchAlertRule,
-  type SegmentAnalysisDeviceConfig,
-  type SegmentUnderstandingPlugin,
   type WorkflowObjectDetectionPlugin,
   type WorkflowObjectDetectionDeviceConfig,
 } from "#/lib/monitoring/plugins";
@@ -44,12 +38,12 @@ import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types
  *
  * Segment uploads are persisted to R2 by the HTTP handlers
  * (`monitoring/api.ts`), then the workflow is dispatched with a JSON pointer
- * (`assetId` + metadata). Each AI inference / DB write runs inside `step.do`,
- * which retries automatically on transient failures.
+ * (`assetId` + metadata). External inference and DB writes run inside durable
+ * `step.do` boundaries.
  *
- * Enabled plugins are grouped by Roboflow workflow so each distinct workflow
- * runs once per segment. Vision-language plugins then review one original /
- * annotated frame pair from the shared Roboflow output.
+ * Enabled plugins are grouped by vision model so each distinct model
+ * runs once per segment. vision-language plugins then review the complete
+ * source video segment.
  *
  * Triggered from `handleSegment` via `env.PROCESSOR.create({ params })`.
  */
@@ -63,6 +57,7 @@ export type SegmentPayload = {
   startedAt: string; // ISO timestamp
   endedAt: string; // ISO timestamp
   durationSec: number;
+  processId: string;
 };
 
 export type ProcessorPayload = SegmentPayload;
@@ -72,12 +67,89 @@ const STEP_RETRIES = {
   timeout: "3 minutes" as const,
 };
 
+const INFERENCE_STEP_RETRIES = {
+  retries: { limit: 0, delay: "5 seconds" as const, backoff: "exponential" as const },
+  timeout: "2 minutes" as const,
+};
+
+type FacilityProcessStatus =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "paused"
+  | "errored"
+  | "terminated"
+  | "complete"
+  | "unknown";
+
+type FacilityProcessUpdate = {
+  status?: FacilityProcessStatus;
+  step?: string | null;
+  attempt?: number | null;
+  error?: { name: string; message: string } | null;
+  output?: JsonObject | null;
+  startedAt?: Date | null;
+  completedAt?: Date | null;
+};
+
+function toProcessError(error: unknown): { name: string; message: string } {
+  if (error instanceof Error) return { name: error.name, message: error.message };
+  return { name: "WorkflowError", message: String(error) };
+}
+
 export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
   #log = createLogger("processor");
 
   async run(event: WorkflowEvent<ProcessorPayload>, step: WorkflowStep): Promise<unknown> {
-    const payload = event.payload;
-    return this.runSegment(payload, step);
+    const { payload } = event;
+    await this.startProcess(payload.processId);
+    try {
+      const result = await this.runSegment(payload, step);
+      await this.updateProcess(payload.processId, {
+        status: "complete",
+        output: result,
+        completedAt: new Date(),
+      });
+      return result;
+    } catch (error) {
+      await this.updateProcess(payload.processId, {
+        status: "errored",
+        error: toProcessError(error),
+        completedAt: new Date(),
+      });
+      throw error;
+    }
+  }
+
+  private async updateProcess(processId: string, update: FacilityProcessUpdate) {
+    const db = createDatabase(this.env.DATABASE);
+    await db
+      .update(schema.facilityProcess)
+      .set({ ...update, updatedAt: new Date() })
+      .where(eq(schema.facilityProcess.id, processId));
+  }
+
+  private async startProcess(processId: string) {
+    const db = createDatabase(this.env.DATABASE);
+    const [process] = await db
+      .select({ startedAt: schema.facilityProcess.startedAt })
+      .from(schema.facilityProcess)
+      .where(eq(schema.facilityProcess.id, processId))
+      .limit(1);
+    await this.updateProcess(processId, {
+      status: "running",
+      startedAt: process?.startedAt ?? new Date(),
+      error: null,
+    });
+  }
+
+  private async beginStep(processId: string, stepName: string, attempt: number) {
+    await this.updateProcess(processId, {
+      status: "running",
+      step: stepName,
+      attempt,
+      error: null,
+    });
   }
 
   // ── Segment processing ────────────────────────────────────────────────────
@@ -89,14 +161,8 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const { facilityId, deviceId, segmentId } = payload;
 
     // Load all enabled plugins for this device
-    const resolvedPlugins: ResolvedPlugin[] = [];
-    const segmentPlugins: Array<{
-      plugin: SegmentUnderstandingPlugin;
-      config: SegmentAnalysisDeviceConfig;
-    }> = [];
-    const cooldownByPlugin = new Map<string, number>();
-
-    await step.do("load-device-plugins", STEP_RETRIES, async () => {
+    const resolvedPlugins = await step.do<ResolvedPlugin[]>("load-plugins", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const db = createDatabase(this.env.DATABASE);
       const [row] = await db
         .select({ data: schema.facilityDevice.data })
@@ -104,49 +170,57 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         .where(eq(schema.facilityDevice.id, deviceId))
         .limit(1);
       const configs = normalizePlugins((row?.data as JsonObject | undefined)?.plugins);
-      const enabled = resolveEnabledPlugins(configs);
-      for (const resolved of enabled) {
-        resolvedPlugins.push(resolved);
-        cooldownByPlugin.set(resolved.plugin.id, resolved.config.cooldownSec ?? 0);
-        if (resolved.kind === "segment-understanding") {
-          segmentPlugins.push(resolved);
-        }
-      }
+      return resolveEnabledPlugins(configs);
     });
+    const segmentPlugins = resolvedPlugins.filter(
+      (resolved): resolved is Extract<ResolvedPlugin, { kind: "segment-understanding" }> =>
+        resolved.kind === "segment-understanding",
+    );
+    const cooldownByPlugin = new Map(
+      resolvedPlugins.map((resolved) => [resolved.plugin.id, resolved.config.cooldownSec ?? 0]),
+    );
     const workflowGroups = groupPluginsByWorkflow(resolvedPlugins);
 
     // Validate the segment exists without returning the video bytes from a
     // workflow step. Step results are persisted by Cloudflare Workflows and
     // must stay small (currently 1MiB), so the actual bytes are loaded inside
     // the steps that consume them.
-    const segmentMetadata = await step.do("load-segment-metadata", STEP_RETRIES, async () => {
+    const segmentMetadata = await step.do("load-metadata", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const object = await this.env.BUCKET.head(payload.assetId);
       if (!object) throw new Error(`segment not found in R2: ${payload.assetId}`);
-      return { size: object.size };
+      return {
+        size: object.size,
+        contentType: object.httpMetadata?.contentType?.startsWith("video/")
+          ? object.httpMetadata.contentType
+          : "video/mp4",
+      };
     });
 
     // Load previous segment data for enter/leave transition detection
     const previousSegmentData = await step.do<PreviousSegmentData | null>(
       "load-previous-segment",
       STEP_RETRIES,
-      async () => {
+      async (context) => {
+        await this.beginStep(payload.processId, context.step.name, context.attempt);
         return loadPreviousSegmentData(this.env.DATABASE, facilityId, deviceId, segmentId);
       },
     );
 
-    // Run each distinct Roboflow workflow once, then fan its results out to
+    // Run each distinct vision model once, then fan its results out to
     // every plugin that uses it.
     const pluginResults: PluginDetectionResult[] = [];
     const allDetections: WorkflowDetection[] = [];
     const detectionCounts: Record<string, number> = {};
     const matchedAlerts: MatchedAlert[] = [];
-    let detectionVideo: DetectionVideoMeta | null = null;
+    const detectionVideos: DetectionVideoMeta[] = [];
 
     for (const [groupIndex, group] of workflowGroups.entries()) {
-      const stepName = `run-workflow-${sanitizeWorkflowKey(group.workflow.workflowId)}-${groupIndex}`;
-      const result = await step.do(stepName, STEP_RETRIES, async () => {
+      const stepName = `detect-${sanitizeWorkflowKey(group.workflow.workflowId)}-${groupIndex}`;
+      const result = await step.do(stepName, INFERENCE_STEP_RETRIES, async (context) => {
+        await this.beginStep(payload.processId, context.step.name, context.attempt);
         const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
-        this.#log.info("running Roboflow workflow", {
+        this.#log.info("running vision model", {
           pluginIds: group.plugins.map((entry) => entry.plugin.id),
           workspace: group.workflow.workspaceName,
           workflow: group.workflow.workflowId,
@@ -183,7 +257,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             : {};
 
         // Never return base64 image payloads from a Workflow step. Workflows
-        // serializes step outputs and has a 32MiB serialized value limit.
+        // persists non-stream step outputs with a 1 MiB limit.
         return {
           detections: workflowResult.detections,
           storedDetectionOutputsByPlugin,
@@ -191,10 +265,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         };
       });
 
-      // Capture video metadata from the first workflow.
-      if (!detectionVideo && result.video) {
-        detectionVideo = result.video;
-      }
+      if (result.video) detectionVideos.push(result.video);
 
       // Aggregate each workflow result once, even when multiple plugins share it.
       for (const [label, count] of Object.entries(countByLabel(result.detections))) {
@@ -227,6 +298,7 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         matchedAlerts.push(...pluginAlertResults.filter((alert) => alert.matched));
       }
     }
+    const detectionVideo = mergeDetectionVideoMetadata(detectionVideos);
 
     // Build anomalies list for playback timeline (detections with timestamps)
     const anomalies = allDetections
@@ -238,105 +310,123 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         box: d.box,
       }));
 
-    // Run optional vision-language analysis from a representative original /
-    // annotated Roboflow frame pair. This avoids sending the complete video.
-    const sceneResults = await step.do<SceneAnalysisResult[]>("summarize-scene", STEP_RETRIES, async () => {
-      const results: SceneAnalysisResult[] = [];
+    // Run optional vision-language analysis against the complete source video.
+    const sceneAnalysis = await step.do<SceneAnalysisBatch>(
+      "analyze-segment",
+      INFERENCE_STEP_RETRIES,
+      async (context) => {
+        await this.beginStep(payload.processId, context.step.name, context.attempt);
+        const startedAt = Date.now();
+        const results: SceneAnalysisResult[] = [];
+        if (segmentPlugins.length === 0) return { results, durationMs: 0, requestCount: 0 };
 
-      for (const segmentPlugin of segmentPlugins) {
-        const config = segmentPlugin.config;
-        const alerts = config.alerts.filter((a): a is SceneMatchAlertRule => a.kind === "scene-match" && a.enabled);
-        const detectionResult = pluginResults.find((result) => result.pluginId === segmentPlugin.plugin.id);
-        const contextFrame = selectAnalysisContextFrame(detectionResult?.storedDetectionOutputs ?? []);
-        if (!contextFrame) {
-          this.#log.warn("vision-language plugin has no Roboflow frame context", {
-            pluginId: segmentPlugin.plugin.id,
-            segmentId: payload.segmentId,
-          });
-          continue;
-        }
-
-        if (alerts.length === 0) {
-          try {
-            const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
-            const summary = await summarizeSceneFrames(frameImage, config.prompt);
-            if (summary) {
-              results.push({
-                pluginId: segmentPlugin.plugin.id,
-                pluginName: segmentPlugin.plugin.name,
-                category: segmentPlugin.plugin.category,
-                summary,
-                operationalState: "normal",
-                alertMatches: [],
-              });
-            }
-          } catch (err) {
-            this.#log.error("summarizeSceneFrames failed", {
-              error: String(err),
-              segmentId: payload.segmentId,
-              pluginId: segmentPlugin.plugin.id,
-            });
-          }
-          continue;
-        }
-
-        const labelList = Object.entries(detectionResult?.detectionCounts ?? {})
-          .map(([label, count]) => `${count}x ${label}`)
-          .join(", ");
-        const detectionContext = labelList ? `\n\nRoboflow detected in this frame: ${labelList}` : "";
+        const segmentBytes = await loadSegmentBytes(this.env.BUCKET, payload.assetId);
+        const pluginAlerts = segmentPlugins.map((segmentPlugin) => ({
+          segmentPlugin,
+          alerts: segmentPlugin.config.alerts.filter(
+            (alert): alert is SceneMatchAlertRule => alert.kind === "scene-match" && alert.enabled,
+          ),
+        }));
+        const alertDescriptions = [
+          ...new Set(pluginAlerts.flatMap(({ alerts }) => alerts.map((alert) => alert.description))),
+        ];
+        const guidance = pluginAlerts
+          .map(({ segmentPlugin, alerts }) => {
+            const alertList = alerts.map((alert) => `- ${alert.description}`).join("\n");
+            return [
+              `Plugin: ${segmentPlugin.plugin.name}`,
+              segmentPlugin.config.prompt,
+              alertList ? `Configured scenarios:\n${alertList}` : "Summarize this plugin's area of concern.",
+            ].join("\n");
+          })
+          .join("\n\n");
+        const relevantDetectionResults = pluginResults.filter((result) =>
+          segmentPlugins.some((segmentPlugin) => segmentPlugin.plugin.id === result.pluginId),
+        );
+        const visionContext = buildVisionContext(relevantDetectionResults, detectionVideo);
+        let error: string | null = null;
 
         try {
-          const frameImage = await loadAnalysisFrame(this.env.BUCKET, contextFrame);
-          const alertDescriptions = alerts.map((a) => a.description);
-          const analysis = await analyzeSceneFrames(frameImage, alertDescriptions, config.prompt, detectionContext);
-
-          if (analysis) {
-            results.push({
-              pluginId: segmentPlugin.plugin.id,
-              pluginName: segmentPlugin.plugin.name,
-              category: segmentPlugin.plugin.category,
-              summary: analysis.summary,
-              operationalState: analysis.matches.some((match) => match.matched) ? "attention" : "normal",
-              alertMatches: analysis.matches.map((m) => ({
-                description: m.description,
-                matched: m.matched,
-                confidence: m.confidence,
-                evidence: m.evidence,
-                severity: alerts.find((a) => a.description === m.description)?.severity ?? "warn",
-              })),
-            });
-
-            // Collect matched scene alerts for event recording
-            for (const match of analysis.matches) {
-              if (match.matched) {
-                const rule = alerts.find((a) => a.description === match.description);
-                if (rule) {
-                  matchedAlerts.push({
-                    kind: "scene-match",
-                    matched: true,
-                    pluginId: segmentPlugin.plugin.id,
-                    pluginName: segmentPlugin.plugin.name,
-                    category: segmentPlugin.plugin.category,
-                    description: rule.description,
-                    severity: rule.severity,
+          if (alertDescriptions.length === 0) {
+            const summary = await summarizeVideo(
+              segmentBytes,
+              segmentMetadata.contentType,
+              `${guidance}${visionContext}`,
+              { maxTokens: 800 },
+            );
+            if (summary) {
+              for (const { segmentPlugin } of pluginAlerts) {
+                results.push({
+                  pluginId: segmentPlugin.plugin.id,
+                  pluginName: segmentPlugin.plugin.name,
+                  category: segmentPlugin.plugin.category,
+                  summary,
+                  operationalState: "normal",
+                  alertMatches: [],
+                });
+              }
+            }
+          } else {
+            const analysis = await analyzeSceneAlerts(
+              segmentBytes,
+              segmentMetadata.contentType,
+              alertDescriptions,
+              visionContext,
+              guidance,
+            );
+            if (analysis) {
+              for (const { segmentPlugin, alerts } of pluginAlerts) {
+                const descriptions = new Set(alerts.map((alert) => alert.description));
+                const alertMatches = analysis.matches
+                  .filter((match) => descriptions.has(match.description))
+                  .map((match) => ({
+                    description: match.description,
+                    matched: match.matched,
                     confidence: match.confidence,
                     evidence: match.evidence,
-                  });
-                }
+                    severity: alerts.find((alert) => alert.description === match.description)?.severity ?? "warn",
+                  }));
+                results.push({
+                  pluginId: segmentPlugin.plugin.id,
+                  pluginName: segmentPlugin.plugin.name,
+                  category: segmentPlugin.plugin.category,
+                  summary: analysis.summary,
+                  operationalState: alertMatches.some((match) => match.matched) ? "attention" : "normal",
+                  alertMatches,
+                });
               }
             }
           }
         } catch (err) {
-          this.#log.error("analyzeSceneFrames failed", {
-            error: String(err),
+          error = String(err);
+          this.#log.error("segment analysis failed", {
+            error,
             segmentId: payload.segmentId,
-            pluginId: segmentPlugin.plugin.id,
+            pluginIds: segmentPlugins.map((segmentPlugin) => segmentPlugin.plugin.id),
           });
         }
-      }
 
-      return results;
-    });
+        return { results, durationMs: Date.now() - startedAt, requestCount: 1, error };
+      },
+    );
+    const sceneResults = sceneAnalysis.results;
+
+    for (const result of sceneResults) {
+      for (const match of result.alertMatches) {
+        if (!match.matched) continue;
+        matchedAlerts.push({
+          kind: "scene-match",
+          matched: true,
+          pluginId: result.pluginId,
+          pluginName: result.pluginName,
+          category: result.category,
+          description: match.description,
+          severity: match.severity,
+          confidence: match.confidence,
+          evidence: match.evidence,
+        });
+      }
+    }
 
     const evaluatedAt = new Date(payload.endedAt || payload.startedAt);
     const cooldownResult = applyAlertCooldown(
@@ -348,12 +438,13 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
     const emittedAlerts = cooldownResult.alerts;
 
     // Persist results to video_segments.data
-    await step.do("persist", STEP_RETRIES, async () => {
+    await step.do("save-findings", STEP_RETRIES, async (context) => {
+      await this.beginStep(payload.processId, context.step.name, context.attempt);
       const db = createDatabase(this.env.DATABASE);
 
       const data = {
         source: "facilix-processor",
-        analysisVersion: 10,
+        analysisVersion: 13,
         workflowExecutions: workflowGroups.map((group) => ({
           workflowId: group.workflow.workflowId,
           pluginIds: group.plugins.map((entry) => entry.plugin.id),
@@ -382,6 +473,23 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
           matchedAlerts: r.matchedAlerts,
         })),
         sceneResults,
+        sceneAnalysis: {
+          durationMs: sceneAnalysis.durationMs,
+          requestCount: sceneAnalysis.requestCount,
+          pluginCount: segmentPlugins.length,
+          error: sceneAnalysis.error,
+        },
+        processing: {
+          partial: Boolean(
+            detectionVideo?.circuitOpen ||
+            detectionVideo?.failedFrameCount ||
+            detectionVideo?.skippedFrameCount ||
+            sceneAnalysis.error,
+          ),
+          failedFrameCount: detectionVideo?.failedFrameCount ?? 0,
+          skippedFrameCount: detectionVideo?.skippedFrameCount ?? 0,
+          circuitOpen: detectionVideo?.circuitOpen ?? false,
+        },
         matchedAlerts: emittedAlerts.map((a) => ({
           kind: a.kind,
           pluginId: a.pluginId,
@@ -419,39 +527,30 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
         alertCount,
         detectionCounts,
         sceneSummary: summaryText,
+        partial: data.processing.partial,
+        roboflowDurationMs: detectionVideo?.processingDurationMs,
+        sceneAnalysisDurationMs: sceneAnalysis.durationMs,
+        sceneAnalysisRequestCount: sceneAnalysis.requestCount,
       });
 
-      // Record alert events for each matched alert
-      for (const alert of emittedAlerts) {
-        const alertMessage = formatAlertMessage(alert);
-        const plugin = getPlugin(alert.pluginId);
-        const detectionResult = pluginResults.find((result) => result.pluginId === alert.pluginId);
-        const segmentConfig = segmentPlugins.find((entry) => entry.plugin.id === alert.pluginId)?.config;
-        const evidenceConfig = detectionResult?.config.evidence ?? segmentConfig?.evidence;
-        const eventAttachments = buildAlertAttachments(
-          payload,
-          alert,
-          detectionResult,
-          evidenceConfig ?? { attachVideo: true, attachAnnotatedFrames: false, maxAnnotatedFrames: 0 },
-        );
-
-        await recordEvent(
-          db,
-          observer,
-          facilityId,
-          deviceId,
-          "cctv:detection:alert",
-          alert.severity,
-          alertMessage,
-          {
-            source: "facilix-processor",
+      // All findings from one source segment belong to one incident. Keep their
+      // individual rule details while presenting the video and frames together.
+      if (emittedAlerts.length > 0) {
+        const primaryAlert = [...emittedAlerts].sort(
+          (left, right) => alertSeverityRank(right.severity) - alertSeverityRank(left.severity),
+        )[0];
+        const primaryPlugin = getPlugin(primaryAlert.pluginId);
+        const findings = emittedAlerts.map((alert) => {
+          const plugin = getPlugin(alert.pluginId);
+          return {
             pluginId: alert.pluginId,
             pluginName: alert.pluginName,
             category: alert.category,
             alertKind: alert.kind,
-            description: plugin?.description,
+            description: alert.description ?? plugin?.description,
             reason: formatAlertReason(alert),
             recommendedAction: plugin?.recommendedAction,
+            severity: alert.severity,
             count: "count" in alert ? alert.count : undefined,
             threshold: "threshold" in alert ? alert.threshold : undefined,
             operator: "operator" in alert ? alert.operator : undefined,
@@ -459,6 +558,56 @@ export class Processor extends WorkflowEntrypoint<Env, ProcessorPayload> {
             matchedLabels: alert.matchedLabels,
             confidence: alert.confidence,
             evidence: alert.evidence,
+          };
+        });
+        const eventAttachments = mergeEventAttachments(
+          emittedAlerts.flatMap((alert) => {
+            const detectionResult = pluginResults.find((result) => result.pluginId === alert.pluginId);
+            const segmentConfig = segmentPlugins.find((entry) => entry.plugin.id === alert.pluginId)?.config;
+            const evidenceConfig = detectionResult?.config.evidence ?? segmentConfig?.evidence;
+            return buildAlertAttachments(
+              payload,
+              alert,
+              detectionResult,
+              evidenceConfig ?? { attachVideo: true, attachAnnotatedFrames: false, maxAnnotatedFrames: 0 },
+            );
+          }),
+        );
+        const alertMessage =
+          emittedAlerts.length === 1
+            ? formatAlertMessage(primaryAlert)
+            : `${emittedAlerts.length} CCTV findings detected: ${[...new Set(findings.map((finding) => finding.pluginName))].join(", ")}`;
+
+        await recordEvent(
+          db,
+          observer,
+          facilityId,
+          deviceId,
+          "cctv:detection:alert",
+          primaryAlert.severity,
+          alertMessage,
+          {
+            source: "facilix-processor",
+            incidentKey: emittedAlerts.map(alertStateKey).sort().join("|"),
+            pluginId: primaryAlert.pluginId,
+            pluginName: primaryAlert.pluginName,
+            category: primaryAlert.category,
+            alertKind: primaryAlert.kind,
+            description: primaryAlert.description ?? primaryPlugin?.description,
+            reason:
+              emittedAlerts.length === 1
+                ? formatAlertReason(primaryAlert)
+                : `${emittedAlerts.length} related findings were detected in the same video segment.`,
+            recommendedAction: primaryPlugin?.recommendedAction,
+            recommendedActions: [
+              ...new Set(
+                findings
+                  .map((finding) => finding.recommendedAction)
+                  .filter((action): action is string => Boolean(action)),
+              ),
+            ],
+            findings,
+            sceneSummary: summaryText,
             segmentId,
             assetId: payload.assetId,
             durationSec: payload.durationSec,
@@ -589,6 +738,13 @@ interface SceneAnalysisResult {
   }>;
 }
 
+interface SceneAnalysisBatch {
+  results: SceneAnalysisResult[];
+  durationMs: number;
+  requestCount: number;
+  error?: string | null;
+}
+
 // ── Previous segment data ───────────────────────────────────────────────
 
 interface PreviousSegmentData {
@@ -639,6 +795,63 @@ interface PluginDetectionResult {
   operationalState: string;
   storedDetectionOutputs: StoredDetectionRef[];
   matchedAlerts: MatchedAlert[];
+}
+
+function buildVisionContext(results: PluginDetectionResult[], video: DetectionVideoMeta | null): string {
+  if (results.length === 0 && !video) return "";
+
+  const detections = [
+    ...new Map(
+      results.flatMap((result) => result.detections).map((detection) => [JSON.stringify(detection), detection]),
+    ).values(),
+  ];
+  const maxDetections = 200;
+  const sampledDetections =
+    detections.length <= maxDetections
+      ? detections
+      : Array.from({ length: maxDetections }, (_, index) => {
+          const sourceIndex = Math.round((index * (detections.length - 1)) / (maxDetections - 1));
+          return detections[sourceIndex];
+        });
+  const context = {
+    workflows: results.map((result) => ({
+      workflowId: result.workflowId,
+      pluginId: result.pluginId,
+      detectionCounts: result.detectionCounts,
+      configuredCountValue: result.maxCount,
+      operationalState: result.operationalState,
+    })),
+    videoMetadata: video ?? undefined,
+    totalDetections: detections.length,
+    includedDetections: sampledDetections.length,
+    omittedDetections: Math.max(0, detections.length - sampledDetections.length),
+    detections: sampledDetections.map((detection) => ({
+      label: detection.label,
+      confidence: Number(detection.confidence.toFixed(4)),
+      atSec: detection.atSec === undefined ? undefined : Number(detection.atSec.toFixed(3)),
+      frameIndex: detection.frameIndex,
+      trackId: detection.trackId,
+      box: detection.box,
+    })),
+  };
+
+  return `\n\nUse this vision output as supplemental machine-generated context. Verify it against the video rather than treating it as ground truth. Detection totals can include repeated appearances across sampled frames:\n${JSON.stringify(context)}`;
+}
+
+function mergeDetectionVideoMetadata(videos: DetectionVideoMeta[]): DetectionVideoMeta | null {
+  if (videos.length === 0) return null;
+  const first = videos[0];
+  return {
+    ...first,
+    decodedFrameCount: Math.max(...videos.map((video) => video.decodedFrameCount ?? 0)),
+    attemptedFrameCount: Math.max(...videos.map((video) => video.attemptedFrameCount ?? 0)),
+    sampledFrameCount: Math.max(...videos.map((video) => video.sampledFrameCount ?? 0)),
+    failedFrameCount: Math.max(...videos.map((video) => video.failedFrameCount ?? 0)),
+    skippedFrameCount: Math.max(...videos.map((video) => video.skippedFrameCount ?? 0)),
+    circuitOpen: videos.some((video) => video.circuitOpen),
+    processingDurationMs: videos.reduce((total, video) => total + (video.processingDurationMs ?? 0), 0),
+    maxConcurrency: Math.max(...videos.map((video) => video.maxConcurrency ?? 0)),
+  };
 }
 
 function buildAlertAttachments(
@@ -698,6 +911,68 @@ function buildAlertAttachments(
   }
 
   return attachments;
+}
+
+function mergeEventAttachments(attachments: EventAttachmentInput[]): EventAttachmentInput[] {
+  const merged = new Map<string, EventAttachmentInput>();
+
+  for (const attachment of attachments) {
+    const key = `${attachment.assetId}:${attachment.variant}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, attachment);
+      continue;
+    }
+
+    const existingMetadata = existing.metadata ?? {};
+    const incomingMetadata = attachment.metadata ?? {};
+    const pluginIds = [
+      ...(Array.isArray(existingMetadata.pluginIds) ? existingMetadata.pluginIds : []),
+      existingMetadata.pluginId,
+      ...(Array.isArray(incomingMetadata.pluginIds) ? incomingMetadata.pluginIds : []),
+      incomingMetadata.pluginId,
+    ].filter((value): value is string => typeof value === "string");
+    const labels = [
+      ...(Array.isArray(existingMetadata.labels) ? existingMetadata.labels : []),
+      ...(Array.isArray(incomingMetadata.labels) ? incomingMetadata.labels : []),
+    ].filter((value): value is string => typeof value === "string");
+    const detections = [
+      ...new Map(
+        [
+          ...(Array.isArray(existingMetadata.detections) ? existingMetadata.detections : []),
+          ...(Array.isArray(incomingMetadata.detections) ? incomingMetadata.detections : []),
+        ].map((detection) => [JSON.stringify(detection), detection]),
+      ).values(),
+    ];
+
+    merged.set(key, {
+      ...existing,
+      role: existing.role === "primary" || attachment.role === "primary" ? "primary" : existing.role,
+      metadata: {
+        ...existingMetadata,
+        ...incomingMetadata,
+        pluginIds: [...new Set(pluginIds)],
+        labels: [...new Set(labels)],
+        detections,
+        detectionCount: detections.length,
+      },
+    });
+  }
+
+  return [...merged.values()]
+    .sort((left, right) => {
+      if (left.kind !== right.kind) return left.kind === "video" ? -1 : 1;
+      const leftAt = typeof left.metadata?.atSec === "number" ? left.metadata.atSec : 0;
+      const rightAt = typeof right.metadata?.atSec === "number" ? right.metadata.atSec : 0;
+      return leftAt - rightAt;
+    })
+    .map((attachment, sortOrder) => ({ ...attachment, sortOrder }));
+}
+
+function alertSeverityRank(severity: MatchedAlert["severity"]): number {
+  if (severity === "error") return 2;
+  if (severity === "warn") return 1;
+  return 0;
 }
 
 function normalizeCountRecord(value: unknown): Record<string, number> {
@@ -786,18 +1061,6 @@ function formatAlertReason(alert: MatchedAlert): string {
 
 function sanitizeWorkflowKey(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]+/g, "-");
-}
-
-async function loadAnalysisFrame(
-  bucket: R2Bucket,
-  frame: StoredDetectionRef,
-): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const object = await bucket.get(frame.assetId);
-  if (!object) {
-    throw new Error(`Video frame not found for frame ${frame.frameIndex}`);
-  }
-  const bytes = await object.bytes();
-  return { bytes, mimeType: "image/jpeg" };
 }
 
 async function loadSegmentBytes(bucket: R2Bucket, assetId: string): Promise<Uint8Array> {

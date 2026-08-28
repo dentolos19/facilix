@@ -1,7 +1,7 @@
-"""Roboflow workflow video processing via REST API.
+"""Video processing for vision models via the REST API.
 
 Extracts frames from a video segment using OpenCV and sends each frame
-to the Roboflow serverless workflow endpoint. Aggregates detections
+to the vision serverless workflow endpoint. Aggregates detections
 into a normalized detection format.
 
 Each sampled frame produces a detection output containing:
@@ -12,21 +12,30 @@ Each sampled frame produces a detection output containing:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import math
 import os
 import tempfile
+import time
 from typing import Any
 
 import cv2
 import httpx
 import numpy as np
 
-log = logging.getLogger("facilix.roboflow")
+log = logging.getLogger("facilix.vision")
 
 ROBOFLOW_API_BASE = os.getenv("ROBOFLOW_API_BASE", "https://serverless.roboflow.com")
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "")
+ROBOFLOW_MAX_CONCURRENCY = max(1, int(os.getenv("ROBOFLOW_MAX_CONCURRENCY", "4")))
+ROBOFLOW_FRAME_RETRIES = max(0, int(os.getenv("ROBOFLOW_FRAME_RETRIES", "1")))
+ROBOFLOW_REQUEST_TIMEOUT_SEC = max(1.0, float(os.getenv("ROBOFLOW_REQUEST_TIMEOUT_SEC", "15")))
+ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC = max(0.1, float(os.getenv("ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC", "2")))
+ROBOFLOW_VIDEO_BUDGET_SEC = max(1.0, float(os.getenv("ROBOFLOW_VIDEO_BUDGET_SEC", "100")))
+
+_roboflow_request_semaphore = asyncio.Semaphore(ROBOFLOW_MAX_CONCURRENCY)
 
 
 async def process_video_workflow(
@@ -41,7 +50,7 @@ async def process_video_workflow(
     roboflow_api_key: str | None = None,
     roboflow_api_base: str | None = None,
 ) -> dict[str, Any]:
-    """Process a video segment through a Roboflow workflow.
+    """Process a video segment through a vision model.
 
     Extracts frames at regular intervals and sends each to the workflow endpoint.
     Returns detections, detection outputs with frame images, and video metadata.
@@ -66,6 +75,7 @@ async def process_video_workflow(
         tmp_path = tmp.name
 
     try:
+        processing_started_at = time.monotonic()
         cap = cv2.VideoCapture(tmp_path)
         if not cap.isOpened():
             raise ValueError("Failed to open video file")
@@ -85,10 +95,19 @@ async def process_video_workflow(
         frame_idx = 0
         attempted_frames = 0
         failed_frames = 0
+        skipped_frames = 0
+        circuit_open = False
         last_frame: np.ndarray | None = None
         last_frame_index = -1
+        pending_frames: list[tuple[np.ndarray, int, float]] = []
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        timeout = httpx.Timeout(
+            connect=min(5.0, ROBOFLOW_REQUEST_TIMEOUT_SEC),
+            read=ROBOFLOW_REQUEST_TIMEOUT_SEC,
+            write=ROBOFLOW_REQUEST_TIMEOUT_SEC,
+            pool=min(5.0, ROBOFLOW_REQUEST_TIMEOUT_SEC),
+        )
+        async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 while True:
                     ret, frame = cap.read()
@@ -100,31 +119,79 @@ async def process_video_workflow(
 
                     if frame_idx % frame_interval == 0:
                         attempted_frames += 1
-                        output = await _process_frame(
+                        pending_frames.append((frame.copy(), frame_idx, frame_idx / fps))
+
+                        if len(pending_frames) >= ROBOFLOW_MAX_CONCURRENCY:
+                            if not _has_inference_budget(processing_started_at):
+                                skipped_frames += len(pending_frames)
+                                pending_frames.clear()
+                                circuit_open = True
+                                frame_idx += 1
+                                log.warning("stopping video inference after exhausting the processing budget")
+                                break
+                            outputs = await _process_frame_batch(
+                                client=client,
+                                frames=pending_frames,
+                                workspace_name=workspace_name,
+                                workflow_id=workflow_id,
+                                input_name=input_name,
+                                output_names=output_names,
+                                min_confidence=min_confidence,
+                                allowed_labels=allowed_labels,
+                                api_key=api_key,
+                                api_base=api_base,
+                            )
+                            failed_frames += sum(output is None for output in outputs)
+                            for output in outputs:
+                                if output:
+                                    detections.extend(output["detections"])
+                                    detection_outputs.append(output)
+                            pending_frames.clear()
+
+                            if all(output is None for output in outputs):
+                                circuit_open = True
+                                frame_idx += 1
+                                log.error(
+                                    "stopping video inference after %d consecutive frame failures",
+                                    len(outputs),
+                                )
+                                break
+
+                    frame_idx += 1
+
+                if pending_frames and not circuit_open:
+                    if _has_inference_budget(processing_started_at):
+                        outputs = await _process_frame_batch(
                             client=client,
-                            frame=frame,
+                            frames=pending_frames,
                             workspace_name=workspace_name,
                             workflow_id=workflow_id,
                             input_name=input_name,
                             output_names=output_names,
-                            frame_index=frame_idx,
-                            at_sec=frame_idx / fps,
                             min_confidence=min_confidence,
                             allowed_labels=allowed_labels,
                             api_key=api_key,
                             api_base=api_base,
                         )
-                        if output:
-                            detections.extend(output["detections"])
-                            detection_outputs.append(output)
-                        else:
-                            failed_frames += 1
-
-                    frame_idx += 1
+                        failed_frames += sum(output is None for output in outputs)
+                        for output in outputs:
+                            if output:
+                                detections.extend(output["detections"])
+                                detection_outputs.append(output)
+                    else:
+                        skipped_frames += len(pending_frames)
+                        circuit_open = True
+                        log.warning("skipping the final frame batch after exhausting the processing budget")
+                    pending_frames.clear()
 
                 # OpenCV's reported frame count can be missing or inaccurate.
                 # Use the last frame we actually decoded instead of seeking by metadata.
-                if last_frame is not None and last_frame_index % frame_interval != 0:
+                if (
+                    not circuit_open
+                    and last_frame is not None
+                    and last_frame_index % frame_interval != 0
+                    and _has_inference_budget(processing_started_at)
+                ):
                     attempted_frames += 1
                     output = await _process_frame(
                         client=client,
@@ -151,7 +218,7 @@ async def process_video_workflow(
         if frame_idx == 0:
             raise ValueError("Video contains no decodable frames")
         if attempted_frames > 0 and failed_frames == attempted_frames:
-            raise RuntimeError(f"Roboflow inference failed for all {attempted_frames} sampled frames")
+            log.error("vision inference failed for all %d sampled frames", attempted_frames)
 
         log.info(
             "processed %d frames, %d detections, %d detection outputs (%d inference failures)",
@@ -167,10 +234,19 @@ async def process_video_workflow(
             "detectionOutputs": detection_outputs,
             "video": {
                 "fps": round(fps, 2),
-                "frameCount": frame_idx,
+                "frameCount": reported_frame_count or frame_idx,
+                "decodedFrameCount": frame_idx,
                 "frameInterval": frame_interval,
+                "attemptedFrameCount": attempted_frames,
                 "sampledFrameCount": len(detection_outputs),
                 "failedFrameCount": failed_frames,
+                "skippedFrameCount": skipped_frames,
+                "circuitOpen": circuit_open,
+                "processingDurationMs": round((time.monotonic() - processing_started_at) * 1000),
+                "requestTimeoutSec": ROBOFLOW_REQUEST_TIMEOUT_SEC,
+                "queueWaitTimeoutSec": ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC,
+                "videoBudgetSec": ROBOFLOW_VIDEO_BUDGET_SEC,
+                "maxConcurrency": ROBOFLOW_MAX_CONCURRENCY,
             },
         }
 
@@ -192,7 +268,7 @@ async def _process_frame(
     api_key: str,
     api_base: str,
 ) -> dict[str, Any] | None:
-    """Send a single frame to the Roboflow workflow and return a detection output dict.
+    """Send a single frame to the vision model and return a detection output dict.
 
     Returns None if the request fails. The dict contains:
     - frameIndex, atSec: frame timing
@@ -206,48 +282,121 @@ async def _process_frame(
 
     url = f"{api_base}/{workspace_name}/workflows/{workflow_id}"
 
-    try:
-        resp = await client.post(
-            url,
-            json={
-                "api_key": api_key,
-                "inputs": {
-                    input_name: {"type": "base64", "value": before_b64},
-                },
-            },
-        )
+    for attempt in range(ROBOFLOW_FRAME_RETRIES + 1):
+        try:
+            try:
+                await asyncio.wait_for(
+                    _roboflow_request_semaphore.acquire(),
+                    timeout=ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC,
+                )
+            except TimeoutError:
+                log.warning(
+                    "vision frame %d skipped after waiting %.1fs for inference capacity",
+                    frame_index,
+                    ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC,
+                )
+                return None
 
-        if resp.status_code != 200:
+            try:
+                resp = await client.post(
+                    url,
+                    json={
+                        "api_key": api_key,
+                        "inputs": {
+                            input_name: {"type": "base64", "value": before_b64},
+                        },
+                    },
+                )
+            finally:
+                _roboflow_request_semaphore.release()
+
+            if resp.status_code == 200:
+                result = resp.json()
+                frame_data = _parse_frame_response(
+                    result,
+                    output_names,
+                    frame_index,
+                    at_sec,
+                    min_confidence,
+                    allowed_labels,
+                    {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
+                )
+
+                return {
+                    "frameIndex": frame_index,
+                    "atSec": round(at_sec, 3),
+                    "beforeImage": before_b64,
+                    "detections": frame_data["detections"],
+                    "image": frame_data["image"],
+                }
+
+            retryable = resp.status_code == 429 or resp.status_code >= 500
             log.warning(
-                "roboflow frame %d failed: HTTP %d — %s",
+                "vision frame %d failed: HTTP %d (attempt %d/%d) — %s",
                 frame_index,
                 resp.status_code,
+                attempt + 1,
+                ROBOFLOW_FRAME_RETRIES + 1,
                 resp.text[:200],
             )
+            if not retryable or attempt >= ROBOFLOW_FRAME_RETRIES:
+                return None
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            log.warning(
+                "vision frame %d transport error (attempt %d/%d): %s",
+                frame_index,
+                attempt + 1,
+                ROBOFLOW_FRAME_RETRIES + 1,
+                exc,
+            )
+            if attempt >= ROBOFLOW_FRAME_RETRIES:
+                return None
+        except Exception as exc:
+            log.exception("vision frame %d error: %s", frame_index, exc)
             return None
 
-        result = resp.json()
-        frame_data = _parse_frame_response(
-            result,
-            output_names,
-            frame_index,
-            at_sec,
-            min_confidence,
-            allowed_labels,
-            {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
+        await asyncio.sleep(2**attempt)
+
+    return None
+
+
+def _has_inference_budget(processing_started_at: float) -> bool:
+    retry_delay = sum(2**attempt for attempt in range(ROBOFLOW_FRAME_RETRIES))
+    request_budget = ROBOFLOW_REQUEST_TIMEOUT_SEC * (ROBOFLOW_FRAME_RETRIES + 1) + retry_delay
+    return time.monotonic() - processing_started_at < ROBOFLOW_VIDEO_BUDGET_SEC - request_budget
+
+
+async def _process_frame_batch(
+    client: httpx.AsyncClient,
+    frames: list[tuple[np.ndarray, int, float]],
+    workspace_name: str,
+    workflow_id: str,
+    input_name: str,
+    output_names: set[str],
+    min_confidence: float,
+    allowed_labels: set[str],
+    api_key: str,
+    api_base: str,
+) -> list[dict[str, Any] | None]:
+    return await asyncio.gather(
+        *(
+            _process_frame(
+                client=client,
+                frame=frame,
+                workspace_name=workspace_name,
+                workflow_id=workflow_id,
+                input_name=input_name,
+                output_names=output_names,
+                frame_index=frame_index,
+                at_sec=at_sec,
+                min_confidence=min_confidence,
+                allowed_labels=allowed_labels,
+                api_key=api_key,
+                api_base=api_base,
+            )
+            for frame, frame_index, at_sec in frames
         )
-
-        return {
-            "frameIndex": frame_index,
-            "atSec": round(at_sec, 3),
-            "beforeImage": before_b64,
-            "detections": frame_data["detections"],
-            "image": frame_data["image"],
-        }
-
-    except Exception as exc:
-        log.exception("roboflow frame %d error: %s", frame_index, exc)
-        return None
+    )
 
 
 def _parse_frame_response(
@@ -259,12 +408,12 @@ def _parse_frame_response(
     allowed_labels: set[str],
     default_image_meta: dict[str, int],
 ) -> dict[str, Any]:
-    """Parse the Roboflow REST API response into detections + image metadata.
+    """Parse the vision REST API response into detections + image metadata.
 
     Returns an output even if no valid detections are found so sampled frames
     can still be persisted for debugging/review.
     """
-    # Roboflow Workflows commonly returns a top-level list. Direct model
+    # Workflows commonly return a top-level list. Direct model
     # responses and some workflow versions return an object instead.
     if isinstance(result, list):
         outputs = result
@@ -335,7 +484,7 @@ def _to_detection(
     at_sec: float,
     image_meta: dict[str, int] | None = None,
 ) -> dict[str, Any] | None:
-    """Normalize a Roboflow prediction into our detection format.
+    """Normalize a vision prediction into our detection format.
 
     Returns both normalized bounding boxes and raw prediction geometry
     so the frontend can render boxes and use source-image dimensions.

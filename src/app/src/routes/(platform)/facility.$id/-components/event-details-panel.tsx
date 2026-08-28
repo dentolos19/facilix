@@ -37,12 +37,25 @@ const RESERVED_KEYS = new Set([
   "description",
   "reason",
   "recommendedAction",
+  "recommendedActions",
   "evidence",
+  "incidentKey",
+  "incidentSummary",
+  "incidentSummarySource",
+  "findings",
+  "occurrenceCount",
+  "firstSeen",
+  "lastSeen",
+  "sceneSummary",
   ...VALUE_KEYS,
 ]);
 
 export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
-  const primaryAttachment = event.attachments.find((item) => item.role === "primary") ?? event.attachments[0] ?? null;
+  const primaryAttachment =
+    event.attachments.find((item) => item.kind === "video") ??
+    event.attachments.find((item) => item.role === "primary") ??
+    event.attachments[0] ??
+    null;
   const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(primaryAttachment?.id ?? null);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -65,6 +78,14 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
   const description = asText(event.data.description) ?? event.message;
   const reason = asText(event.data.reason);
   const recommendedAction = asText(event.data.recommendedAction);
+  const incidentSummary = asText(event.data.incidentSummary);
+  const incidentSummarySource = event.data.incidentSummarySource === "ai" ? "ai" : "compiled";
+  const findings = useMemo(() => buildFindings(event.data.findings), [event.data.findings]);
+  const recommendedActions = uniqueStrings([
+    recommendedAction ?? "",
+    ...toStringArray(event.data.recommendedActions),
+    ...findings.map((finding) => finding.recommendedAction ?? ""),
+  ]);
 
   return (
     <>
@@ -74,9 +95,23 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
             <div className="min-w-0">
               <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">Event details</p>
               <h3 className="text-foreground mt-0.5 text-sm leading-snug font-medium">{event.message}</h3>
+              {event.occurrenceCount > 1 && (
+                <p className="text-muted-foreground/60 mt-1 font-mono text-[9px]">
+                  {event.occurrenceCount} observations grouped into this incident
+                </p>
+              )}
             </div>
             <EventSeverityBadge severity={event.severity} />
           </div>
+
+          {incidentSummary && (
+            <section className="border border-violet-500/25 bg-violet-500/5 p-3">
+              <p className="font-mono text-[9px] tracking-wider text-violet-700 uppercase dark:text-violet-400">
+                {incidentSummarySource === "ai" ? "AI incident summary" : "Incident summary"}
+              </p>
+              <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{incidentSummary}</p>
+            </section>
+          )}
 
           <EventAttachmentViewer
             attachments={event.attachments}
@@ -110,11 +145,42 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
             )}
           </section>
 
+          {findings.length > 0 && (
+            <section className="border-border border">
+              <div className="border-border/60 border-b px-3 py-2">
+                <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">
+                  Compiled findings
+                </p>
+              </div>
+              {findings.map((finding, index) => (
+                <article className="border-border/60 border-b p-3 last:border-b-0" key={finding.key}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-foreground/80 text-[11px] font-medium">
+                      {finding.pluginName ?? `Finding ${index + 1}`}
+                    </p>
+                    <EventSeverityBadge severity={finding.severity} />
+                  </div>
+                  {finding.reason && (
+                    <p className="text-muted-foreground/75 mt-1 text-[10px] leading-relaxed">{finding.reason}</p>
+                  )}
+                </article>
+              ))}
+            </section>
+          )}
+
           <section className="border-border border">
             <DetailRow label="Device" value={event.deviceName} />
             {event.zoneName && <DetailRow label="Zone" value={event.zoneName} />}
             <DetailRow label="Event type" monospace value={event.type} />
-            <DetailRow label="Recorded" value={new Date(event.createdAt).toLocaleString()} />
+            {event.occurrenceCount > 1 ? (
+              <>
+                <DetailRow label="First observed" value={new Date(event.firstSeen).toLocaleString()} />
+                <DetailRow label="Last observed" value={new Date(event.lastSeen).toLocaleString()} />
+                <DetailRow label="Observations" value={String(event.occurrenceCount)} />
+              </>
+            ) : (
+              <DetailRow label="Recorded" value={new Date(event.createdAt).toLocaleString()} />
+            )}
             {asText(event.data.pluginName) && <DetailRow label="Intelligence" value={asText(event.data.pluginName)!} />}
             {asText(event.data.alertKind) && <DetailRow label="Rule" value={humanize(asText(event.data.alertKind)!)} />}
             {values.map((row) => (
@@ -122,12 +188,43 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
             ))}
           </section>
 
-          {recommendedAction && (
+          {recommendedActions.length > 0 && (
             <section className="border border-amber-500/25 bg-amber-500/5 p-3">
               <p className="font-mono text-[9px] tracking-wider text-amber-700 uppercase dark:text-amber-400">
                 Recommended response
               </p>
-              <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{recommendedAction}</p>
+              <div className="mt-1 flex flex-col gap-1.5">
+                {recommendedActions.map((action) => (
+                  <p className="text-foreground/80 text-[11px] leading-relaxed" key={action}>
+                    {action}
+                  </p>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {event.occurrenceCount > 1 && (
+            <section className="border-border border">
+              <div className="border-border/60 border-b px-3 py-2">
+                <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">
+                  Observation history
+                </p>
+              </div>
+              {event.occurrences.map((occurrence) => (
+                <div className="border-border/60 border-b px-3 py-2 last:border-b-0" key={occurrence.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-foreground/75 text-[10px]">{occurrence.message}</p>
+                    <span className="text-muted-foreground/50 shrink-0 font-mono text-[9px]">
+                      {new Date(occurrence.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  {occurrence.attachments.length > 0 && (
+                    <p className="text-muted-foreground/45 mt-0.5 font-mono text-[9px]">
+                      {occurrence.attachments.length} evidence {occurrence.attachments.length === 1 ? "file" : "files"}
+                    </p>
+                  )}
+                </div>
+              ))}
             </section>
           )}
 
@@ -413,6 +510,33 @@ function buildValueRows(data: Record<string, unknown>): Array<{ label: string; v
     rows.push({ label: humanize(key), value: formatValue(key, value, data) });
   }
   return rows;
+}
+
+interface EventFinding {
+  key: string;
+  pluginName: string | null;
+  reason: string | null;
+  recommendedAction: string | null;
+  severity: FacilityEventView["severity"];
+}
+
+function buildFindings(value: unknown): EventFinding[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item, index) => {
+    if (!isRecord(item)) return [];
+    const severity = item.severity === "error" || item.severity === "warn" ? item.severity : "info";
+    const pluginName = asText(item.pluginName);
+    const reason = asText(item.reason);
+    return [
+      {
+        key: `${asText(item.pluginId) ?? pluginName ?? "finding"}:${asText(item.alertKind) ?? "alert"}:${reason ?? "reason"}:${index}`,
+        pluginName,
+        reason,
+        recommendedAction: asText(item.recommendedAction),
+        severity,
+      },
+    ];
+  });
 }
 
 function formatValue(key: string, value: unknown, data: Record<string, unknown>): string {

@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react"],
+  "plugins": ["eslint", "import", "promise", "react", "typescript"],
   "rules": {
     "sort-keys": "allow"
   },

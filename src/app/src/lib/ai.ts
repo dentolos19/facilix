@@ -1,5 +1,7 @@
+import { chat } from "@tanstack/ai";
 import { createOpenRouterText } from "@tanstack/ai-openrouter";
 import { env } from "cloudflare:workers";
+import { z } from "zod";
 
 import { createLogger } from "#/lib/logs";
 
@@ -21,8 +23,9 @@ const log = createLogger("openrouter");
  */
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
+const OPENROUTER_TIMEOUT_MS = 45_000;
 
-/** Model id to request. Falls back to `OPENROUTER_MODEL` then to Qwen3.6 35B A3B. */
+/** Model id to request. Uses OpenRouter's automatic routing when none is configured. */
 function resolveModel(): string {
   const m = env.OPENROUTER_MODEL;
   return m && m.length > 0 ? m : "openrouter/auto";
@@ -74,6 +77,7 @@ type ChatRequest = {
   messages: ChatMessage[];
   max_tokens?: number;
   temperature?: number;
+  response_format?: { type: "json_object" };
   stream?: false;
 };
 
@@ -86,6 +90,25 @@ type ChatResponse = {
   choices?: ChatChoice[];
   error?: { message?: string; code?: number };
 };
+
+const FacilityLayoutOutputSchema = z.object({
+  facilityName: z.string(),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(["Zone", "CCTV", "Sensor", "Signal"]),
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+      zoneId: z.string().nullable(),
+      name: z.string(),
+      status: z.string(),
+      notes: z.string(),
+      props: z.object({}).passthrough(),
+    }),
+  ),
+});
 
 /** Convert raw bytes to a `data:<mime>;base64,...` URL. */
 function bytesToDataUrl(bytes: Uint8Array | ArrayBuffer, mime: string): string {
@@ -115,15 +138,22 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
   const provider = resolveProvider(model);
   if (provider) request.provider = provider;
 
-  const response = await fetch(`${baseUrl()}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${requireApiKey()}`,
-      "Content-Type": "application/json",
-      ...attributionHeaders(),
-    },
-    body: JSON.stringify(request),
-  });
+  const startedAt = Date.now();
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requireApiKey()}`,
+        "Content-Type": "application/json",
+        ...attributionHeaders(),
+      },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(`OpenRouter request failed after ${Date.now() - startedAt}ms`, { cause: error });
+  }
 
   if (!response.ok) {
     const tail = (await response.text()).slice(0, 500);
@@ -139,7 +169,11 @@ async function chatCompletion(parts: ContentPart[], options: { maxTokens?: numbe
   const content = payload.choices?.[0]?.message?.content;
   if (typeof content !== "string") return null;
   const trimmed = content.trim();
-  log.info("OpenRouter completion ok", { model: request.model, outputLength: trimmed.length });
+  log.info("OpenRouter completion ok", {
+    model: request.model,
+    outputLength: trimmed.length,
+    durationMs: Date.now() - startedAt,
+  });
   return trimmed.length > 0 ? trimmed : null;
 }
 
@@ -192,7 +226,7 @@ export async function generateFacilityLayoutFromImage(
   imageBytes: Uint8Array | ArrayBuffer,
   mimeType: string,
   target: { width: number; height: number },
-): Promise<string | null> {
+): Promise<z.infer<typeof FacilityLayoutOutputSchema>> {
   const prompt = `Analyze this facility image and build a practical 2D facility layout for a ${target.width} by ${target.height} pixel canvas.
 
 Identify labeled or visually distinct rooms and operational areas as Zone rectangles. Add CCTV, Sensor, or Signal items only when the image clearly shows or labels those devices.
@@ -237,16 +271,26 @@ Rules:
 - Use the image's relative geometry and adjacency; do not stack zones on top of each other unless the image does.
 - Use unique string IDs. Set each device's zoneId to the containing Zone ID when applicable.
 - Prefer a useful simplified layout over invented detail.
-- Do not include markdown or commentary.`;
+  - Do not include markdown or commentary.`;
 
   const url = bytesToDataUrl(imageBytes, mimeType);
-  return chatCompletionWithJson(
-    [
-      { type: "text", text: prompt },
-      { type: "image_url", image_url: { url } },
+  return chat({
+    adapter: createChatAdapter(),
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", content: prompt },
+          { type: "image", source: { type: "url", value: url } },
+        ],
+      },
     ],
-    { maxTokens: 5000 },
-  );
+    modelOptions: {
+      maxCompletionTokens: 5000,
+      temperature: 0.2,
+    },
+    outputSchema: FacilityLayoutOutputSchema,
+  });
 }
 
 // ─── Scene alert analysis ────────────────────────────────────────────────
@@ -352,6 +396,7 @@ export async function summarizeSceneFrames(
  * @param mimeType - MIME type of the video (default "video/mp4").
  * @param descriptions - Array of natural-language descriptions to check.
  * @param contextSuffix - Optional extra context appended to the prompt (e.g. detection counts).
+ * @param guidance - Optional plugin-specific instructions for analyzing the video.
  * @returns Structured analysis with per-description match results, or null on failure.
  */
 export async function analyzeSceneAlerts(
@@ -359,6 +404,7 @@ export async function analyzeSceneAlerts(
   mimeType: string,
   descriptions: string[],
   contextSuffix: string = "",
+  guidance?: string,
 ): Promise<SceneAlertAnalysis | null> {
   if (descriptions.length === 0) return null;
 
@@ -392,7 +438,7 @@ Rules:
 - confidence should reflect how certain you are about the match
 - evidence should list specific visual elements that support your judgment`;
 
-  const userPrompt = `Evaluate the following scenarios against this CCTV video:
+  const userPrompt = `${guidance ? `${guidance}\n\n` : ""}Evaluate the following scenarios against this CCTV video:
 
 ${descriptionList}${contextSuffix}`;
 
@@ -422,10 +468,64 @@ function parseSceneAlertAnalysis(result: string | null): SceneAlertAnalysis | nu
   }
 }
 
-/**
- * Internal: call OpenRouter expecting a JSON response.
- * Falls back to extracting JSON from markdown code blocks.
- */
+function parseJsonObject(value: string): string | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function findJsonObjectEnd(value: string, start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+
+  return -1;
+}
+
+/** Extract the first valid JSON object, even when a model adds surrounding prose. */
+function extractJsonObject(value: string): string | null {
+  const direct = parseJsonObject(value);
+  if (direct) return direct;
+
+  for (let start = value.indexOf("{"); start >= 0; start = value.indexOf("{", start + 1)) {
+    const end = findJsonObjectEnd(value, start);
+    if (end < 0) return null;
+
+    const extracted = parseJsonObject(value.slice(start, end + 1));
+    if (extracted) return extracted;
+  }
+
+  return null;
+}
+
+/** Internal: call OpenRouter expecting a JSON object. */
 async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens?: number }): Promise<string | null> {
   const model = resolveModel();
   const request: ChatRequest & { provider?: { only: string[]; allow_fallbacks: false } } = {
@@ -433,20 +533,38 @@ async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens
     messages: [{ role: "user", content: parts }],
     max_tokens: options.maxTokens ?? 200,
     temperature: 0.2,
+    response_format: { type: "json_object" },
     stream: false,
   };
   const provider = resolveProvider(model);
   if (provider) request.provider = provider;
 
-  const response = await fetch(`${baseUrl()}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${requireApiKey()}`,
-      "Content-Type": "application/json",
-      ...attributionHeaders(),
-    },
-    body: JSON.stringify(request),
-  });
+  const startedAt = Date.now();
+  const signal = AbortSignal.timeout(OPENROUTER_TIMEOUT_MS);
+  const sendRequest = async () => {
+    try {
+      return await fetch(`${baseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${requireApiKey()}`,
+          "Content-Type": "application/json",
+          ...attributionHeaders(),
+        },
+        body: JSON.stringify(request),
+        signal,
+      });
+    } catch (error) {
+      throw new Error(`OpenRouter JSON request failed after ${Date.now() - startedAt}ms`, { cause: error });
+    }
+  };
+
+  let response = await sendRequest();
+  if (!response.ok && response.status === 400) {
+    const tail = (await response.text()).slice(0, 500);
+    log.warn("OpenRouter rejected JSON mode; retrying without it", { model: request.model, response: tail });
+    delete request.response_format;
+    response = await sendRequest();
+  }
 
   if (!response.ok) {
     const tail = (await response.text()).slice(0, 500);
@@ -461,25 +579,31 @@ async function chatCompletionWithJson(parts: ContentPart[], options: { maxTokens
   }
 
   const content = payload.choices?.[0]?.message?.content;
-  if (typeof content !== "string") return null;
+  if (typeof content !== "string") {
+    log.warn("OpenRouter JSON completion had no text content", {
+      model: request.model,
+      finishReason: payload.choices?.[0]?.finish_reason,
+    });
+    return null;
+  }
 
   const trimmed = content.trim();
 
-  // Try to extract JSON from markdown code blocks if not raw JSON
-  if (trimmed.startsWith("{")) {
-    log.info("OpenRouter JSON completion ok", { model: request.model, outputLength: trimmed.length });
-    return trimmed;
-  }
-
-  // Try extracting from ```json ... ``` blocks
-  const jsonBlockMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  if (jsonBlockMatch?.[1]) {
-    const extracted = jsonBlockMatch[1].trim();
-    log.info("OpenRouter JSON extracted from code block", { model: request.model, outputLength: extracted.length });
+  const extracted = extractJsonObject(trimmed);
+  if (extracted) {
+    log.info("OpenRouter JSON completion ok", {
+      model: request.model,
+      outputLength: extracted.length,
+      durationMs: Date.now() - startedAt,
+    });
     return extracted;
   }
 
-  log.warn("OpenRouter response was not valid JSON", { model: request.model, response: trimmed.slice(0, 300) });
+  log.warn("OpenRouter response did not contain a valid JSON object", {
+    model: request.model,
+    finishReason: payload.choices?.[0]?.finish_reason,
+    response: trimmed.slice(0, 300),
+  });
   return null;
 }
 

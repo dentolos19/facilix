@@ -20,7 +20,7 @@ export interface EvidenceAlertDescriptor {
 
 /**
  * Choose one representative frame pair for vision-language analysis. Prefer a
- * frame with the most Roboflow evidence, then confidence, then the frame
+ * frame with the most vision evidence, then confidence, then the frame
  * nearest the middle of the sampled clip.
  */
 export function selectAnalysisContextFrame(frames: StoredDetectionRef[]): StoredDetectionRef | null {

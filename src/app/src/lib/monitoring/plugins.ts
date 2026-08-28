@@ -1,14 +1,14 @@
 /**
  * Outcome-oriented CCTV intelligence plugins.
  *
- * Every plugin is backed by a Roboflow workflow. Plugins that need richer
+ * Every plugin is backed by a vision model. Plugins that need richer
  * reasoning additionally run a vision-language review using representative
  * original and annotated frames produced by that workflow.
  */
 
 // ─── Catalog types ────────────────────────────────────────────────────────
 
-export type PluginProvider = "roboflow";
+export type PluginProvider = "vision";
 export type PluginKind = "segment-understanding" | "workflow-object-detection";
 export type PluginCategory = "security" | "compliance" | "operations" | "hygiene" | "safety";
 export type PluginTrigger = { mode: "segment"; intervalSec?: number };
@@ -150,24 +150,28 @@ export const DEFAULT_PLUGIN_CONFIDENCE = 0.4;
 export const DEFAULT_COUNTING_OPERATOR = "gte" as const;
 export const DEFAULT_COUNTING_THRESHOLD = 1;
 export const DEFAULT_SEGMENT_PROMPT =
-  "Review the original and annotated CCTV frames for the configured operational risks. Describe only visible evidence.";
+  "Review the complete CCTV video segment for the configured operational risks. Describe only visible evidence.";
+
+const VISION_OBJECT_MODEL = requiredVisionModel(import.meta.env.VISION_OBJECT_MODEL, "VISION_OBJECT_MODEL");
+const VISION_VEHICLE_MODEL = requiredVisionModel(import.meta.env.VISION_VEHICLE_MODEL, "VISION_VEHICLE_MODEL");
 
 export const DEFAULT_OBJECT_DETECTION_WORKFLOW: PluginWorkflowConfig = {
   workspaceName: "dentolos19",
-  workflowId: "object-detection",
+  workflowId: VISION_OBJECT_MODEL,
   inputName: "image",
   dataOutputNames: ["image", "detections", "count"],
 };
 
-const PEOPLE_DETECTION_WORKFLOW: PluginWorkflowConfig = {
-  ...DEFAULT_OBJECT_DETECTION_WORKFLOW,
-  workflowId: "people-detection",
-};
-
 const VEHICLE_DETECTION_WORKFLOW: PluginWorkflowConfig = {
   ...DEFAULT_OBJECT_DETECTION_WORKFLOW,
-  workflowId: "vehicle-detection",
+  workflowId: VISION_VEHICLE_MODEL,
 };
+
+function requiredVisionModel(value: string | undefined, name: string): string {
+  const normalized = value?.trim();
+  if (!normalized) throw new Error(`${name} must be configured`);
+  return normalized;
+}
 
 const PERSON_LABELS = ["person"];
 const VEHICLE_LABELS = ["vehicle", "car", "truck", "bus", "van"];
@@ -191,8 +195,8 @@ export const PLUGINS: Plugin[] = [
     description: "Protect sensitive areas by alerting when a person enters or remains visible in the camera view.",
     category: "security",
     kind: "workflow-object-detection",
-    provider: "roboflow",
-    workflow: PEOPLE_DETECTION_WORKFLOW,
+    provider: "vision",
+    workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
     watchFor: ["People entering the monitored area", "Unexpected occupancy"],
     alertsWhen: ["A person appears", "The configured occupancy limit is reached"],
     recommendedFor: ["Restricted areas", "Entry points", "Cold storage"],
@@ -219,7 +223,7 @@ export const PLUGINS: Plugin[] = [
     description: "Review food-operation footage for visible missing or incorrectly worn protective equipment.",
     category: "compliance",
     kind: "segment-understanding",
-    provider: "roboflow",
+    provider: "vision",
     workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
     usesVisionLanguage: true,
     watchFor: ["Hairnets and hair covering", "Face masks", "Required protective clothing"],
@@ -230,7 +234,7 @@ export const PLUGINS: Plugin[] = [
     defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 300,
     defaultPrompt:
-      "Review the original and annotated frames as a food-factory PPE compliance check. Treat Roboflow annotations as location hints, and report only clearly visible violations.",
+      "Review the original and annotated frames as a food-factory PPE compliance check. Treat vision annotations as location hints, and report only clearly visible violations.",
     defaultAlerts: [
       {
         kind: "scene-match",
@@ -252,7 +256,7 @@ export const PLUGINS: Plugin[] = [
     description: "Track vehicle arrivals, departures, occupancy, and congestion at a loading bay.",
     category: "operations",
     kind: "workflow-object-detection",
-    provider: "roboflow",
+    provider: "vision",
     workflow: VEHICLE_DETECTION_WORKFLOW,
     watchFor: ["Vehicle arrivals and departures", "Bay occupancy", "Multiple waiting vehicles"],
     alertsWhen: ["A vehicle arrives or leaves", "More than one vehicle is present"],
@@ -281,7 +285,7 @@ export const PLUGINS: Plugin[] = [
     description: "Review food-sensitive areas for visible pests, spills, standing water, and waste risks.",
     category: "hygiene",
     kind: "segment-understanding",
-    provider: "roboflow",
+    provider: "vision",
     workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
     usesVisionLanguage: true,
     watchFor: ["Rodents and visible pests", "Spills or standing water", "Exposed or accumulated waste"],
@@ -292,7 +296,7 @@ export const PLUGINS: Plugin[] = [
     defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 600,
     defaultPrompt:
-      "Review the original and annotated frames for visible food-factory hygiene and pest risks. Treat Roboflow annotations as hints, not ground truth.",
+      "Review the original and annotated frames for visible food-factory hygiene and pest risks. Treat vision annotations as hints, not ground truth.",
     defaultAlerts: [
       {
         kind: "scene-match",
@@ -314,7 +318,7 @@ export const PLUGINS: Plugin[] = [
     description: "Review operational areas for falls, blocked exits, unsafe crowding, and vehicle proximity.",
     category: "safety",
     kind: "segment-understanding",
-    provider: "roboflow",
+    provider: "vision",
     workflow: DEFAULT_OBJECT_DETECTION_WORKFLOW,
     usesVisionLanguage: true,
     watchFor: ["A fallen person", "Blocked emergency access", "Unsafe person and vehicle proximity"],
@@ -325,7 +329,7 @@ export const PLUGINS: Plugin[] = [
     defaultConfidence: DEFAULT_PLUGIN_CONFIDENCE,
     defaultCooldownSec: 180,
     defaultPrompt:
-      "Review the original and annotated frames for immediate workplace safety hazards. Treat Roboflow annotations as hints and report only visible evidence.",
+      "Review the original and annotated frames for immediate workplace safety hazards. Treat vision annotations as hints and report only visible evidence.",
     defaultAlerts: [
       {
         kind: "scene-match",

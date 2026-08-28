@@ -69,7 +69,7 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
         }}
         open={preview !== null}
       >
-        <DialogContent className="flex h-[85vh] max-w-3xl flex-col items-center justify-center gap-2 p-4">
+        <DialogContent className="flex h-[85vh] w-[min(94vw,80rem)] max-w-none flex-col items-center justify-center gap-2 p-4 sm:max-w-none">
           {preview?.kind === "video" ? (
             <video className="max-h-full max-w-full object-contain" controls playsInline src={preview.url} />
           ) : preview ? (

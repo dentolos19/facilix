@@ -1,7 +1,7 @@
 "use client";
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Building2Icon, Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
+import { Building2Icon, ImagePlusIcon, Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ import { MonitoringStatusIndicator, monitoringStatusLabel } from "#/components/s
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "#/components/ui/empty";
-import { Field, FieldLabel } from "#/components/ui/field";
+import { Field, FieldDescription, FieldLabel } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
 import {
   Sheet,
@@ -24,10 +24,11 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "#/components/ui/tooltip";
 import { hasAdminRole, useSession } from "#/lib/auth/client";
 import { createFacility, getFacilities } from "#/lib/functions/facility";
+import { generateFacilityLayoutFromFile } from "#/lib/functions/facility-layout";
 import { getMonitoringStatuses } from "#/lib/functions/server";
 import type { MonitoringStatus } from "#/lib/monitoring/types";
 import { getShowAllFacilitiesPreference } from "#/lib/preferences";
-import type { CanvasItemLayout, CanvasLayoutData } from "#/routes/(platform)/facility.$id/-helpers/types";
+import type { CanvasItemLayout, CanvasLayoutData, PlacedItem } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
 
@@ -127,6 +128,7 @@ function Page() {
   const [isCreating, setIsCreating] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [newFacilityName, setNewFacilityName] = useState("");
+  const [newFacilityLayoutImage, setNewFacilityLayoutImage] = useState<File | null>(null);
   const [showAllFacilities, setShowAllFacilities] = useState(false);
   const [preferenceUserId, setPreferenceUserId] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Record<string, MonitoringStatus>>({});
@@ -190,18 +192,25 @@ function Page() {
       setIsCreating(true);
 
       try {
-        const facility = await createFacility({ data: { name: newFacilityName.trim() } });
+        let initialItems: PlacedItem[] | undefined;
+
+        if (newFacilityLayoutImage) {
+          initialItems = (await generateFacilityLayoutFromFile(newFacilityLayoutImage)).items;
+        }
+
+        const facility = await createFacility({ data: { initialItems, name: newFacilityName.trim() } });
         setFacilities((prev) => [...prev, facility]);
         setNewFacilityName("");
+        setNewFacilityLayoutImage(null);
         setIsSheetOpen(false);
-        toast.success("Facility created successfully");
-      } catch {
-        toast.error("Failed to create facility");
+        toast.success(initialItems ? "Facility and layout created" : "Facility created successfully");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to create facility");
       } finally {
         setIsCreating(false);
       }
     },
-    [newFacilityName],
+    [newFacilityLayoutImage, newFacilityName],
   );
 
   return (
@@ -221,7 +230,7 @@ function Page() {
             </SheetHeader>
 
             <form className="flex flex-1 flex-col" onSubmit={handleCreateFacility}>
-              <div className="flex-1 p-4">
+              <div className="flex flex-1 flex-col gap-5 p-4">
                 <Field>
                   <FieldLabel>Name</FieldLabel>
                   <Input
@@ -232,6 +241,25 @@ function Page() {
                     value={newFacilityName}
                   />
                 </Field>
+                <Field>
+                  <FieldLabel htmlFor="facility-layout-image">Layout image</FieldLabel>
+                  <Input
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={isCreating}
+                    id="facility-layout-image"
+                    onChange={(event) => setNewFacilityLayoutImage(event.target.files?.[0] ?? null)}
+                    type="file"
+                  />
+                  <FieldDescription>
+                    Optional. Upload a JPEG, PNG, or WebP floorplan up to 8 MB to build the initial layout.
+                  </FieldDescription>
+                  {newFacilityLayoutImage && (
+                    <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                      <ImagePlusIcon className="size-3.5" />
+                      {newFacilityLayoutImage.name}
+                    </p>
+                  )}
+                </Field>
               </div>
 
               <SheetFooter>
@@ -239,8 +267,10 @@ function Page() {
                   {isCreating ? (
                     <>
                       <Loader2Icon className="animate-spin" />
-                      Creating...
+                      {newFacilityLayoutImage ? "Generating layout..." : "Creating..."}
                     </>
+                  ) : newFacilityLayoutImage ? (
+                    "Create Facility and Layout"
                   ) : (
                     "Create Facility"
                   )}

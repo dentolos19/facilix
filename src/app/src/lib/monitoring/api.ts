@@ -287,6 +287,7 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
   const asset = await storage.createFile(buffer, { name: fileName, type: contentType });
 
   const segmentId = crypto.randomUUID();
+  const processId = `segment-${segmentId}`;
   await db.insert(schema.videoSegment).values({
     id: segmentId,
     assetId: asset.id,
@@ -295,6 +296,14 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     durationSec,
     startedAt,
     endedAt,
+  });
+  await db.insert(schema.facilityProcess).values({
+    id: processId,
+    facilityId,
+    deviceId,
+    segmentId,
+    kind: "segment",
+    name: "facilix-processor",
   });
 
   const observer = env.OBSERVER.getByName(facilityId);
@@ -316,26 +325,42 @@ async function handleSegment(request: Request, env: Env, facilityId: string): Pr
     },
   );
 
-  // Dispatch the durable processor — runs Roboflow object detection on the
+  // Dispatch the durable processor to run vision object detection on the
   // video segment and writes the resulting detections onto video_segments.data.
-  await env.PROCESSOR.create({
-    params: {
-      kind: "segment",
-      facilityId,
-      deviceId,
-      segmentId,
-      assetId: asset.id,
-      startedAt: startedAt.toISOString(),
-      endedAt: endedAt.toISOString(),
-      durationSec: durationSec ?? 0,
-    },
-  });
+  try {
+    await env.PROCESSOR.create({
+      id: processId,
+      params: {
+        kind: "segment",
+        facilityId,
+        deviceId,
+        segmentId,
+        assetId: asset.id,
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        durationSec: durationSec ?? 0,
+        processId,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await db
+      .update(schema.facilityProcess)
+      .set({
+        status: "errored",
+        error: { name: error instanceof Error ? error.name : "WorkflowCreateError", message },
+        completedAt: new Date(),
+      })
+      .where(eq(schema.facilityProcess.id, processId));
+    throw error;
+  }
 
   return Response.json({
     success: true,
     queued: true,
     segmentId,
     assetId: asset.id,
+    processId,
     sizeBytes: buffer.byteLength,
   });
 }

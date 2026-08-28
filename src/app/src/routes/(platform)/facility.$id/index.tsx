@@ -63,8 +63,10 @@ import {
   type FacilityEventView,
   getAllFacilityEvents,
   getFacilityEvents,
+  groupFacilityEvents,
 } from "#/lib/functions/events";
 import { deleteFacility, duplicateFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
+import { generateFacilityLayoutFromFile } from "#/lib/functions/facility-layout";
 import {
   type FacilityMemberRow,
   addFacilityMember,
@@ -80,9 +82,9 @@ import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/t
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
 import { fetchSimulationSensors } from "#/lib/simulation/sensors";
 
-import { AllEventsDialog } from "./-components/all-events-dialog";
 import { CanvasEditor } from "./-components/canvas-editor";
 import { ComponentPalette } from "./-components/component-palette";
+import { FacilityLogsDialog } from "./-components/facility-logs-dialog";
 import { GlobalEventsPanel } from "./-components/global-events-panel";
 import { MonitoringDetailsPanel } from "./-components/monitoring-details-panel";
 import { PropertiesPanel } from "./-components/properties-panel";
@@ -195,7 +197,7 @@ function Page() {
   const canvasAreaRef = useRef<HTMLDivElement>(null);
 
   // ── D1-backed facility events (filtered by settings for global events panel) ─────
-  const [facilityEvents, setFacilityEvents] = useState<FacilityEventRow[]>([]);
+  const [facilityEvents, setFacilityEvents] = useState<FacilityEventView[]>([]);
 
   // ── D1-backed ALL events (unfiltered, for logs dialog) ─────
   const [allEvents, setAllEvents] = useState<FacilityEventRow[]>([]);
@@ -291,8 +293,8 @@ function Page() {
             case "snapshot":
             case "event":
               // Refetch both filtered and unfiltered events from D1
-              getFacilityEvents({ data: { facilityId } })
-                .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+              getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
+                .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
                 .catch(() => {});
               getAllFacilityEvents({ data: { facilityId } })
                 .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
@@ -328,8 +330,8 @@ function Page() {
 
   // ── Fetch initial facility events from D1 on mount ─────────────────────
   useEffect(() => {
-    getFacilityEvents({ data: { facilityId } })
-      .then((r) => setFacilityEvents(r as unknown as FacilityEventRow[]))
+    getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
+      .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
       .catch(() => {});
     getAllFacilityEvents({ data: { facilityId } })
       .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
@@ -486,6 +488,8 @@ function Page() {
       };
     });
   }, [facilityEvents, placedItems]);
+  const deviceEventViews = useMemo(() => facilityEventViews.slice(0, 200), [facilityEventViews]);
+  const globalEventViews = useMemo(() => groupFacilityEvents(facilityEventViews).slice(0, 200), [facilityEventViews]);
 
   const monitoringDeviceId = selectedDeviceId(monitoringSelection);
 
@@ -789,17 +793,6 @@ function Page() {
   const processImport = useCallback(async (file: File) => {
     const isJson = file.type === "application/json" || file.name.endsWith(".json");
 
-    if (!isJson) {
-      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        toast.error("Choose an image (JPEG, PNG, WebP) or a JSON file.");
-        return;
-      }
-      if (file.size > 8 * 1024 * 1024) {
-        toast.error("The image must be smaller than 8 MB.");
-        return;
-      }
-    }
-
     setIsImporting(true);
     try {
       if (isJson) {
@@ -818,19 +811,10 @@ function Page() {
         });
       } else {
         const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
-        const formData = new FormData();
-        formData.append("image", file);
-        formData.append("canvasWidth", String(Math.round(canvasRect?.width ?? 1000)));
-        formData.append("canvasHeight", String(Math.round(canvasRect?.height ?? 700)));
-
-        const response = await fetch("/api/layouts", { method: "POST", body: formData });
-        const payload = (await response.json().catch(() => null)) as
-          | (FacilityLayoutDocument & { error?: never })
-          | { error?: string }
-          | null;
-        if (!response.ok || !payload || !("items" in payload)) {
-          throw new Error(payload?.error || "Failed to generate the facility layout.");
-        }
+        const payload = await generateFacilityLayoutFromFile(file, {
+          width: Math.round(canvasRect?.width ?? 1000),
+          height: Math.round(canvasRect?.height ?? 700),
+        });
 
         saveSnapshot();
         setPlacedItems(payload.items);
@@ -1268,15 +1252,20 @@ function Page() {
             <TooltipContent>{editMode === "monitoring" ? "Edit" : "Monitor"}</TooltipContent>
           </Tooltip>
 
-          {/* Container Logs button (monitoring mode only) */}
+          {/* Facility logs and workflow processes (monitoring mode only) */}
           {editMode === "monitoring" && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button aria-label="View logs" onClick={() => setLogsOpen(true)} size="icon-sm" variant="ghost">
+                <Button
+                  aria-label="View logs and workflows"
+                  onClick={() => setLogsOpen(true)}
+                  size="icon-sm"
+                  variant="ghost"
+                >
                   <TerminalIcon className="size-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Logs</TooltipContent>
+              <TooltipContent>Logs &amp; Workflows</TooltipContent>
             </Tooltip>
           )}
 
@@ -1565,9 +1554,10 @@ function Page() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Logs Dialog (all events) ── */}
-      <AllEventsDialog
+      {/* ── Facility Logs Dialog ── */}
+      <FacilityLogsDialog
         events={allEvents}
+        facilityId={facilityId}
         onClearLogs={handleClearContainerLogs}
         onOpenChange={setLogsOpen}
         open={logsOpen}
@@ -1579,7 +1569,7 @@ function Page() {
         <ResizablePanel defaultSize={22} minSize={8}>
           {editMode === "monitoring" ? (
             <GlobalEventsPanel
-              events={facilityEventViews}
+              events={globalEventViews}
               onSelectDevice={selectMonitoringDevice}
               onSelectEvent={selectMonitoringEvent}
               selection={monitoringSelection}
@@ -1683,8 +1673,9 @@ function Page() {
           {editMode === "monitoring" ? (
             <MonitoringDetailsPanel
               devices={placedItems}
-              events={facilityEventViews}
+              events={deviceEventViews}
               facilityId={facilityId}
+              incidentEvents={globalEventViews}
               onSelectDevice={selectMonitoringDevice}
               selection={monitoringSelection}
             />

@@ -15,7 +15,7 @@ const APP_URL = env.APP_URL ?? "https://facilix.dennise.me";
 /** Simulator base URL (API + HLS) passed to the monitoring container. */
 const SIMULATOR_URL = (env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix.fly.dev";
 
-/** Roboflow API configuration passed to the container for video processing. */
+/** Model API configuration passed to the container for video processing. */
 const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
 const ROBOFLOW_API_BASE = "https://serverless.roboflow.com";
 const STOP_GRACE_PERIOD_MS = 5_000;

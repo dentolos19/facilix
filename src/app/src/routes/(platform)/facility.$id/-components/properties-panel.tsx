@@ -442,7 +442,8 @@ export function PropertiesPanel({
                             {selectedSimulationStream && (
                               <Button
                                 aria-label={
-                                  selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting"
+                                  selectedSimulationStream.status === "running" ||
+                                  selectedSimulationStream.status === "starting"
                                     ? "Stop selected simulation stream"
                                     : "Start selected simulation stream"
                                 }
@@ -454,7 +455,8 @@ export function PropertiesPanel({
                               >
                                 {streamActionLoading ? (
                                   <Loader2Icon className="size-3.5 animate-spin" />
-                                ) : selectedSimulationStream.status === "running" || selectedSimulationStream.status === "starting" ? (
+                                ) : selectedSimulationStream.status === "running" ||
+                                  selectedSimulationStream.status === "starting" ? (
                                   <SquareIcon className="size-3.5" />
                                 ) : (
                                   <PlayIcon className="size-3.5" />
@@ -1023,7 +1025,7 @@ function PluginCard({
     <Collapsible className="border-border bg-muted/10 flex flex-col rounded-none border">
       <div className="border-border bg-muted/30 text-muted-foreground flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase">
         <span>{plugin.category}</span>
-        <span>{plugin.kind === "segment-understanding" ? "Roboflow + vision review" : "Roboflow workflow"}</span>
+        <span>{plugin.kind === "segment-understanding" ? "vision + scene review" : "vision model"}</span>
       </div>
       <CollapsibleTrigger className="group/collapsible flex w-full items-start justify-between gap-2 p-2 text-left">
         <div className="min-w-0 flex-1">
@@ -1171,7 +1173,7 @@ function WorkflowInputConfig({
   return (
     <div className="border-border flex flex-col gap-2 border-t pt-2">
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Roboflow workflow">
+        <Field label="Model">
           <Input className="font-mono text-[10px]" readOnly value={plugin.workflow.workflowId} />
         </Field>
         <Field label="Detection confidence">

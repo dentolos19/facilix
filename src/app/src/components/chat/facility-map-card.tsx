@@ -94,7 +94,7 @@ export function FacilityMapCard({ data }: { data: UiFacilityMap }) {
       </div>
 
       <Dialog onOpenChange={setExpanded} open={expanded}>
-        <DialogContent className="flex h-[80vh] max-w-4xl flex-col gap-0 p-0">
+        <DialogContent className="flex h-[85vh] w-[min(94vw,80rem)] max-w-none flex-col gap-0 p-0 sm:max-w-none">
           <DialogHeader className="shrink-0 px-4 pt-4 pb-2">
             <DialogTitle className="text-sm">Facility Layout</DialogTitle>
           </DialogHeader>

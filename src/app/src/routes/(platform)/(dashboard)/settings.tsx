@@ -169,7 +169,7 @@ interface SimulatorHealth {
 }
 
 function simulatorApiUrl() {
-  return import.meta.env?.VITE_SIMULATOR_API_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
+  return import.meta.env?.VITE_SIMULATOR_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
 }
 
 // ---------------------------------------------------------------------------
@@ -457,11 +457,14 @@ function CctvStreamControls({
           const active = stream.status === "running" || stream.status === "starting";
           const pending = action === stream.name;
           return (
-            <div className="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0" key={stream.name}>
+            <div
+              className="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0"
+              key={stream.name}
+            >
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium">{formatStreamLabel(stream.label ?? stream.name)}</p>
                 <p className="text-muted-foreground truncate font-mono text-[10px]">
-                  {stream.name} &middot; {stream.hlsReady ? "HLS-ready" : stream.hlsError ?? stream.status}
+                  {stream.name} &middot; {stream.hlsReady ? "HLS-ready" : (stream.hlsError ?? stream.status)}
                 </p>
               </div>
               <Button

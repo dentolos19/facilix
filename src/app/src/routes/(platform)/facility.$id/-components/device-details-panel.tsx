@@ -73,9 +73,7 @@ function CctvIntelligencePluginsSection({ device }: { device: PlacedItem }) {
                 <ShieldAlertIcon className="text-muted-foreground/60 mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-foreground/80 truncate text-[11px] font-medium">{plugin.name}</p>
-                  <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
-                    {plugin.category} · {plugin.workflow.workflowId}
-                  </p>
+                  <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">{plugin.category} · vision</p>
                   {isDetection && detConfig && (
                     <p className="text-muted-foreground/60 text-[9px]">
                       {(detConfig.alerts?.length ?? 0) > 0
@@ -394,7 +392,7 @@ export function DeviceDetailsPanel({
                           ? "Stop simulation stream"
                           : "Start simulation stream"
                       }
-                      className="absolute top-2 right-2 z-30 bg-background/85 backdrop-blur-sm"
+                      className="bg-background/85 absolute top-2 right-2 z-30 backdrop-blur-sm"
                       disabled={simulationStreamActionLoading}
                       onClick={(event) => {
                         event.stopPropagation();

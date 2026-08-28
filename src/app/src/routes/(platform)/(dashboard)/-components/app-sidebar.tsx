@@ -1,5 +1,12 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Building2Icon, LayoutDashboardIcon, PanelLeftIcon, SettingsIcon, ShieldIcon } from "lucide-react";
+import {
+  Building2Icon,
+  LayoutDashboardIcon,
+  PanelLeftIcon,
+  SettingsIcon,
+  ShieldIcon,
+  WorkflowIcon,
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -19,6 +26,7 @@ import {
 const NAV_MAIN = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboardIcon },
   { title: "Overview", url: "/overview", icon: Building2Icon },
+  { title: "Workflows", url: "/workflows", icon: WorkflowIcon },
   { title: "Security", url: "/security", icon: ShieldIcon },
   { title: "Settings", url: "/settings", icon: SettingsIcon },
 ] as const;
