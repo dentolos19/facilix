@@ -35,14 +35,32 @@ jobs:
         working-directory: src/app
         env:
           VITE_SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
+          VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
+          VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
         run: bun run build
 
       - name: Migrate Database
         working-directory: src/app
         run: bun run db:migrate --remote
 
-      - name: Upload Secrets
-        working-directory: src/app
+      - name: Deploy App
+        uses: dentolos19/dentolos19/actions/deploy-cloudflare-worker@main
+        with:
+          working-directory: src/app
+          secrets: |
+            APP_URL
+            SERVER_SECRET
+            BETTER_AUTH_URL
+            BETTER_AUTH_SECRET
+            OPENROUTER_API_KEY
+            OPENROUTER_TITLE
+            OPENROUTER_REFERER
+            OPENROUTER_MODEL
+            ROBOFLOW_API_KEY
+            SIMULATOR_URL
+            SIMULATOR_TOKEN
+            FLY_API_TOKEN
+            FLY_APP_NAME
         env:
           APP_URL: ${{ vars.APP_URL }}
           SERVER_SECRET: ${{ secrets.SERVER_SECRET }}
@@ -53,37 +71,10 @@ jobs:
           OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
-          VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
           SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
-        run: |
-          bun wrangler secret list |
-            jq 'map({(.name): null}) | add // {}' |
-            bun wrangler secret bulk
-          jq -n '$ENV | {
-            APP_URL,
-            SERVER_SECRET,
-            BETTER_AUTH_URL,
-            BETTER_AUTH_SECRET,
-            OPENROUTER_API_KEY,
-            OPENROUTER_TITLE,
-            OPENROUTER_REFERER,
-            OPENROUTER_MODEL,
-            ROBOFLOW_API_KEY,
-            VISION_OBJECT_MODEL,
-            VISION_VEHICLE_MODEL,
-            SIMULATOR_URL,
-            SIMULATOR_TOKEN,
-            FLY_API_TOKEN,
-            FLY_APP_NAME
-          }' | bun wrangler secret bulk
-
-      - name: Deploy App
-        working-directory: src/app
-        run: bun run deploy
 
   deploy-simulator:
     name: Deploy Simulator
@@ -97,20 +88,11 @@ jobs:
         with:
           lfs: true
 
-      - name: Setup Flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@v1
-
-      - name: Upload Secrets
-        working-directory: src/simulator
+      - name: Deploy Simulator
+        uses: dentolos19/dentolos19/actions/deploy-fly-app@main
+        with:
+          working-directory: src/simulator
+          secrets: |
+            SIMULATOR_TOKEN
         env:
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
-        run: |
-          printf 'SIMULATOR_TOKEN=%s\n' "$SIMULATOR_TOKEN" | flyctl secrets import
-
-      - name: Deploy Simulator
-        working-directory: src/simulator
-        run: flyctl deploy --ha=false --strategy immediate
-
-      - name: Scale Machines
-        working-directory: src/simulator
-        run: flyctl scale count 1 --yes
