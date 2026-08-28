@@ -1,15 +1,15 @@
 # Editor configurations
 .vs/
 .idea/
-*.iml
 
-# Environment files
+# Build files
 .tanstack/
 .wrangler/
 node_modules/
 dist/
 build/
 out/
+coverage/
 *.d.ts
 *.tsbuildinfo
 
