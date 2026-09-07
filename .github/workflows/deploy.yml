@@ -43,8 +43,8 @@ jobs:
         working-directory: src/app
         run: bun run db:migrate --remote
 
-      - name: Deploy App
-        uses: dentolos19/dentolos19/actions/deploy-cloudflare-worker@main
+      - name: Upload Secrets
+        uses: dentolos19/dentolos19/actions/upload-worker-secrets@main
         with:
           working-directory: src/app
           secrets: |
@@ -75,6 +75,10 @@ jobs:
           SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
+
+      - name: Deploy Worker
+        working-directory: src/app
+        run: bun run deploy
 
   deploy-simulator:
     name: Deploy Simulator

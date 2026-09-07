@@ -1,4 +1,4 @@
-.PHONY: dev start simulate desimulate resimulate check
+.PHONY: setup start check migrate simulate desimulate resimulate
 
 setup:
 	cd src/app && bun install
@@ -7,6 +7,13 @@ setup:
 
 start:
 	cd src/app && bun run dev
+
+check:
+	cd src/app && bun run check
+	cd src/server && uv run ruff format
+	cd src/server && uv run ruff check --fix
+	cd src/simulator && uv run ruff format
+	cd src/simulator && uv run ruff check --fix
 
 migrate:
 	cd src/app && bun run db:migrate
@@ -18,10 +25,3 @@ desimulate:
 	docker compose down
 
 resimulate: desimulate simulate
-
-check:
-	cd src/app && bun run check
-	cd src/server && uv run ruff format
-	cd src/server && uv run ruff check --fix
-	cd src/simulator && uv run ruff format
-	cd src/simulator && uv run ruff check --fix

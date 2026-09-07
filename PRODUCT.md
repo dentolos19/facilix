@@ -1,4 +1,4 @@
-# Facilix
+# Product Specifications
 
 ## Overview
 
@@ -220,7 +220,7 @@ The dashboard should show:
 
 The dashboard should be easy to understand, even during stressful situations.
 
-## 8. Factory Map View
+## 9. Factory Map View
 
 Facilix should include a visual map of the factory.
 
@@ -234,7 +234,7 @@ The map should allow staff to:
 
 The map should feel like a professional facility monitoring interface, inspired by security camera map layouts, but designed for a real industrial environment.
 
-## 9. Incident Alerts and Response
+## 10. Incident Alerts and Response
 
 Facilix should help staff understand and respond to incidents quickly.
 
@@ -253,7 +253,7 @@ In the global event list, selecting one event should show only that event's evid
 
 The system should help reduce confusion and make incident response faster and more organized.
 
-## 10. Reporting and Review
+## 11. Reporting and Review
 
 Facilix should help management review past activity and identify operational problems.
 
