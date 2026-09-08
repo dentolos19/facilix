@@ -10,18 +10,8 @@ start:
 
 check:
 	cd src/app && bun run check
-	cd src/server && uv run ruff format
-	cd src/server && uv run ruff check --fix
-	cd src/simulator && uv run ruff format
-	cd src/simulator && uv run ruff check --fix
+	cd src/server && uv run ruff check --fix && uv run ruff format && uv run ty check
+	cd src/simulator && uv run ruff check --fix && uv run ruff format && uv run ty check
 
 migrate:
 	cd src/app && bun run db:migrate
-
-simulate:
-	docker compose up --detach --build
-
-desimulate:
-	docker compose down
-
-resimulate: desimulate simulate

@@ -5,6 +5,8 @@
  * and normalises them for use in the frontend.
  */
 
+import { getSimulatorBase } from "./url";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -41,20 +43,12 @@ export interface NormalizedReading {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-function getApiBase(): string {
-  return import.meta.env?.VITE_SIMULATOR_URL ?? "http://localhost:3002";
-}
-
-// ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
 
 export async function fetchSimulationSensors(): Promise<SimulationSensorDevice[]> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${getSimulatorBase()}/sensors`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { sensors: SimulationSensorDevice[] };
     return data.sensors;
@@ -65,7 +59,7 @@ export async function fetchSimulationSensors(): Promise<SimulationSensorDevice[]
 
 export async function fetchSimulationSensor(identifier: string): Promise<SimulationSensorDevice | null> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}`, {
+    const res = await fetch(`${getSimulatorBase()}/sensors/${encodeURIComponent(identifier)}`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -77,7 +71,7 @@ export async function fetchSimulationSensor(identifier: string): Promise<Simulat
 
 export async function fetchSimulationLatestReading(identifier: string): Promise<NormalizedReading | null> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/latest`, {
+    const res = await fetch(`${getSimulatorBase()}/sensors/${encodeURIComponent(identifier)}/latest`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -91,7 +85,7 @@ export async function fetchSimulationLatestReading(identifier: string): Promise<
 
 export async function fetchSimulationHistory(identifier: string, limit = 50): Promise<NormalizedReading[]> {
   try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/readings?limit=${limit}`, {
+    const res = await fetch(`${getSimulatorBase()}/sensors/${encodeURIComponent(identifier)}/readings?limit=${limit}`, {
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return [];
@@ -99,20 +93,6 @@ export async function fetchSimulationHistory(identifier: string, limit = 50): Pr
     return (data.readings ?? []).map(normalizeReading);
   } catch {
     return [];
-  }
-}
-
-export async function triggerSimulationReading(identifier: string): Promise<NormalizedReading | null> {
-  try {
-    const res = await fetch(`${getApiBase()}/sensors/${encodeURIComponent(identifier)}/read`, {
-      method: "POST",
-      signal: AbortSignal.timeout(3000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as Record<string, unknown>;
-    return normalizeReading(data);
-  } catch {
-    return null;
   }
 }
 

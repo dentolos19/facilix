@@ -24,7 +24,6 @@ import urllib.request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import config
-from control import require_token
 
 logger = logging.getLogger("simulator.cctv")
 
@@ -541,7 +540,7 @@ async def get_stream(name: str) -> JSONResponse:
 
 
 @router.post("/{name}/start")
-async def start_stream(name: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
+async def start_stream(name: str) -> JSONResponse:
     """Start a CCTV stream."""
     sp = streams.get(name)
     if sp is None:
@@ -554,7 +553,7 @@ async def start_stream(name: str, _: None = fastapi.Depends(require_token)) -> J
 
 
 @router.post("/{name}/stop")
-async def stop_stream(name: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
+async def stop_stream(name: str) -> JSONResponse:
     """Stop a CCTV stream."""
     sp = streams.get(name)
     if sp is None:
@@ -566,7 +565,7 @@ async def stop_stream(name: str, _: None = fastapi.Depends(require_token)) -> JS
 
 
 @router.post("/{name}/restart")
-async def restart_stream(name: str, _: None = fastapi.Depends(require_token)) -> JSONResponse:
+async def restart_stream(name: str) -> JSONResponse:
     """Restart a CCTV stream."""
     sp = streams.get(name)
     if sp is None:

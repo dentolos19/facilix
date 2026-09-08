@@ -30,6 +30,7 @@ import {
   type SimulationStream,
 } from "#/lib/functions/settings";
 import { getShowAllFacilitiesPreference, setShowAllFacilitiesPreference } from "#/lib/preferences";
+import { getSimulatorBase } from "#/lib/simulation/url";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
 
@@ -139,7 +140,7 @@ function Page() {
           </Card>
         )}
 
-        {isLocal ? <LocalSimulatorStatus isAdmin={isAdmin} /> : <FlySimulatorControl isAdmin={isAdmin} />}
+        {isLocal ? <LocalSimulatorStatus isAdmin={isAdmin} /> : <CloudflareSimulatorControl isAdmin={isAdmin} />}
 
         <Card>
           <CardHeader>
@@ -169,7 +170,7 @@ interface SimulatorHealth {
 }
 
 function simulatorApiUrl() {
-  return import.meta.env?.VITE_SIMULATOR_URL ?? (isLocal ? "http://localhost:3002" : "https://facilix.fly.dev");
+  return getSimulatorBase();
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +202,7 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
         setStreams(streamsResult.value);
       } else {
         setStreams([]);
-        setStreamError("Unable to load simulator streams. Check SIMULATOR_URL.");
+        setStreamError("Unable to load simulator streams.");
       }
     } catch {
       setHealth(null);
@@ -283,7 +284,7 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
 }
 
 // ---------------------------------------------------------------------------
-// Fly Simulator Control (admin only, production)
+// Cloudflare Simulator Control (admin only, production)
 // ---------------------------------------------------------------------------
 
 const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
@@ -291,11 +292,10 @@ const STATUS_LABELS: Record<SimulationStatus["overall"], string> = {
   stopped: "Stopped",
   starting: "Starting\u2026",
   stopping: "Stopping\u2026",
-  partial: "Partial",
   error: "Error",
 };
 
-function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
+function CloudflareSimulatorControl({ isAdmin }: { isAdmin: boolean }) {
   const [status, setStatus] = useState<SimulationStatus | null>(null);
   const [streams, setStreams] = useState<SimulationStream[]>([]);
   const [loading, setLoading] = useState(false);
@@ -318,7 +318,7 @@ function FlySimulatorControl({ isAdmin }: { isAdmin: boolean }) {
         return;
       }
 
-      if (!result.machines.some((machine) => machine.state === "started")) {
+      if (result.overall !== "running") {
         setStreams([]);
         return;
       }

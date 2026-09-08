@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 import uvicorn
@@ -21,11 +23,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 
 from api import post_event
 from config import (
-    APP_URL,
     CONFIG_READY,
     FACILITY_ID,
-    SERVER_SECRET,
     LOG_LEVEL,
+    MONITORING_API_URL,
+    MONITORING_TOKEN,
     SIMULATOR_URL,
 )
 from monitoring import startup_monitoring
@@ -35,7 +37,6 @@ from utils import close_http_client, configure_logging, now_iso
 
 configure_logging()
 
-app = FastAPI(title="facilix-server")
 log = logging.getLogger("facilix")
 
 
@@ -45,26 +46,21 @@ def log_config_warnings() -> None:
         missing = []
         if not FACILITY_ID:
             missing.append("FACILITY_ID")
-        if not SERVER_SECRET:
-            missing.append("SERVER_SECRET")
+        if not MONITORING_API_URL:
+            missing.append("MONITORING_API_URL")
+        if not MONITORING_TOKEN:
+            missing.append("MONITORING_TOKEN")
         log.warning("missing env vars: %s — monitoring will idle", ", ".join(missing))
 
-    if APP_URL.startswith("http://localhost") or APP_URL.startswith("http://127.0.0.1"):
-        log.warning(
-            "APP_URL points at localhost. Inside a container this is unreachable. "
-            "Use the deployed Worker URL, a Cloudflare Tunnel URL, or host.docker.internal."
-        )
 
-
-@app.on_event("startup")
 async def on_startup() -> None:
     label = FACILITY_ID or "unknown"
     log_stream_rewrite_config()
     log_config_warnings()
     log.info("monitoring starting for facility %s", label)
     log.info(
-        "config: APP_URL=%s, SIMULATOR_URL=%s, LOG_LEVEL=%s",
-        APP_URL,
+        "config: MONITORING_API_URL=%s, SIMULATOR_URL=%s, LOG_LEVEL=%s",
+        MONITORING_API_URL,
         SIMULATOR_URL,
         LOG_LEVEL,
     )
@@ -74,7 +70,6 @@ async def on_startup() -> None:
         log.warning("container running in idle mode — monitoring disabled")
 
 
-@app.on_event("shutdown")
 async def on_shutdown() -> None:
     label = FACILITY_ID or "unknown"
     log.info("monitoring shutting down for facility %s", label)
@@ -91,6 +86,18 @@ async def on_shutdown() -> None:
             "Monitoring container stopped",
         )
     await close_http_client()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    await on_startup()
+    try:
+        yield
+    finally:
+        await on_shutdown()
+
+
+app = FastAPI(lifespan=lifespan, title="facilix-server")
 
 
 @app.get("/")

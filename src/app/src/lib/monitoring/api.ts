@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { createLogger } from "#/lib/logs";
+import { getSimulatorUrl } from "#/lib/simulation/url";
 import { createStorage } from "#/lib/storage";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
@@ -116,9 +117,10 @@ export async function handleMonitoringApiRequest(
   facilityId: string,
   action: MonitoringApiAction,
 ): Promise<Response> {
-  const expected = env.SERVER_SECRET;
   const auth = request.headers.get("authorization");
-  if (!expected || auth !== `Bearer ${expected}`) {
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : "";
+  const server = env.SERVER.getByName(facilityId);
+  if (!token || !(await server.verifyToken(token))) {
     return new Response("Unauthorized", { status: 401 });
   }
 
@@ -146,7 +148,7 @@ async function handleConfig(request: Request, env: Env, facilityId: string): Pro
 
   const devices = await db.select().from(schema.facilityDevice).where(eq(schema.facilityDevice.facilityId, facilityId));
 
-  const simulatorUrl = String(env.SIMULATOR_URL ?? "https://facilix.fly.dev");
+  const simulatorUrl = getSimulatorUrl(new URL(request.url).origin);
 
   return Response.json({
     facilityId,

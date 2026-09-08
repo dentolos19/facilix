@@ -9,6 +9,13 @@ import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types
 const log = createLogger("server");
 
 const PORT = 3001;
+const TOKEN_KEY = "monitoringTokenHash";
+
+async function hashToken(token: string) {
+  const bytes = new TextEncoder().encode(token);
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 export class Server extends Container<Env> {
   defaultPort = PORT;
@@ -17,6 +24,19 @@ export class Server extends Container<Env> {
   /** The facility ID this container was instantiated for. */
   private get facilityId(): string {
     return this.ctx.id.name ?? this.ctx.id.toString();
+  }
+
+  async clearToken() {
+    await this.ctx.storage.delete(TOKEN_KEY);
+  }
+
+  async setToken(token: string) {
+    await this.ctx.storage.put(TOKEN_KEY, await hashToken(token));
+  }
+
+  async verifyToken(token: string) {
+    const expected = await this.ctx.storage.get<string>(TOKEN_KEY);
+    return expected !== undefined && expected === (await hashToken(token));
   }
 
   /** Record a lifecycle event to the DO observations table and, if important, to D1 facility_events. */
@@ -71,10 +91,11 @@ export class Server extends Container<Env> {
   // ── Lifecycle hooks ──────────────────────────────────────────────────
 
   async onStart(): Promise<void> {
-    await this.recordEvent("start");
+    await this.recordEvent("monitoring:started");
   }
 
   async onStop(params: { exitCode?: number; reason?: string }): Promise<void> {
-    await this.recordEvent("stop", params as Record<string, unknown>);
+    await this.recordEvent("monitoring:stopped", params as Record<string, unknown>);
+    await this.clearToken();
   }
 }

@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -34,7 +36,6 @@ jobs:
       - name: Build Project
         working-directory: src/app
         env:
-          VITE_SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
           VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
           VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
         run: bun run build
@@ -48,8 +49,6 @@ jobs:
         with:
           working-directory: src/app
           secrets: |
-            APP_URL
-            SERVER_SECRET
             BETTER_AUTH_URL
             BETTER_AUTH_SECRET
             OPENROUTER_API_KEY
@@ -57,13 +56,7 @@ jobs:
             OPENROUTER_REFERER
             OPENROUTER_MODEL
             ROBOFLOW_API_KEY
-            SIMULATOR_URL
-            SIMULATOR_TOKEN
-            FLY_API_TOKEN
-            FLY_APP_NAME
         env:
-          APP_URL: ${{ vars.APP_URL }}
-          SERVER_SECRET: ${{ secrets.SERVER_SECRET }}
           BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -71,32 +64,7 @@ jobs:
           OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          SIMULATOR_URL: ${{ vars.SIMULATOR_URL }}
-          SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          FLY_APP_NAME: ${{ vars.FLY_APP_NAME }}
 
       - name: Deploy Worker
         working-directory: src/app
         run: bun run deploy
-
-  deploy-simulator:
-    name: Deploy Simulator
-    environment: Production
-    runs-on: ubuntu-latest
-    env:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Deploy Simulator
-        uses: dentolos19/dentolos19/actions/deploy-fly-app@main
-        with:
-          working-directory: src/simulator
-          secrets: |
-            SIMULATOR_TOKEN
-        env:
-          SIMULATOR_TOKEN: ${{ secrets.SIMULATOR_TOKEN }}

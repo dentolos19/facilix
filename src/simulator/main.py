@@ -115,14 +115,17 @@ async def lifespan(app: fastapi.FastAPI):
 # ---------------------------------------------------------------------------
 
 app = fastapi.FastAPI(
-    title="Facilix Simulator",
     description=(
         "Unified simulator for CCTV video streams (looping MP4 files "
         "published as RTSP/RTMP via MediaMTX) and IoT sensor telemetry "
         "(temperature, humidity, pressure, light, motion, air quality, etc.)."
     ),
-    version="0.3.0",
+    docs_url=None,
     lifespan=lifespan,
+    openapi_url=None,
+    redoc_url=None,
+    title="Facilix Simulator",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -163,7 +166,7 @@ async def health() -> JSONResponse:
 
 @app.get("/health/live")
 async def live_health() -> JSONResponse:
-    """Lightweight liveness endpoint for Fly health checks.
+    """Lightweight liveness endpoint for container health checks.
 
     Stream availability is reported by ``/health`` but must not make the
     sole autostopping Machine unhealthy while a stream is intentionally off.

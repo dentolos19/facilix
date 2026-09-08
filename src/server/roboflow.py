@@ -500,7 +500,12 @@ def _to_detection(
     y = pred.get("y")
     width = pred.get("width")
     height = pred.get("height")
-    has_geometry = all(isinstance(v, (int, float)) for v in [x, y, width, height])
+    has_geometry = (
+        isinstance(x, (int, float))
+        and isinstance(y, (int, float))
+        and isinstance(width, (int, float))
+        and isinstance(height, (int, float))
+    )
 
     box = None
     if has_geometry:

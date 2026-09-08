@@ -1,11 +1,18 @@
 [project]
 name = "facilix-server"
 version = "1.0.0"
-requires-python = ">=3.13"
-dependencies = ["fastapi", "uvicorn", "httpx", "pydantic", "opencv-python-headless", "numpy"]
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "httpx",
+  "pydantic",
+  "opencv-python-headless",
+  "numpy",
+]
 
 [dependency-groups]
-dev = ["ruff"]
+dev = ["ty", "ruff"]
 
 [tool.ruff]
 line-length = 120

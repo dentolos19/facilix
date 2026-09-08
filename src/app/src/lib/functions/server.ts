@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { env } from "cloudflare:workers";
 import { and, eq, inArray } from "drizzle-orm";
 
@@ -6,14 +7,9 @@ import { createDatabase, schema } from "#/lib/database";
 import { requireFacilityAccess, getAccessContext } from "#/lib/functions/access";
 import { createLogger } from "#/lib/logs";
 import type { FacilityStatusEntry, MonitoringStatus } from "#/lib/monitoring/types";
+import { getContainerOrigin, getSimulatorUrl } from "#/lib/simulation/url";
 
 const log = createLogger("server-functions");
-
-/** Origin the monitoring container uses to call back to the Worker API. */
-const APP_URL = env.APP_URL ?? "https://facilix.dennise.me";
-
-/** Simulator base URL (API + HLS) passed to the monitoring container. */
-const SIMULATOR_URL = (env as { SIMULATOR_URL?: string }).SIMULATOR_URL ?? "https://facilix.fly.dev";
 
 /** Model API configuration passed to the container for video processing. */
 const ROBOFLOW_API_KEY = (env as { ROBOFLOW_API_KEY?: string }).ROBOFLOW_API_KEY ?? "";
@@ -116,16 +112,24 @@ export const startMonitoring = createServerFn({ method: "POST" })
       // Local Containers can run the process without completing the SDK port
       // readiness probe. Starting the container is sufficient here; requests to
       // the monitoring service still use the Container SDK's port checks.
-      await stub.start({
-        envVars: {
-          FACILITY_ID: data.facilityId,
-          APP_URL: APP_URL,
-          SERVER_SECRET: env.SERVER_SECRET ?? "",
-          SIMULATOR_URL,
-          ROBOFLOW_API_KEY,
-          ROBOFLOW_API_BASE,
-        },
-      });
+      const origin = getContainerOrigin(getRequest().url);
+      const token = crypto.randomUUID();
+      await stub.setToken(token);
+      try {
+        await stub.start({
+          envVars: {
+            FACILITY_ID: data.facilityId,
+            MONITORING_API_URL: `${origin}/api/facility/${data.facilityId}/monitoring`,
+            MONITORING_TOKEN: token,
+            ROBOFLOW_API_BASE,
+            ROBOFLOW_API_KEY,
+            SIMULATOR_URL: getSimulatorUrl(origin),
+          },
+        });
+      } catch (err) {
+        await stub.clearToken();
+        throw err;
+      }
       return { facilityId: data.facilityId, status: "running" } satisfies MonitoringActionResult;
     } catch (err) {
       log.error("startMonitoring failed", { error: String(err), facilityId: data.facilityId });
@@ -147,6 +151,7 @@ export const stopMonitoring = createServerFn({ method: "POST" })
       const stub = env.SERVER.getByName(data.facilityId);
       const state = await stub.getState();
       if (isContainerStopped(state)) {
+        await stub.clearToken();
         return { facilityId: data.facilityId, status: "stopped" } satisfies MonitoringActionResult;
       }
 
@@ -155,6 +160,7 @@ export const stopMonitoring = createServerFn({ method: "POST" })
         log.warn("Graceful monitoring stop timed out; destroying container", { facilityId: data.facilityId });
         await stub.destroy();
       }
+      await stub.clearToken();
 
       return { facilityId: data.facilityId, status: "stopped" } satisfies MonitoringActionResult;
     } catch (err) {

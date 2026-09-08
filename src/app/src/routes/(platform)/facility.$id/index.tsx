@@ -148,6 +148,11 @@ function monitoringStatusLabel(status: MonitoringStatus): string {
   }
 }
 
+function parseRows<T>(value: unknown, source: string): T[] {
+  if (!Array.isArray(value)) throw new Error(`${source} returned an invalid event list`);
+  return value as T[];
+}
+
 function Page() {
   const navigate = Route.useNavigate();
   const { id: facilityId } = Route.useParams();
@@ -294,10 +299,10 @@ function Page() {
             case "event":
               // Refetch both filtered and unfiltered events from D1
               getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
-                .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
+                .then((rows) => setFacilityEvents(parseRows<FacilityEventView>(rows, "getFacilityEvents")))
                 .catch(() => {});
               getAllFacilityEvents({ data: { facilityId } })
-                .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
+                .then((rows) => setAllEvents(parseRows<FacilityEventRow>(rows, "getAllFacilityEvents")))
                 .catch(() => {});
               break;
           }
@@ -331,10 +336,10 @@ function Page() {
   // ── Fetch initial facility events from D1 on mount ─────────────────────
   useEffect(() => {
     getFacilityEvents({ data: { facilityId, limit: 500, includeGroupingContext: true } })
-      .then((r) => setFacilityEvents(r as unknown as FacilityEventView[]))
+      .then((rows) => setFacilityEvents(parseRows<FacilityEventView>(rows, "getFacilityEvents")))
       .catch(() => {});
     getAllFacilityEvents({ data: { facilityId } })
-      .then((r) => setAllEvents(r as unknown as FacilityEventRow[]))
+      .then((rows) => setAllEvents(parseRows<FacilityEventRow>(rows, "getAllFacilityEvents")))
       .catch(() => {});
   }, [facilityId]);
 

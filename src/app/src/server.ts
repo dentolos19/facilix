@@ -1,19 +1,25 @@
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { env } from "cloudflare:workers";
 
+import { routeSimulator } from "#/lib/bindings/simulator";
 import { handleMonitoringApiRequest, type MonitoringApiAction } from "#/lib/monitoring/api";
 
 export { Observer } from "#/lib/bindings/observer";
 export { Processor } from "#/lib/bindings/processor";
 export { Server } from "#/lib/bindings/server";
+export { Simulator } from "#/lib/bindings/simulator";
 
 export default createServerEntry({
   fetch(request) {
     const url = new URL(request.url);
 
+    if (url.pathname === "/simulator" || url.pathname.startsWith("/simulator/")) {
+      return routeSimulator(request, env);
+    }
+
     // Intercept monitoring container API calls before TanStack can fall through
     // to the frontend 404 page. These endpoints are called by the Python
-    // container using APP_URL.
+    // container using its runtime monitoring API URL.
     const monitoringMatch = url.pathname.match(/^\/api\/facility\/([^/]+)\/monitoring\/(config|events|segments)$/);
     if (monitoringMatch) {
       const [, facilityId, action] = monitoringMatch;

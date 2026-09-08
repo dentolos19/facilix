@@ -5,6 +5,8 @@
  * browser-compatible HLS playback URLs through the proxy.
  */
 
+import { getSimulatorBase } from "./url";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -26,20 +28,12 @@ export interface SimulationStream {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
-
-function getApiBase(): string {
-  return import.meta.env?.VITE_SIMULATOR_URL ?? "http://localhost:3002";
-}
-
-// ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
 
 export async function fetchSimulationStreams(): Promise<SimulationStream[]> {
   try {
-    const res = await fetch(`${getApiBase()}/cctv`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${getSimulatorBase()}/cctv`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return [];
     const data = (await res.json()) as { streams: Record<string, unknown>[] };
     return data.streams.map(toStream);
@@ -56,7 +50,7 @@ export async function fetchSimulationHealth(): Promise<{
   total: number;
 }> {
   try {
-    const res = await fetch(`${getApiBase()}/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${getSimulatorBase()}/health`, { signal: AbortSignal.timeout(3000) });
     if (!res.ok) return { ok: false, running: 0, hlsReady: 0, requested: 0, total: 0 };
     const data = (await res.json()) as {
       status: string;
@@ -79,7 +73,7 @@ export async function fetchSimulationHealth(): Promise<{
 // ---------------------------------------------------------------------------
 
 export function simulationHlsUrl(streamName: string): string {
-  return `${getApiBase()}/cctv/${encodeURIComponent(streamName)}/hls/index.m3u8`;
+  return `${getSimulatorBase()}/cctv/${encodeURIComponent(streamName)}/hls/index.m3u8`;
 }
 
 // ---------------------------------------------------------------------------
