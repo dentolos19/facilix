@@ -37,12 +37,13 @@ export function ObjectDetectionOverlay({ enabled, videoRef }: ObjectDetectionOve
   // Store enabled in a ref so the animation loop can check it without
   // restarting the effect on every toggle.
   const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) {
-      setStatus("idle");
-      setDetectionCount(0);
       clearCanvas(canvasRef.current);
       return;
     }
@@ -154,19 +155,19 @@ export function ObjectDetectionOverlay({ enabled, videoRef }: ObjectDetectionOve
     <>
       <canvas className="pointer-events-none absolute inset-0 z-10 size-full" ref={canvasRef} />
 
-      {status === "loading" && (
+      {enabled && status === "loading" && (
         <div className="pointer-events-none absolute top-2 right-2 z-20 rounded bg-black/60 px-1.5 py-0.5">
           <span className="text-[9px] text-white/70">Loading detector…</span>
         </div>
       )}
 
-      {status === "error" && (
+      {enabled && status === "error" && (
         <div className="pointer-events-none absolute top-2 right-2 z-20 rounded bg-black/60 px-1.5 py-0.5">
           <span className="text-[9px] text-red-400">Detection unavailable — check HLS CORS/model access</span>
         </div>
       )}
 
-      {status === "ready" && (
+      {enabled && status === "ready" && (
         <div className="pointer-events-none absolute top-2 right-2 z-20 rounded bg-black/60 px-1.5 py-0.5">
           <span className="text-[9px] text-white/70">{detectionCount} objects</span>
         </div>

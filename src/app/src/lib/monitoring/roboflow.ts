@@ -183,7 +183,7 @@ export async function runVideoObjectDetection(options: RunVideoDetectionOptions)
     params.append("class_filter", label);
   }
 
-  const url = `http://localhost:3001/process-video?${params.toString()}`;
+  const url = `http://localhost:3000/process-video?${params.toString()}`;
   const body = new ArrayBuffer(segmentBytes.byteLength);
   new Uint8Array(body).set(segmentBytes);
 

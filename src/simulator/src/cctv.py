@@ -13,14 +13,13 @@ import logging
 import signal
 import socket
 import time
-from collections import deque
-from pathlib import Path
-from typing import Dict, List, Optional
-
-import fastapi
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import deque
+from pathlib import Path
+
+import fastapi
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import config
@@ -31,7 +30,7 @@ logger = logging.getLogger("simulator.cctv")
 # Types
 # ---------------------------------------------------------------------------
 
-StreamState = Dict[str, "StreamProcess"]
+StreamState = dict[str, "StreamProcess"]
 
 
 class VideoInfo:
@@ -44,7 +43,7 @@ class VideoInfo:
         video_path: str,
         label: str = "",
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
     ) -> None:
         self.video_id = video_id
         self.file = file
@@ -71,12 +70,12 @@ class StreamProcess:
         self,
         name: str,
         video_path: str,
-        video_info: Optional[VideoInfo] = None,
+        video_info: VideoInfo | None = None,
     ) -> None:
         self.name = name
         self.video_path = video_path
         self.video_info = video_info
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: asyncio.subprocess.Process | None = None
         self.use_copy = True
         self.enabled = False
         self.hls_ready = False
@@ -212,7 +211,7 @@ def _load_video_manifest() -> dict[str, VideoInfo]:
     return result
 
 
-def _discover_videos() -> List[VideoInfo]:
+def _discover_videos() -> list[VideoInfo]:
     """Discover MP4 videos from the videos directory.
 
     First tries the manifest, then falls back to globbing ``*.mp4``.
@@ -221,7 +220,7 @@ def _discover_videos() -> List[VideoInfo]:
     manifest_videos = _load_video_manifest()
     samples_dir = Path(config.SAMPLES_DIR)
     seen: set[str] = set()
-    result: List[VideoInfo] = []
+    result: list[VideoInfo] = []
 
     for vid, info in manifest_videos.items():
         result.append(info)
@@ -260,7 +259,7 @@ _shutdown_event = asyncio.Event()
 _stderr_tasks: set[asyncio.Task] = set()
 
 
-def _build_ffmpeg_args(sp: StreamProcess) -> List[str]:
+def _build_ffmpeg_args(sp: StreamProcess) -> list[str]:
     """Build FFmpeg arguments for a stream."""
     if sp.use_copy:
         args = [
@@ -360,7 +359,7 @@ async def _stop_stream(sp: StreamProcess) -> None:
         sp.process.send_signal(signal.SIGTERM)
         try:
             await asyncio.wait_for(sp.process.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Stream '%s' did not exit, killing", sp.name)
             sp.process.kill()
             await sp.process.wait()
@@ -409,7 +408,7 @@ async def _probe_hls(sp: StreamProcess) -> bool:
 
     try:
         await asyncio.to_thread(_fetch_hls_playlist, sp.name)
-    except (TimeoutError, socket.timeout):
+    except TimeoutError:
         sp.hls_ready = False
         sp.hls_error = "hls_timeout"
     except urllib.error.HTTPError as exc:
@@ -486,7 +485,7 @@ async def health_loop() -> None:
                 await _probe_hls(sp)
         try:
             await asyncio.wait_for(_shutdown_event.wait(), timeout=config.HEALTH_CHECK_INTERVAL)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
 
@@ -607,7 +606,7 @@ async def proxy_hls(name: str, hls_path: str, request: fastapi.Request) -> fasta
             media_type=content_type,
             status_code=upstream_resp.status,
         )
-    except (TimeoutError, socket.timeout) as exc:
+    except TimeoutError as exc:
         raise fastapi.HTTPException(status_code=504, detail="MediaMTX HLS request timed out") from exc
     except urllib.error.HTTPError as exc:
         raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS resource unavailable") from exc

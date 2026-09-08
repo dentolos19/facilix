@@ -43,7 +43,7 @@ if [ "$MEDIAMTX_READY" -ne 1 ]; then
 fi
 
 echo "[start] Starting FastAPI..."
-/app/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 &
+/app/.venv/bin/uvicorn --app-dir /app/src main:app --host 0.0.0.0 --port 3000 &
 APP_PID=$!
 
 wait "$APP_PID"

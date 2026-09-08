@@ -57,7 +57,13 @@ export function usePortfolioAnalytics(range: AnalyticsTimeRange) {
 
   useEffect(() => {
     if (isSessionPending || !userId) return;
-    void load();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void load();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isSessionPending, load, userId]);
 
   const refresh = useCallback(() => {

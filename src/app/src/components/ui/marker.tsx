@@ -30,12 +30,7 @@ function Marker({
   const Comp = asChild ? Slot.Root : "div";
 
   return (
-    <Comp
-      className={cn(markerVariants({ variant, className }))}
-      data-slot="marker"
-      data-variant={variant}
-      {...props}
-    />
+    <Comp className={cn(markerVariants({ variant, className }))} data-slot="marker" data-variant={variant} {...props} />
   );
 }
 

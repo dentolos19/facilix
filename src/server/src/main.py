@@ -81,9 +81,9 @@ async def on_shutdown() -> None:
     if CONFIG_READY:
         await post_event(
             FACILITY_ID,
-            "monitoring:stopped",
+            "monitoring:stopping",
             "info",
-            "Monitoring container stopped",
+            "Monitoring service is shutting down",
         )
     await close_http_client()
 
@@ -118,7 +118,7 @@ async def ping() -> dict[str, str]:
 
 @app.post("/process-video")
 async def process_video(
-    request: "Request",
+    request: Request,
     workspace_name: str,
     workflow_id: str,
     input_name: str = "image",
@@ -153,9 +153,9 @@ async def process_video(
         )
         return result
     except Exception as exc:
-        log.exception("process-video error: %s", exc)
+        log.exception("process-video error")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=3001)
+    uvicorn.run(app, host="0.0.0.0", port=3000)

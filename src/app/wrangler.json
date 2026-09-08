@@ -21,7 +21,7 @@
   "d1_databases": [
     {
       "binding": "DATABASE",
-      "database_id": "8d175dfa-86d8-46a5-8ab9-405e959dc896"
+      "database_name": "facilix"
     }
   ],
   "r2_buckets": [
@@ -32,8 +32,8 @@
   ],
   "workflows": [
     {
-      "name": "facilix-processor",
       "binding": "PROCESSOR",
+      "name": "facilix-processor",
       "class_name": "Processor"
     }
   ],
@@ -50,7 +50,7 @@
       "class_name": "Simulator",
       "image": "../simulator/Dockerfile",
       "max_instances": 1,
-      "instance_type": "standard-3"
+      "instance_type": "standard-1"
     }
   ],
   "durable_objects": {
@@ -72,11 +72,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["Server", "Observer"]
-    },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": ["Simulator"]
+      "new_sqlite_classes": ["Server", "Observer", "Simulator"]
     }
   ]
 }

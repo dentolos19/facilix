@@ -2,7 +2,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Building2Icon, ImagePlusIcon, Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { MonitoringStatusIndicator, monitoringStatusLabel } from "#/components/status-indicator";
@@ -44,6 +44,10 @@ interface Facility {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const subscribeToHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 function isZoneLayout(item: CanvasItemLayout) {
   return item.width > 48 || item.height > 48;
@@ -129,23 +133,10 @@ function Page() {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [newFacilityName, setNewFacilityName] = useState("");
   const [newFacilityLayoutImage, setNewFacilityLayoutImage] = useState<File | null>(null);
-  const [showAllFacilities, setShowAllFacilities] = useState(false);
-  const [preferenceUserId, setPreferenceUserId] = useState<string | null>(null);
+  const isHydrated = useSyncExternalStore(subscribeToHydration, getHydratedSnapshot, getServerSnapshot);
+  const showAllFacilities = isHydrated && isAdmin && userId ? getShowAllFacilitiesPreference(userId) : false;
   const [statuses, setStatuses] = useState<Record<string, MonitoringStatus>>({});
-  const isPreferenceLoaded = !isAdmin || preferenceUserId === userId;
-
-  useEffect(() => {
-    if (isSessionPending) return;
-
-    if (isAdmin && userId) {
-      setShowAllFacilities(getShowAllFacilitiesPreference(userId));
-      setPreferenceUserId(userId);
-      return;
-    }
-
-    setShowAllFacilities(false);
-    setPreferenceUserId(null);
-  }, [isAdmin, isSessionPending, userId]);
+  const isPreferenceLoaded = isHydrated && !isSessionPending && (!isAdmin || Boolean(userId));
 
   const fetchFacilities = useCallback(async () => {
     setIsLoading(true);
@@ -177,7 +168,13 @@ function Page() {
 
   useEffect(() => {
     if (isSessionPending || !isPreferenceLoaded) return;
-    void fetchFacilities();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void fetchFacilities();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchFacilities, isPreferenceLoaded, isSessionPending]);
 
   const handleCreateFacility = useCallback(

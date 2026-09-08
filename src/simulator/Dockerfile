@@ -22,6 +22,6 @@ RUN mkdir -p /app/hls && chmod +x /app/start.sh && chown -R app:app /app /app/sa
 
 USER app
 
-EXPOSE 8000
+EXPOSE 3000
 
 CMD ["sh", "/app/start.sh"]

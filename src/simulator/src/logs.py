@@ -23,9 +23,8 @@ import json
 import logging
 import os
 import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Console formatter — clean human-readable output
@@ -111,7 +110,7 @@ _installed_formatter: type[logging.Formatter] | None = None
 
 
 def _format_timestamp(created: float) -> str:
-    return datetime.fromtimestamp(created, tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return datetime.fromtimestamp(created, tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _format_level(level: str) -> str:

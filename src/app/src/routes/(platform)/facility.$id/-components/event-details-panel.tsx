@@ -1,6 +1,6 @@
 import { AlertTriangleIcon, ImageIcon, Maximize2Icon, VideoIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react";
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { EvidenceImage, type DetectionBox } from "#/components/evidence-image";
 import { Button } from "#/components/ui/button";
@@ -56,17 +56,45 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
     event.attachments.find((item) => item.role === "primary") ??
     event.attachments[0] ??
     null;
-  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string | null>(primaryAttachment?.id ?? null);
-  const [zoomOpen, setZoomOpen] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [failedAttachmentId, setFailedAttachmentId] = useState<string | null>(null);
+  const eventKey = `${event.id}:${primaryAttachment?.id ?? ""}`;
+  const [selectedAttachmentState, setSelectedAttachmentState] = useState<{ eventId: string; id: string | null }>({
+    eventId: eventKey,
+    id: primaryAttachment?.id ?? null,
+  });
+  const [zoomState, setZoomState] = useState({ eventId: eventKey, open: false, value: 1 });
+  const [failedAttachmentState, setFailedAttachmentState] = useState({
+    eventId: eventKey,
+    id: null as string | null,
+  });
+  const selectedAttachmentId =
+    selectedAttachmentState.eventId === eventKey ? selectedAttachmentState.id : (primaryAttachment?.id ?? null);
+  const zoomOpen = zoomState.eventId === eventKey && zoomState.open;
+  const zoom = zoomState.eventId === eventKey ? zoomState.value : 1;
+  const failedAttachmentId = failedAttachmentState.eventId === eventKey ? failedAttachmentState.id : null;
 
-  useEffect(() => {
-    setSelectedAttachmentId(primaryAttachment?.id ?? null);
-    setZoomOpen(false);
-    setZoom(1);
-    setFailedAttachmentId(null);
-  }, [event.id, primaryAttachment?.id]);
+  const setSelectedAttachmentId = (id: string | null) => {
+    setSelectedAttachmentState({ eventId: eventKey, id });
+  };
+  const setFailedAttachmentId = (id: string | null) => {
+    setFailedAttachmentState({ eventId: eventKey, id });
+  };
+  const setZoomOpen = (open: boolean) => {
+    setZoomState((current) => ({
+      eventId: eventKey,
+      open,
+      value: current.eventId === eventKey ? current.value : 1,
+    }));
+  };
+  const setZoom = (nextZoom: number | ((value: number) => number)) => {
+    setZoomState((current) => {
+      const value = current.eventId === eventKey ? current.value : 1;
+      return {
+        eventId: eventKey,
+        open: current.eventId === eventKey ? current.open : false,
+        value: typeof nextZoom === "function" ? nextZoom(value) : nextZoom,
+      };
+    });
+  };
 
   const selectedAttachment = event.attachments.find((item) => item.id === selectedAttachmentId) ?? primaryAttachment;
   const attachmentContext = buildAttachmentContext(selectedAttachment, event);

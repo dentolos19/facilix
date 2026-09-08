@@ -1,8 +1,4 @@
 {
   "$schema": "node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "import", "promise", "react", "typescript"],
-  "rules": {
-    "sort-keys": "allow"
-  },
-  "ignorePatterns": ["src/components/ui/**"]
+  "plugins": ["typescript", "react", "eslint"]
 }

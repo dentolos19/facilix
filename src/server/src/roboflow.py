@@ -351,8 +351,8 @@ async def _process_frame(
             )
             if attempt >= ROBOFLOW_FRAME_RETRIES:
                 return None
-        except Exception as exc:
-            log.exception("vision frame %d error: %s", frame_index, exc)
+        except Exception:
+            log.exception("vision frame %d error", frame_index)
             return None
 
         await asyncio.sleep(2**attempt)

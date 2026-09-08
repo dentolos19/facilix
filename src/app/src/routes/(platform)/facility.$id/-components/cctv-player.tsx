@@ -36,12 +36,14 @@ function useHlsPlayer(
   const [state, setState] = useState<PlayerState>("idle");
   const hlsRef = useRef<Hls | null>(null);
   const onStatusRef = useRef(onStatus);
-  onStatusRef.current = onStatus;
+
+  useEffect(() => {
+    onStatusRef.current = onStatus;
+  }, [onStatus]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !hlsUrl) {
-      setState("idle");
       return;
     }
 
@@ -105,8 +107,9 @@ function useHlsPlayer(
     }
 
     // Unsupported
-    setState("error");
+    const timer = setTimeout(() => setState("error"), 0);
     onStatusRef.current?.(false);
+    return () => clearTimeout(timer);
   }, [hlsUrl, videoRef]);
 
   return state;
@@ -454,18 +457,26 @@ function CctvExpandedDialog({
   }, []);
 
   useEffect(() => {
-    if (open) resetHideTimer();
-    return () => clearTimeout(hideTimer.current);
+    if (!open) return;
+
+    const timer = setTimeout(resetHideTimer, 0);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(hideTimer.current);
+    };
   }, [open, resetHideTimer]);
 
   // Reset state when dialog closes
   useEffect(() => {
-    if (!open) {
+    if (open) return;
+
+    const timer = setTimeout(() => {
       setPlaying(true);
       setMuted(true);
       setVolume(1);
       setCurrentTime(0);
-    }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [open]);
 
   const togglePlay = () => {

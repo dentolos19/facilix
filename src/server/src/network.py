@@ -72,14 +72,14 @@ async def probe_tcp(host: str, port: int, timeout: float = 3.0) -> tuple[bool, s
         writer.close()
         try:
             await writer.wait_closed()
-        except Exception:
+        except (OSError, RuntimeError):
             pass
         return True, "ok"
     except TimeoutError:
         return False, "timeout"
     except OSError as exc:
         return False, f"{type(exc).__name__}: {exc}"
-    except Exception as exc:  # pragma: no cover — defensive
+    except Exception as exc:  # noqa: BLE001  # pragma: no cover — defensive
         return False, f"{type(exc).__name__}: {exc}"
 
 

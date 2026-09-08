@@ -27,18 +27,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
 
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-import config
 import cctv as cctv_module
+import config
+import sensor as sensor_engine
 from logs import configure_logging
 from sensor import router as sensor_router
-import sensor as sensor_engine
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -51,8 +50,8 @@ logger = logging.getLogger("simulator")
 # Background tasks
 # ---------------------------------------------------------------------------
 
-_sensor_task: Optional[asyncio.Task] = None
-_cctv_health_task: Optional[asyncio.Task] = None
+_sensor_task: asyncio.Task | None = None
+_cctv_health_task: asyncio.Task | None = None
 
 
 async def _sensor_read_loop() -> None:
@@ -216,7 +215,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
+        port=3000,
         log_level=config.LOG_LEVEL,
         reload=False,
     )

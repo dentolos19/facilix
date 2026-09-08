@@ -155,6 +155,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
   );
 
   const selected = sortedDetections[selectedIdx] ?? null;
+  const playbackActive = isPlaying && selectedIdx < sortedDetections.length - 1;
 
   // Compute wall-clock time for the selected detection
   const selectedTimestamp = useMemo(() => {
@@ -177,26 +178,23 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
   const togglePlay = useCallback(() => {
     if (sortedDetections.length <= 1) return;
     setIsPlaying((playing) => {
-      if (!playing && selectedIdx >= sortedDetections.length - 1) {
+      const active = playing && selectedIdx < sortedDetections.length - 1;
+      if (!active && selectedIdx >= sortedDetections.length - 1) {
         setSelectedIdx(0);
       }
-      return !playing;
+      return !active;
     });
   }, [selectedIdx, sortedDetections.length]);
 
   useEffect(() => {
-    if (!isPlaying) return;
-    if (selectedIdx >= sortedDetections.length - 1) {
-      setIsPlaying(false);
-      return;
-    }
+    if (!playbackActive) return;
 
     const timeout = window.setTimeout(() => {
       setSelectedIdx((i) => Math.min(sortedDetections.length - 1, i + 1));
     }, 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [isPlaying, selectedIdx, sortedDetections.length]);
+  }, [playbackActive, selectedIdx, sortedDetections.length]);
 
   useEffect(() => {
     const viewport = timelineViewportRef.current;
@@ -487,13 +485,13 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
 
         <div className="flex items-center gap-1">
           <button
-            aria-label={isPlaying ? "Pause detection playback" : "Play detections"}
+            aria-label={playbackActive ? "Pause detection playback" : "Play detections"}
             className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors disabled:opacity-30"
             disabled={sortedDetections.length <= 1}
             onClick={togglePlay}
             type="button"
           >
-            {isPlaying ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
+            {playbackActive ? <PauseIcon className="size-3.5" /> : <PlayIcon className="size-3.5" />}
           </button>
           <button
             aria-label="Previous detection"

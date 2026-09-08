@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { getFacilityHoverDetails } from "../-helpers/hover-details";
 import type { PlacedItem } from "../-helpers/types";
@@ -14,7 +14,6 @@ interface FacilityHoverCardProps {
 
 export function FacilityHoverCard({ item, x, y, containerRef }: FacilityHoverCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x, y });
 
   const clampPosition = useCallback(
     (cx: number, cy: number) => {
@@ -50,7 +49,10 @@ export function FacilityHoverCard({ item, x, y, containerRef }: FacilityHoverCar
 
   useEffect(() => {
     const clamped = clampPosition(x, y);
-    setPos(clamped);
+    const card = cardRef.current;
+    if (!card) return;
+    card.style.left = `${clamped.x}px`;
+    card.style.top = `${clamped.y}px`;
   }, [x, y, clampPosition]);
 
   if (!item) return null;
@@ -62,8 +64,8 @@ export function FacilityHoverCard({ item, x, y, containerRef }: FacilityHoverCar
       className="bg-background border-border pointer-events-none absolute z-40 max-w-[260px] min-w-[180px] rounded-none border p-2.5 shadow-md"
       ref={cardRef}
       style={{
-        left: pos.x,
-        top: pos.y,
+        left: x,
+        top: y,
         opacity: item ? 1 : 0,
       }}
     >

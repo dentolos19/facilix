@@ -23,6 +23,6 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE 3001
+EXPOSE 3000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3001"]
+CMD ["uvicorn", "--app-dir", "/app/src", "main:app", "--host", "0.0.0.0", "--port", "3000"]

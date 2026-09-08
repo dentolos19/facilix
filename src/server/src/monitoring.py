@@ -8,10 +8,10 @@ import random
 import time
 from typing import Any
 
-from cctv import monitor_cctv
-from sensors import monitor_sensor
-from config import FACILITY_ID, HEARTBEAT_INTERVAL_SEC
 from api import fetch_config, post_event
+from cctv import monitor_cctv
+from config import FACILITY_ID, HEARTBEAT_INTERVAL_SEC
+from sensors import monitor_sensor
 
 log = logging.getLogger("facilix")
 
@@ -93,9 +93,9 @@ async def startup_monitoring() -> None:
     # Log startup event
     await post_event(
         FACILITY_ID,
-        "monitoring:started",
+        "monitoring:ready",
         "info",
-        f"Monitoring container started for facility {FACILITY_ID}",
+        f"Monitoring is ready for facility {FACILITY_ID}",
         {"cctvCount": len(config.get("cctv", [])), "sensorCount": len(config.get("sensors", []))},
     )
 

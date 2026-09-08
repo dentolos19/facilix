@@ -10,6 +10,16 @@ export interface SensorReadingPanelProps {
 }
 
 type ReadingState = "idle" | "loading" | "ok" | "error";
+type SensorReading = {
+  value: number;
+  unit: string;
+  status: string;
+  batteryPct: number | null;
+  signalRssiDbm: number | null;
+  secondaryValue: number | null;
+  secondaryUnit: string | null;
+  timestamp: Date | null;
+};
 
 /**
  * Live sensor reading display for a selected Sensor device.
@@ -28,17 +38,15 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
   // Use the actual facility device ID for D1 queries
   const deviceId = selectedDevice.id;
 
-  const [reading, setReading] = useState<{
-    value: number;
-    unit: string;
-    status: string;
-    batteryPct: number | null;
-    signalRssiDbm: number | null;
-    secondaryValue: number | null;
-    secondaryUnit: string | null;
-    timestamp: Date | null;
-  } | null>(null);
-  const [state, setState] = useState<ReadingState>("idle");
+  const readingKey = `${dataSource}|${facilityId ?? ""}|${deviceId}|${pollInterval}`;
+  const [readingState, setReadingState] = useState<{
+    key: string;
+    reading: SensorReading | null;
+    state: ReadingState;
+  }>({ key: "", reading: null, state: "idle" });
+  const isCurrentReading = readingState.key === readingKey;
+  const reading = isCurrentReading ? readingState.reading : null;
+  const state = isCurrentReading ? readingState.state : "idle";
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
 
@@ -55,38 +63,30 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setReading(null);
-    setState("idle");
-
     if (dataSource === "simulation" || dataSource === "http-pull") {
       if (!facilityId) {
-        setState("idle");
         return;
       }
 
       const fetchReading = async () => {
         if (!mountedRef.current) return;
-        setState("loading");
+        setReadingState({ key: readingKey, reading: null, state: "loading" });
         try {
           const result = await getLatestSensorReading({ data: { facilityId, deviceId } });
           if (!mountedRef.current) return;
           if (result) {
-            setReading(result);
-            setState("ok");
+            setReadingState({ key: readingKey, reading: result, state: "ok" });
           } else {
-            setState("idle");
+            setReadingState({ key: readingKey, reading: null, state: "idle" });
           }
         } catch {
           if (!mountedRef.current) return;
-          setState("error");
+          setReadingState({ key: readingKey, reading: null, state: "error" });
         }
       };
 
       fetchReading();
       timerRef.current = setInterval(fetchReading, pollInterval);
-    } else if (dataSource === "http-push") {
-      // HTTP Push — no live fetch, just show placeholder
-      setState("idle");
     }
 
     return () => {
@@ -95,7 +95,7 @@ export function SensorReadingPanel({ selectedDevice, facilityId }: SensorReading
         timerRef.current = null;
       }
     };
-  }, [dataSource, facilityId, deviceId, pollInterval]);
+  }, [dataSource, facilityId, deviceId, pollInterval, readingKey]);
 
   const isAlert = reading !== null && threshold > 0 && reading.value > threshold;
 

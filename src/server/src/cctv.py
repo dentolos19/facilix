@@ -8,8 +8,8 @@ import tempfile
 import time
 from pathlib import Path
 
-from network import ffmpeg_input_options, probe_stream_url, rewrite_stream_host
 from api import post_event, upload_segment
+from network import ffmpeg_input_options, probe_stream_url, rewrite_stream_host
 
 cctv_log = logging.getLogger("facilix.cctv")
 
@@ -126,8 +126,8 @@ async def _segment_loop(
                 )
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
-            cctv_log.exception("[%s] segment loop error: %s", device_name, exc)
+        except Exception as exc:  # noqa: BLE001
+            cctv_log.exception("[%s] segment loop error", device_name)
             await post_event(device_id, "cctv:error", "warn", f"Segment capture error: {exc}")
 
 
