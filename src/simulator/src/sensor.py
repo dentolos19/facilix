@@ -9,13 +9,14 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import fastapi
-import config as sim_config
 from fastapi.responses import JSONResponse
+
+import config as sim_config
 
 # ======================================================================
 # Models
@@ -85,12 +86,12 @@ class SensorReading:
     signal_rssi_dbm: int
     value: float
     unit: str
-    secondary_value: Optional[float] = None
-    secondary_unit: Optional[str] = None
+    secondary_value: float | None = None
+    secondary_unit: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Facilix-format payload."""
-        values: Dict[str, Any] = {
+        values: dict[str, Any] = {
             self.sensor_type.value: {
                 "value": round(self.value, 2),
                 "unit": self.unit,
@@ -119,7 +120,7 @@ class SensorReading:
 # Sensor definition presets
 # ---------------------------------------------------------------------------
 
-SENSOR_DEFINITIONS: List[SensorDevice] = [
+SENSOR_DEFINITIONS: list[SensorDevice] = [
     SensorDevice(
         device_id="sensor-temp-001",
         sensor_type=SensorType.TEMPERATURE,
@@ -227,13 +228,13 @@ SENSOR_DEFINITIONS: List[SensorDevice] = [
 
 logger = logging.getLogger("simulator.sensors")
 
-_devices: Dict[str, SensorDevice] = {}
-_readings: Dict[str, List[SensorReading]] = {}
-_latest: Dict[str, SensorReading] = {}
-_device_enabled: Dict[str, bool] = {}
-_sequence: Dict[str, int] = {}
+_devices: dict[str, SensorDevice] = {}
+_readings: dict[str, list[SensorReading]] = {}
+_latest: dict[str, SensorReading] = {}
+_device_enabled: dict[str, bool] = {}
+_sequence: dict[str, int] = {}
 _rng: random.Random
-_type_to_device: Dict[str, str] = {}
+_type_to_device: dict[str, str] = {}
 
 
 def init() -> None:
@@ -294,7 +295,7 @@ def _drift(
 def _generate_reading(dev: SensorDevice) -> SensorReading:
     """Produce one reading for *dev*, mutating its internal drift state."""
     seq = _sequence.get(dev.device_id, 0)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if _rng.random() < 0.1:
         dev.battery_pct = max(0.0, dev.battery_pct - _rng.uniform(0.0, 0.5))
@@ -313,7 +314,7 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
     max_step = (dev.value_max - dev.value_min) * 0.05
     dev._current_value = _drift(dev._current_value, new_target, max_step, dev.value_min, dev.value_max)
 
-    secondary: Optional[float] = None
+    secondary: float | None = None
     if dev.secondary_min != dev.secondary_max:
         sec_target = _rng.uniform(dev.secondary_min, dev.secondary_max)
         sec_step = (dev.secondary_max - dev.secondary_min) * 0.1
@@ -362,7 +363,7 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_device_id(identifier: str) -> Optional[str]:
+def _resolve_device_id(identifier: str) -> str | None:
     """Resolve a sensor type string or device ID to a device ID."""
     if identifier in _devices:
         return identifier
@@ -372,9 +373,9 @@ def _resolve_device_id(identifier: str) -> Optional[str]:
     return None
 
 
-def generate_readings() -> Dict[str, SensorReading]:
+def generate_readings() -> dict[str, SensorReading]:
     """Generate new readings for all enabled devices, store them, return latest."""
-    generated: Dict[str, SensorReading] = {}
+    generated: dict[str, SensorReading] = {}
     for dev_id, dev in list(_devices.items()):
         if not _device_enabled.get(dev_id, True):
             continue
@@ -388,7 +389,7 @@ def generate_readings() -> Dict[str, SensorReading]:
     return generated
 
 
-def read_single(identifier: str) -> Optional[SensorReading]:
+def read_single(identifier: str) -> SensorReading | None:
     """Force a single reading for a specific device."""
     device_id = _resolve_device_id(identifier)
     if device_id is None:
@@ -405,12 +406,12 @@ def read_single(identifier: str) -> Optional[SensorReading]:
     return reading
 
 
-def get_devices() -> List[SensorDevice]:
+def get_devices() -> list[SensorDevice]:
     """Return all known sensor devices."""
     return list(_devices.values())
 
 
-def get_device(identifier: str) -> Optional[SensorDevice]:
+def get_device(identifier: str) -> SensorDevice | None:
     """Return a single device by ID or type."""
     device_id = _resolve_device_id(identifier)
     if device_id is None:
@@ -419,8 +420,8 @@ def get_device(identifier: str) -> Optional[SensorDevice]:
 
 
 def get_latest(
-    identifier: Optional[str] = None,
-) -> Dict[str, SensorReading]:
+    identifier: str | None = None,
+) -> dict[str, SensorReading]:
     """Return latest reading(s). If identifier is None, return all."""
     if identifier:
         device_id = _resolve_device_id(identifier)
@@ -431,7 +432,7 @@ def get_latest(
     return dict(_latest)
 
 
-def get_history(identifier: str, limit: int = 100) -> List[SensorReading]:
+def get_history(identifier: str, limit: int = 100) -> list[SensorReading]:
     """Return recent history for a single device."""
     device_id = _resolve_device_id(identifier)
     if device_id is None:

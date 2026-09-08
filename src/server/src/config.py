@@ -23,11 +23,11 @@ HTTP_TIMEOUT_SEC = 30
 
 # Simulator base URL (single host serving the API and HLS).
 # The Worker passes the public simulator proxy URL to each monitoring container.
-SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "http://localhost:3002")
+SIMULATOR_URL = os.environ.get("SIMULATOR_URL", "http://localhost:3000")
 
 # Legacy compat — keep fallback list for resilience
 SIMULATION_SENSOR_API_FALLBACKS = os.environ.get(
     "SIMULATION_SENSOR_API_FALLBACKS",
-    "http://localhost:3002,http://host.docker.internal:3002,http://facilix-simulator:8000,"
-    "http://172.17.0.1:3002,http://172.19.0.1:3002",
+    "http://localhost:3000,http://host.docker.internal:3000,http://facilix-simulator:3000,"
+    "http://172.17.0.1:3000,http://172.19.0.1:3000",
 )

@@ -30,7 +30,7 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
     secondaryUnit: string | null;
     timestamp: Date | null;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingState, setLoading] = useState(true);
   const { tab } = DeviceRoute.useSearch();
   const navigate = DeviceRoute.useNavigate();
   const activeTab = TABS.some((t) => t.id === tab) ? tab! : "live";
@@ -42,7 +42,6 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
   // Fetch latest reading on mount and poll every 10s
   useEffect(() => {
     if (!facilityId) {
-      setLoading(false);
       return;
     }
 
@@ -77,6 +76,8 @@ export function SensorDeviceDetail({ device }: { device: DeviceDetail }) {
       clearInterval(interval);
     };
   }, [facilityId, deviceId]);
+
+  const loading = Boolean(facilityId) && loadingState;
 
   const sensorStatus =
     reading?.status === "ok"

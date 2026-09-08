@@ -1,7 +1,7 @@
 import { Container } from "@cloudflare/containers";
 
 const ID = "singleton";
-const PORT = 8000;
+const PORT = 3000;
 
 export class Simulator extends Container<Env> {
   defaultPort = PORT;

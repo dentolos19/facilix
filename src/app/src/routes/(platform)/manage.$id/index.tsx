@@ -657,7 +657,13 @@ function Page() {
 
   useEffect(() => {
     if (activeTab === "dashboard") {
-      fetchAnalytics(range);
+      let cancelled = false;
+      void Promise.resolve().then(() => {
+        if (!cancelled) void fetchAnalytics(range);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [activeTab, range, fetchAnalytics]);
 

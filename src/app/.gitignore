@@ -10,14 +10,20 @@ dist/
 build/
 out/
 coverage/
-*.d.ts
+.venv/
+*.egg-info/
 *.tsbuildinfo
+*.d.ts
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
 
 # User files
 .env*
 !.env*.template
 
-# Project files
+# Project-specific rules
 /src/routeTree.gen.ts
 
 # Miscellaneous files

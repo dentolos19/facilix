@@ -13,7 +13,10 @@ export function useResizeObserver(
   onResize: (entry: ResizeObserverEntry) => void,
 ) {
   const callbackRef = useRef(onResize);
-  callbackRef.current = onResize;
+
+  useEffect(() => {
+    callbackRef.current = onResize;
+  }, [onResize]);
 
   useIsomorphicLayoutEffect(() => {
     const el = ref.current;

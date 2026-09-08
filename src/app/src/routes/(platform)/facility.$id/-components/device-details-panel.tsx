@@ -168,43 +168,60 @@ export function DeviceDetailsPanel({
       : "";
 
   // Fetch the latest sensor reading for sensor devices to determine real status
-  const [sensorReading, setSensorReading] = useState<SensorReadingRow | null>(null);
-  const [readingLoading, setReadingLoading] = useState(false);
-  const [simulationStream, setSimulationStream] = useState<SimulationStream | null>(null);
+  const sensorReadingKey = isSensor && facilityId && selectedDevice ? `${facilityId}:${selectedDevice.id}` : "";
+  const [sensorReadingState, setSensorReadingState] = useState<{
+    key: string;
+    loading: boolean;
+    reading: SensorReadingRow | null;
+  }>({ key: "", loading: false, reading: null });
+  const [simulationStreamState, setSimulationStreamState] = useState<{
+    name: string;
+    stream: SimulationStream | null;
+    error: string | null;
+  }>({ name: "", stream: null, error: null });
   const [simulationStreamActionLoading, setSimulationStreamActionLoading] = useState(false);
-  const [simulationStreamError, setSimulationStreamError] = useState<string | null>(null);
+  const sensorReading = sensorReadingState.key === sensorReadingKey ? sensorReadingState.reading : null;
+  const readingLoading = sensorReadingState.key === sensorReadingKey && sensorReadingState.loading;
+  const simulationStream = simulationStreamState.name === simulationStreamName ? simulationStreamState.stream : null;
+  const simulationStreamError =
+    simulationStreamState.name === simulationStreamName ? simulationStreamState.error : null;
 
   useEffect(() => {
-    setSensorReading(null);
     if (!isSensor || !facilityId || !selectedDevice) return;
 
     let cancelled = false;
-    setReadingLoading(true);
-
-    getLatestSensorReading({ data: { facilityId, deviceId: selectedDevice.id } })
-      .then((result) => {
-        if (!cancelled) setSensorReading(result);
-      })
-      .catch(() => {
+    const load = async () => {
+      setSensorReadingState({ key: sensorReadingKey, loading: true, reading: null });
+      try {
+        const result = await getLatestSensorReading({ data: { facilityId, deviceId: selectedDevice.id } });
+        if (!cancelled) setSensorReadingState({ key: sensorReadingKey, loading: false, reading: result });
+      } catch {
         // Sensor reading unavailable — keep existing status
-      })
-      .finally(() => {
-        if (!cancelled) setReadingLoading(false);
-      });
+      } finally {
+        if (!cancelled) {
+          setSensorReadingState((current) => ({ ...current, loading: false }));
+        }
+      }
+    };
+    void load();
 
     return () => {
       cancelled = true;
     };
-  }, [isSensor, facilityId, selectedDevice]);
+  }, [isSensor, facilityId, selectedDevice, sensorReadingKey]);
 
   useEffect(() => {
     let cancelled = false;
-    setSimulationStream(null);
-    setSimulationStreamError(null);
     if (!simulationStreamName) return;
 
     fetchSimulationStreams().then((streams) => {
-      if (!cancelled) setSimulationStream(streams.find((stream) => stream.name === simulationStreamName) ?? null);
+      if (!cancelled) {
+        setSimulationStreamState({
+          error: null,
+          name: simulationStreamName,
+          stream: streams.find((stream) => stream.name === simulationStreamName) ?? null,
+        });
+      }
     });
 
     return () => {
@@ -216,7 +233,7 @@ export function DeviceDetailsPanel({
     if (!simulationStreamName) return;
 
     setSimulationStreamActionLoading(true);
-    setSimulationStreamError(null);
+    setSimulationStreamState({ error: null, name: simulationStreamName, stream: simulationStream });
     try {
       if (simulationStream?.status === "running" || simulationStream?.status === "starting") {
         await stopSimulationStream({ data: { name: simulationStreamName } });
@@ -224,9 +241,17 @@ export function DeviceDetailsPanel({
         await startSimulationStream({ data: { name: simulationStreamName } });
       }
       const streams = await fetchSimulationStreams();
-      setSimulationStream(streams.find((stream) => stream.name === simulationStreamName) ?? null);
+      setSimulationStreamState({
+        error: null,
+        name: simulationStreamName,
+        stream: streams.find((stream) => stream.name === simulationStreamName) ?? null,
+      });
     } catch (error) {
-      setSimulationStreamError(error instanceof Error ? error.message : "Unable to update simulation stream.");
+      setSimulationStreamState({
+        error: error instanceof Error ? error.message : "Unable to update simulation stream.",
+        name: simulationStreamName,
+        stream: simulationStream,
+      });
     } finally {
       setSimulationStreamActionLoading(false);
     }

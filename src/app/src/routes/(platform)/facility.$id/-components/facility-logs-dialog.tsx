@@ -221,18 +221,37 @@ function ProcessList({ facilityId, open }: { facilityId: string; open: boolean }
 }
 
 export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onClearLogs }: FacilityLogsDialogProps) {
-  const [activeTab, setActiveTab] = useState("logs");
+  const [dialogState, setDialogState] = useState({
+    activeTab: "logs",
+    confirmDeleteAll: false,
+    open: false,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<FacilityEventRow["severity"] | "all">("all");
-  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const isCurrentDialog = dialogState.open === open;
+  const activeTab = isCurrentDialog ? dialogState.activeTab : "logs";
+  const confirmDeleteAll = isCurrentDialog ? dialogState.confirmDeleteAll : false;
 
-  // Reset confirmation state when dialog opens
-  useEffect(() => {
-    if (open) {
-      setConfirmDeleteAll(false);
-      setActiveTab("logs");
-    }
-  }, [open]);
+  const setActiveTab = (nextTab: string) => {
+    setDialogState((current) => ({
+      activeTab: nextTab,
+      confirmDeleteAll: isCurrentDialog ? current.confirmDeleteAll : false,
+      open,
+    }));
+  };
+
+  const setConfirmDeleteAll = (nextConfirm: boolean) => {
+    setDialogState((current) => ({
+      activeTab: isCurrentDialog ? current.activeTab : "logs",
+      confirmDeleteAll: nextConfirm,
+      open,
+    }));
+  };
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setDialogState({ activeTab: "logs", confirmDeleteAll: false, open: nextOpen });
+    onOpenChange(nextOpen);
+  };
 
   const filteredLogs = useMemo(() => {
     let result = events;
@@ -274,7 +293,7 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
   }
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="flex h-[min(42rem,85vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">

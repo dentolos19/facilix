@@ -49,8 +49,8 @@ async def post_event(
             return False
         log.debug("post_event %s/%s ok in %.0fms", event_type, device_id, dt_ms)
         return True
-    except Exception as exc:
-        log.exception("post_event %s/%s error: %s", event_type, device_id, exc)
+    except Exception:
+        log.exception("post_event %s/%s error", event_type, device_id)
         return False
 
 
@@ -74,8 +74,8 @@ async def fetch_config() -> dict[str, Any] | None:
             return data
         log.warning("fetch_config failed: HTTP %d in %.0fms — %s", resp.status_code, dt_ms, resp.text[:200])
         return None
-    except Exception as exc:
-        log.exception("fetch_config error: %s", exc)
+    except Exception:
+        log.exception("fetch_config error")
         return None
 
 
@@ -127,5 +127,5 @@ async def upload_segment(
             cctv_log.warning("upload_segment HTTP %d in %.0fms: %s", resp.status_code, dt_ms, resp.text[:200])
         else:
             cctv_log.info("upload_segment ok in %.0fms — %s", dt_ms, resp.text[:200])
-    except Exception as exc:
-        cctv_log.exception("upload_segment error: %s", exc)
+    except Exception:  # noqa: BLE001
+        cctv_log.exception("upload_segment error")

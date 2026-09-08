@@ -84,18 +84,19 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
       .filter((r) => r.durationSec && r.durationSec > 0)
       .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
-    let cursor = 0;
-    return sorted.map((rec) => {
-      const dur = rec.durationSec ?? 10;
-      const seg: Segment = {
-        recording: rec,
-        combinedStart: cursor,
-        combinedEnd: cursor + dur,
-        duration: dur,
-      };
-      cursor += dur;
-      return seg;
-    });
+    return sorted.reduce<Segment[]>((result, rec) => {
+      const combinedStart = result.at(-1)?.combinedEnd ?? 0;
+      const duration = rec.durationSec ?? 10;
+      return [
+        ...result,
+        {
+          recording: rec,
+          combinedStart,
+          combinedEnd: combinedStart + duration,
+          duration,
+        },
+      ];
+    }, []);
   }, [recordings]);
 
   const totalDuration = useMemo(() => segments.reduce((sum, s) => sum + s.duration, 0), [segments]);

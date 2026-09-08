@@ -8,7 +8,7 @@ export type MonitoringStatus = "starting" | "running" | "stopping" | "stopped" |
 export interface FacilityEvent {
   id: string;
   deviceId: string;
-  type: string; // e.g. "monitoring:started", "monitoring:stopped", "device:motion", "device:sensor"
+  type: string; // e.g. "monitoring:started", "monitoring:ready", "device:motion", "device:sensor"
   data: string; // arbitrary JSON payload
   createdAt: string; // ISO-8601
 }

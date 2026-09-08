@@ -8,8 +8,8 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 jobs:
-  deploy-app:
-    name: Deploy App
+  deploy:
+    name: Deploy
     environment: Production
     runs-on: ubuntu-latest
     env:
@@ -35,36 +35,34 @@ jobs:
 
       - name: Build Project
         working-directory: src/app
+        run: bun run build
         env:
           VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
           VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
-        run: bun run build
 
       - name: Migrate Database
         working-directory: src/app
         run: bun run db:migrate --remote
 
-      - name: Upload Secrets
-        uses: dentolos19/dentolos19/actions/upload-worker-secrets@main
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v4
         with:
-          working-directory: src/app
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: src/app
           secrets: |
-            BETTER_AUTH_URL
             BETTER_AUTH_SECRET
+            BETTER_AUTH_URL
             OPENROUTER_API_KEY
-            OPENROUTER_TITLE
-            OPENROUTER_REFERER
             OPENROUTER_MODEL
+            OPENROUTER_REFERER
+            OPENROUTER_TITLE
             ROBOFLOW_API_KEY
         env:
-          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_TITLE: ${{ vars.OPENROUTER_TITLE }}
-          OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
           OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
+          OPENROUTER_TITLE: ${{ vars.OPENROUTER_TITLE }}
           ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-
-      - name: Deploy Worker
-        working-directory: src/app
-        run: bun run deploy

@@ -8,7 +8,7 @@ import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types
 
 const log = createLogger("server");
 
-const PORT = 3001;
+const PORT = 3000;
 const TOKEN_KEY = "monitoringTokenHash";
 
 async function hashToken(token: string) {
@@ -91,11 +91,11 @@ export class Server extends Container<Env> {
   // ── Lifecycle hooks ──────────────────────────────────────────────────
 
   async onStart(): Promise<void> {
-    await this.recordEvent("monitoring:started");
+    await this.recordEvent("monitoring:started", { message: "Monitoring container started" });
   }
 
   async onStop(params: { exitCode?: number; reason?: string }): Promise<void> {
-    await this.recordEvent("monitoring:stopped", params as Record<string, unknown>);
+    await this.recordEvent("monitoring:stopped", { message: "Monitoring container stopped", ...params });
     await this.clearToken();
   }
 }

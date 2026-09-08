@@ -223,7 +223,13 @@ export function FacilityFeedTab({ facilityId }: FeedTabProps) {
   }, [facilityId]);
 
   useEffect(() => {
-    fetchFeed();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void fetchFeed();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchFeed]);
 
   // ── Build feed items list ───────────────────────────────────────────────

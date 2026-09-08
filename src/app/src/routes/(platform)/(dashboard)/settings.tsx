@@ -11,7 +11,7 @@ import {
   XCircleIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
@@ -46,31 +46,25 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Dark", description: "Always use dark mode" },
 ] as const;
 
+const subscribeToHydration = () => () => {};
+const getHydratedSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 function Page() {
   const { theme, setTheme } = useTheme();
   const { data: session, isPending: isSessionPending } = useSession();
   const isAdmin = hasAdminRole(session?.user);
   const userId = session?.user.id;
-  const [mounted, setMounted] = useState(false);
-  const [showAllFacilities, setShowAllFacilities] = useState(false);
-  const [isFacilityPreferenceLoaded, setIsFacilityPreferenceLoaded] = useState(false);
+  const mounted = useSyncExternalStore(subscribeToHydration, getHydratedSnapshot, getServerSnapshot);
+  const [, refreshPreference] = useState(0);
+  const showAllFacilities = mounted && isAdmin && userId ? getShowAllFacilitiesPreference(userId) : false;
+  const isFacilityPreferenceLoaded = mounted && !isSessionPending && (!isAdmin || Boolean(userId));
   const navigate = useNavigate();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (isSessionPending) return;
-
-    setShowAllFacilities(isAdmin && userId ? getShowAllFacilitiesPreference(userId) : false);
-    setIsFacilityPreferenceLoaded(true);
-  }, [isAdmin, isSessionPending, userId]);
 
   const handleShowAllFacilitiesChange = (checked: boolean) => {
     if (!userId) return;
     setShowAllFacilitiesPreference(userId, checked);
-    setShowAllFacilities(checked);
+    refreshPreference((value) => value + 1);
   };
 
   const handleLogout = async () => {
@@ -213,7 +207,13 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
   }, [isAdmin]);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void refresh();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [refresh]);
 
   const down = checked && !health;
@@ -338,7 +338,13 @@ function CloudflareSimulatorControl({ isAdmin }: { isAdmin: boolean }) {
 
   useEffect(() => {
     if (!isAdmin) return;
-    void refresh();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void refresh();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isAdmin, refresh]);
 
   useEffect(() => {

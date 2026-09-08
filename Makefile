@@ -1,9 +1,10 @@
-.PHONY: setup start check migrate simulate desimulate resimulate
+.PHONY: setup start check migrate
 
 setup:
 	cd src/app && bun install
 	cd src/server && uv sync
 	cd src/simulator && uv sync
+	$(MAKE) migrate
 
 start:
 	cd src/app && bun run dev

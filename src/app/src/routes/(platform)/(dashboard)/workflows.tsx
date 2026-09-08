@@ -92,7 +92,13 @@ function Page() {
   });
 
   useEffect(() => {
-    void loadProcesses();
+    let cancelled = false;
+    void Promise.resolve().then(() => {
+      if (!cancelled) void loadProcesses();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [facilityId, status]);
 
   useEffect(() => {

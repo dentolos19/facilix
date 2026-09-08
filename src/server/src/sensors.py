@@ -7,9 +7,9 @@ import time
 
 import httpx
 
-from config import SIMULATOR_URL, SIMULATION_SENSOR_API_FALLBACKS
-from utils import get_http_client
 from api import post_event
+from config import SIMULATION_SENSOR_API_FALLBACKS, SIMULATOR_URL
+from utils import get_http_client
 
 
 async def monitor_sensor(
@@ -86,7 +86,7 @@ async def monitor_sensor(
 
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             await post_event(
                 device_id,
                 "sensor:error",
@@ -133,7 +133,7 @@ async def read_sensor(
                     extra["sourceUrl"] = url
                     return value, status, extra
                 last_error = f"{base}:http_{resp.status_code}"
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 last_error = f"{base}:{exc}"
 
         return None, last_error, extra
@@ -149,7 +149,7 @@ async def read_sensor(
                 extra["signalRssiDbm"] = data.get("signalRssiDbm")
                 return value, "ok", extra
             return None, f"http_{resp.status_code}", extra
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return None, str(exc), extra
 
     # HTTP Push / Ingest — no polling, value comes from external push

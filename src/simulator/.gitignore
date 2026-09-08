@@ -3,12 +3,17 @@
 .idea/
 
 # Build files
+.tanstack/
+.wrangler/
+node_modules/
+dist/
+build/
+out/
+coverage/
 .venv/
 *.egg-info/
-build/
-dist/
-
-# Cache files
+*.tsbuildinfo
+*.d.ts
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -17,6 +22,9 @@ __pycache__/
 # User files
 .env*
 !.env*.template
+
+# Project-specific rules
+/src/app/src/routeTree.gen.ts
 
 # Miscellaneous files
 .tmp/

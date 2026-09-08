@@ -3,6 +3,7 @@
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 import type * as React from "react";
+
 import { cn } from "#/lib/utils";
 
 function Accordion({ className, ...props }: React.ComponentProps<typeof AccordionPrimitive.Root>) {
@@ -43,7 +44,7 @@ function AccordionTrigger({ className, children, ...props }: React.ComponentProp
 function AccordionContent({ className, children, ...props }: React.ComponentProps<typeof AccordionPrimitive.Content>) {
   return (
     <AccordionPrimitive.Content
-      className="overflow-hidden text-xs data-closed:animate-accordion-up data-open:animate-accordion-down"
+      className="data-closed:animate-accordion-up data-open:animate-accordion-down overflow-hidden text-xs"
       data-slot="accordion-content"
       {...props}
     >

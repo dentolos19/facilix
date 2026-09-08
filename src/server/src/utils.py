@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 
@@ -21,8 +21,8 @@ def now_iso(ts: float | None = None) -> str:
     If ``ts`` is given (seconds since epoch), converts that; otherwise current time.
     """
     if ts is not None:
-        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-    return datetime.now(timezone.utc).isoformat()
+        return datetime.fromtimestamp(ts, tz=UTC).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # ---------------------------------------------------------------------------
