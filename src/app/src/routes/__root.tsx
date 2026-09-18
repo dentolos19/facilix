@@ -1,6 +1,4 @@
-import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
 import AppProvider from "#/components/app-provider";
 import ErrorOccurred from "#/components/error-occurred";
@@ -44,17 +42,6 @@ export const Route = createRootRoute({
         <AppProvider>
           <ScrollArea className={"h-dvh w-dvw"}>{children}</ScrollArea>
         </AppProvider>
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
         <Scripts />
       </body>
     </html>
