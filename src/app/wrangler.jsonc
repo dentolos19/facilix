@@ -8,34 +8,34 @@
   "logpush": true,
   "observability": {
     "logs": {
-      "enabled": true
+      "enabled": true,
     },
     "traces": {
-      "enabled": true
-    }
+      "enabled": true,
+    },
   },
   "route": {
     "pattern": "facilix.dennise.me",
-    "custom_domain": true
+    "custom_domain": true,
   },
   "d1_databases": [
     {
       "binding": "DATABASE",
-      "database_name": "facilix"
-    }
+      "database_name": "facilix",
+    },
   ],
   "r2_buckets": [
     {
       "binding": "BUCKET",
-      "bucket_name": "facilix"
-    }
+      "bucket_name": "facilix",
+    },
   ],
   "workflows": [
     {
       "binding": "PROCESSOR",
       "name": "facilix-processor",
-      "class_name": "Processor"
-    }
+      "class_name": "Processor",
+    },
   ],
   "containers": [
     {
@@ -43,36 +43,36 @@
       "class_name": "Server",
       "image": "../server/Dockerfile",
       "max_instances": 5,
-      "instance_type": "basic"
+      "instance_type": "basic",
     },
     {
       "name": "facilix-simulator",
       "class_name": "Simulator",
       "image": "../simulator/Dockerfile",
       "max_instances": 1,
-      "instance_type": "standard-1"
-    }
+      "instance_type": "standard-1",
+    },
   ],
   "durable_objects": {
     "bindings": [
       {
         "name": "SERVER",
-        "class_name": "Server"
+        "class_name": "Server",
       },
       {
         "name": "OBSERVER",
-        "class_name": "Observer"
+        "class_name": "Observer",
       },
       {
         "name": "SIMULATOR",
-        "class_name": "Simulator"
-      }
-    ]
+        "class_name": "Simulator",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["Server", "Observer", "Simulator"]
-    }
-  ]
+      "new_sqlite_classes": ["Server", "Observer", "Simulator"],
+    },
+  ],
 }
