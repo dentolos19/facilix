@@ -29,7 +29,9 @@ def detect_default_gateway() -> str | None:
 
 
 _detected_gateway = detect_default_gateway()
-CCTV_STREAM_HOST_REWRITE = os.environ.get("CCTV_STREAM_HOST_REWRITE") or _detected_gateway or "172.17.0.1"
+CCTV_STREAM_HOST_REWRITE = (
+    os.environ.get("CCTV_STREAM_HOST_REWRITE") or _detected_gateway or "172.17.0.1"
+)
 
 
 def log_stream_rewrite_config() -> None:
@@ -90,7 +92,9 @@ async def probe_stream_url(stream_url: str) -> None:
         net_log.warning("stream URL has no hostname: %s", stream_url)
         return
     # RTSP default port is 554; HLS over HTTP is 80/443
-    default_port = {"rtsp": 554, "rtmp": 1935, "http": 80, "https": 443}.get(parsed.scheme, 0)
+    default_port = {"rtsp": 554, "rtmp": 1935, "http": 80, "https": 443}.get(
+        parsed.scheme, 0
+    )
     port = parsed.port or default_port
     if not port:
         net_log.warning("could not determine port for %s", stream_url)
@@ -99,4 +103,10 @@ async def probe_stream_url(stream_url: str) -> None:
     if ok:
         net_log.info("TCP probe OK: %s:%d (%s)", parsed.hostname, port, stream_url)
     else:
-        net_log.error("TCP probe FAILED: %s:%d — %s (url=%s)", parsed.hostname, port, detail, stream_url)
+        net_log.error(
+            "TCP probe FAILED: %s:%d — %s (url=%s)",
+            parsed.hostname,
+            port,
+            detail,
+            stream_url,
+        )

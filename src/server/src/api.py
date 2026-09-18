@@ -72,7 +72,12 @@ async def fetch_config() -> dict[str, Any] | None:
                 len(data.get("sensors", [])),
             )
             return data
-        log.warning("fetch_config failed: HTTP %d in %.0fms — %s", resp.status_code, dt_ms, resp.text[:200])
+        log.warning(
+            "fetch_config failed: HTTP %d in %.0fms — %s",
+            resp.status_code,
+            dt_ms,
+            resp.text[:200],
+        )
         return None
     except Exception:
         log.exception("fetch_config error")
@@ -124,7 +129,12 @@ async def upload_segment(
         )
         dt_ms = (time.monotonic() - t0) * 1000
         if resp.status_code != 200:
-            cctv_log.warning("upload_segment HTTP %d in %.0fms: %s", resp.status_code, dt_ms, resp.text[:200])
+            cctv_log.warning(
+                "upload_segment HTTP %d in %.0fms: %s",
+                resp.status_code,
+                dt_ms,
+                resp.text[:200],
+            )
         else:
             cctv_log.info("upload_segment ok in %.0fms — %s", dt_ms, resp.text[:200])
     except Exception:  # noqa: BLE001

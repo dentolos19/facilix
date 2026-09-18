@@ -316,17 +316,15 @@ export const getFacilityEvents = createServerFn({ method: "GET" })
     const filtered = rows.map(toRow).filter((ev) => shouldShowInGlobalEvents(ev.type, ev.severity, settings));
 
     const withAttachments = await attachEventAttachments(db, filtered);
-    const views = withAttachments.map(
-      (ev): FacilityEventView => ({
-        ...ev,
-        deviceName: ev.deviceId ? (deviceNameMap.get(ev.deviceId) ?? "Unknown Device") : "System",
-        deviceType: "",
-        occurrenceCount: 1,
-        firstSeen: ev.createdAt,
-        lastSeen: ev.createdAt,
-        occurrences: [ev],
-      }),
-    );
+    const views = withAttachments.map((ev): FacilityEventView => ({
+      ...ev,
+      deviceName: ev.deviceId ? (deviceNameMap.get(ev.deviceId) ?? "Unknown Device") : "System",
+      deviceType: "",
+      occurrenceCount: 1,
+      firstSeen: ev.createdAt,
+      lastSeen: ev.createdAt,
+      occurrences: [ev],
+    }));
     return views.slice(0, data.includeGroupingContext ? limit * 3 : limit);
   });
 

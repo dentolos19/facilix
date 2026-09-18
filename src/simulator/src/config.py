@@ -76,6 +76,8 @@ LOG_LEVEL = "info"
 DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://localhost:3001,http://localhost:5173,https://local.dennise.me,https://facilix.dennise.me"
 CORS_ORIGINS = [
     origin.strip()
-    for origin in os.environ.get("SIMULATOR_CORS_ORIGINS", DEFAULT_CORS_ORIGINS).split(",")
+    for origin in os.environ.get("SIMULATOR_CORS_ORIGINS", DEFAULT_CORS_ORIGINS).split(
+        ","
+    )
     if origin.strip()
 ]

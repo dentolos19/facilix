@@ -8,7 +8,9 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 HTTPX_LOG_LEVEL = os.environ.get("HTTPX_LOG_LEVEL", "WARNING").upper()
 
 FACILITY_ID = os.environ.get("FACILITY_ID", "")
-MONITORING_API_URL = os.environ.get("MONITORING_API_URL", "http://localhost:3000/api/facility/local/monitoring")
+MONITORING_API_URL = os.environ.get(
+    "MONITORING_API_URL", "http://localhost:3000/api/facility/local/monitoring"
+)
 MONITORING_TOKEN = os.environ.get("MONITORING_TOKEN", "")
 
 API_BASE = MONITORING_API_URL.rstrip("/")

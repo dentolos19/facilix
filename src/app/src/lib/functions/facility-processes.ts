@@ -51,7 +51,9 @@ function asOutput(value: unknown): JsonObject | null {
 }
 
 function normalizeStatus(status: Awaited<ReturnType<WorkflowInstance["status"]>>["status"]): FacilityProcessStatus {
-  return status === "waitingForPause" ? "waiting" : status;
+  if (status === "waitingForPause") return "waiting";
+  if (status === "rollingBack") return "unknown";
+  return status;
 }
 
 async function reconcileProcessStatuses(rows: FacilityProcessRow[]): Promise<FacilityProcessRow[]> {

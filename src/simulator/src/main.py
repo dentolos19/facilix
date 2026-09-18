@@ -150,9 +150,13 @@ async def health() -> JSONResponse:
     cctv = cctv_module.health_summary()
 
     sensor_total = len(sensor_engine.get_devices())
-    sensor_online = sum(1 for d in sensor_engine.get_devices() if d.status.value in ("ok", "degraded"))
+    sensor_online = sum(
+        1 for d in sensor_engine.get_devices() if d.status.value in ("ok", "degraded")
+    )
 
-    overall = "ok" if cctv["status"] == "ok" and sensor_online == sensor_total else "degraded"
+    overall = (
+        "ok" if cctv["status"] == "ok" and sensor_online == sensor_total else "degraded"
+    )
 
     return JSONResponse(
         {

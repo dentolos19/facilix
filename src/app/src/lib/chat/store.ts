@@ -33,7 +33,7 @@ function createInitialState(): FacilityChatState {
 
 function makeClient(facilityId: string): ChatClient {
   return new ChatClient({
-    id: `facility-chat-${facilityId}`,
+    threadId: `facility-chat-${facilityId}`,
     connection: fetchServerSentEvents("/api/chat"),
     forwardedProps: { facilityId },
     persistence: localChatPersistence,

@@ -43,10 +43,18 @@ async def startup_monitoring() -> None:
         if config:
             break
         delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
-        log.warning("fetch_config attempt %d/%d failed — retrying in %.1fs", attempt, max_retries, delay)
+        log.warning(
+            "fetch_config attempt %d/%d failed — retrying in %.1fs",
+            attempt,
+            max_retries,
+            delay,
+        )
         await asyncio.sleep(delay)
     else:
-        log.error("could not fetch config after %d attempts — container will idle", max_retries)
+        log.error(
+            "could not fetch config after %d attempts — container will idle",
+            max_retries,
+        )
         return
 
     tasks: list[asyncio.Task[Any]] = []
@@ -96,7 +104,10 @@ async def startup_monitoring() -> None:
         "monitoring:ready",
         "info",
         f"Monitoring is ready for facility {FACILITY_ID}",
-        {"cctvCount": len(config.get("cctv", [])), "sensorCount": len(config.get("sensors", []))},
+        {
+            "cctvCount": len(config.get("cctv", [])),
+            "sensorCount": len(config.get("sensors", [])),
+        },
     )
 
     # Wait for all tasks (they shouldn't complete unless cancelled)

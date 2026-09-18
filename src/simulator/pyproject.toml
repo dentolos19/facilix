@@ -6,6 +6,3 @@ dependencies = ["fastapi", "python-dotenv>=1.2.3", "uvicorn"]
 
 [dependency-groups]
 dev = ["ruff", "ty"]
-
-[tool.ruff]
-line-length = 120

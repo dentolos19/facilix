@@ -110,7 +110,11 @@ _installed_formatter: type[logging.Formatter] | None = None
 
 
 def _format_timestamp(created: float) -> str:
-    return datetime.fromtimestamp(created, tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return (
+        datetime.fromtimestamp(created, tz=UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _format_level(level: str) -> str:

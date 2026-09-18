@@ -129,7 +129,10 @@ class StreamProcess:
     def can_restart(self) -> bool:
         """Limit restart storms without permanently abandoning a stream."""
         now = asyncio.get_running_loop().time()
-        while self._restart_attempts and self._restart_attempts[0] <= now - self._restart_window:
+        while (
+            self._restart_attempts
+            and self._restart_attempts[0] <= now - self._restart_window
+        ):
             self._restart_attempts.popleft()
 
         if len(self._restart_attempts) >= self._max_restarts:
@@ -388,13 +391,23 @@ async def initialize_streams() -> None:
 
 
 def _hls_playlist_url(name: str) -> str:
-    return f"{config.MEDIAMTX_HLS_URL.rstrip('/')}/{urllib.parse.quote(name)}/index.m3u8"
+    return (
+        f"{config.MEDIAMTX_HLS_URL.rstrip('/')}/{urllib.parse.quote(name)}/index.m3u8"
+    )
 
 
 def _fetch_hls_playlist(name: str) -> None:
-    with urllib.request.urlopen(_hls_playlist_url(name), timeout=config.HLS_HEALTH_TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(
+        _hls_playlist_url(name), timeout=config.HLS_HEALTH_TIMEOUT_SECONDS
+    ) as response:
         if response.status != 200:
-            raise urllib.error.HTTPError(response.url, response.status, "Unexpected HLS status", response.headers, None)
+            raise urllib.error.HTTPError(
+                response.url,
+                response.status,
+                "Unexpected HLS status",
+                response.headers,
+                None,
+            )
         if b"#EXTM3U" not in response.read(256):
             raise ValueError("invalid_hls_playlist")
 
@@ -484,7 +497,9 @@ async def health_loop() -> None:
             elif sp.is_alive:
                 await _probe_hls(sp)
         try:
-            await asyncio.wait_for(_shutdown_event.wait(), timeout=config.HEALTH_CHECK_INTERVAL)
+            await asyncio.wait_for(
+                _shutdown_event.wait(), timeout=config.HEALTH_CHECK_INTERVAL
+            )
         except TimeoutError:
             pass
 
@@ -548,7 +563,9 @@ async def start_stream(name: str) -> JSONResponse:
         sp.enabled = True
         await _start_stream(sp)
         ready = await _wait_for_hls(sp)
-    return JSONResponse({"status": sp.status, "stream": sp.info()}, status_code=200 if ready else 202)
+    return JSONResponse(
+        {"status": sp.status, "stream": sp.info()}, status_code=200 if ready else 202
+    )
 
 
 @router.post("/{name}/stop")
@@ -572,17 +589,23 @@ async def restart_stream(name: str) -> JSONResponse:
     sp.enabled = True
     await _restart_stream(sp)
     ready = await _wait_for_hls(sp)
-    return JSONResponse({"status": sp.status, "stream": sp.info()}, status_code=200 if ready else 202)
+    return JSONResponse(
+        {"status": sp.status, "stream": sp.info()}, status_code=200 if ready else 202
+    )
 
 
 @router.get("/{name}/hls/{hls_path:path}")
-async def proxy_hls(name: str, hls_path: str, request: fastapi.Request) -> fastapi.Response:
+async def proxy_hls(
+    name: str, hls_path: str, request: fastapi.Request
+) -> fastapi.Response:
     """Proxy MediaMTX HLS output through FastAPI so only one HTTP port is needed.
 
     Streams the response instead of buffering the entire segment in memory.
     """
     if name not in streams:
-        raise fastapi.HTTPException(status_code=404, detail=f"Stream '{name}' not found")
+        raise fastapi.HTTPException(
+            status_code=404, detail=f"Stream '{name}' not found"
+        )
     if not streams[name].enabled:
         raise fastapi.HTTPException(status_code=503, detail="HLS stream is stopped")
 
@@ -600,20 +623,30 @@ async def proxy_hls(name: str, hls_path: str, request: fastapi.Request) -> fasta
             upstream_url,
             timeout=config.MEDIAMTX_HLS_TIMEOUT_SECONDS,
         )
-        content_type = upstream_resp.headers.get("content-type", "application/octet-stream")
+        content_type = upstream_resp.headers.get(
+            "content-type", "application/octet-stream"
+        )
         return StreamingResponse(
             _stream_response(upstream_resp),
             media_type=content_type,
             status_code=upstream_resp.status,
         )
     except TimeoutError as exc:
-        raise fastapi.HTTPException(status_code=504, detail="MediaMTX HLS request timed out") from exc
+        raise fastapi.HTTPException(
+            status_code=504, detail="MediaMTX HLS request timed out"
+        ) from exc
     except urllib.error.HTTPError as exc:
-        raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS resource unavailable") from exc
+        raise fastapi.HTTPException(
+            status_code=502, detail="MediaMTX HLS resource unavailable"
+        ) from exc
     except urllib.error.URLError as exc:
         if isinstance(exc.reason, (TimeoutError, socket.timeout)):
-            raise fastapi.HTTPException(status_code=504, detail="MediaMTX HLS request timed out") from exc
-        raise fastapi.HTTPException(status_code=502, detail="MediaMTX HLS endpoint unavailable") from exc
+            raise fastapi.HTTPException(
+                status_code=504, detail="MediaMTX HLS request timed out"
+            ) from exc
+        raise fastapi.HTTPException(
+            status_code=502, detail="MediaMTX HLS endpoint unavailable"
+        ) from exc
 
 
 def _stream_response(resp):

@@ -98,7 +98,9 @@ class SensorReading:
             }
         }
         if self.secondary_value is not None and self.secondary_unit is not None:
-            extra_label = "occupancy" if self.sensor_type == SensorType.MOTION else "value"
+            extra_label = (
+                "occupancy" if self.sensor_type == SensorType.MOTION else "value"
+            )
             values[extra_label] = {
                 "value": round(self.secondary_value, 2),
                 "unit": self.secondary_unit,
@@ -312,7 +314,9 @@ def _generate_reading(dev: SensorDevice) -> SensorReading:
 
     new_target = _rng.uniform(dev.value_min, dev.value_max)
     max_step = (dev.value_max - dev.value_min) * 0.05
-    dev._current_value = _drift(dev._current_value, new_target, max_step, dev.value_min, dev.value_max)
+    dev._current_value = _drift(
+        dev._current_value, new_target, max_step, dev.value_min, dev.value_max
+    )
 
     secondary: float | None = None
     if dev.secondary_min != dev.secondary_max:
@@ -499,7 +503,9 @@ async def get_sensor(identifier: str) -> JSONResponse:
     """Get details for a single sensor by type or device ID."""
     dev = get_device(identifier)
     if dev is None:
-        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+        return JSONResponse(
+            {"error": f"Sensor '{identifier}' not found"}, status_code=404
+        )
     return JSONResponse(_device_detail(dev))
 
 
@@ -519,7 +525,9 @@ async def get_sensor_readings(identifier: str, limit: int = 100) -> JSONResponse
         limit = 100
     dev = get_device(identifier)
     if dev is None:
-        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+        return JSONResponse(
+            {"error": f"Sensor '{identifier}' not found"}, status_code=404
+        )
     history = get_history(identifier, limit=limit)
     return JSONResponse(
         {
@@ -536,7 +544,9 @@ async def read_now(identifier: str) -> JSONResponse:
     """Trigger a single immediate reading for a sensor."""
     reading = read_single(identifier)
     if reading is None:
-        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+        return JSONResponse(
+            {"error": f"Sensor '{identifier}' not found"}, status_code=404
+        )
     return JSONResponse(reading.to_dict())
 
 
@@ -545,7 +555,9 @@ async def start_sensor(identifier: str) -> JSONResponse:
     """Enable automatic reading generation for a sensor."""
     ok = set_enabled(identifier, True)
     if not ok:
-        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+        return JSONResponse(
+            {"error": f"Sensor '{identifier}' not found"}, status_code=404
+        )
     device_id = _resolve_device_id(identifier)
     return JSONResponse({"status": "started", "deviceId": device_id})
 
@@ -555,7 +567,9 @@ async def stop_sensor(identifier: str) -> JSONResponse:
     """Disable automatic reading generation for a sensor."""
     ok = set_enabled(identifier, False)
     if not ok:
-        return JSONResponse({"error": f"Sensor '{identifier}' not found"}, status_code=404)
+        return JSONResponse(
+            {"error": f"Sensor '{identifier}' not found"}, status_code=404
+        )
     device_id = _resolve_device_id(identifier)
     return JSONResponse({"status": "stopped", "deviceId": device_id})
 

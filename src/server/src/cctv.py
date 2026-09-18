@@ -32,7 +32,9 @@ async def monitor_cctv(
     # simulation, but inside this container localhost is unreachable).
     rewritten = rewrite_stream_host(stream_url)
     if rewritten != stream_url:
-        cctv_log.info("[%s] rewrote stream URL: %s -> %s", device_name, stream_url, rewritten)
+        cctv_log.info(
+            "[%s] rewrote stream URL: %s -> %s", device_name, stream_url, rewritten
+        )
         stream_url = rewritten
 
     # Sanity-check reachability before we start the loop so the operator sees
@@ -94,10 +96,19 @@ async def _segment_loop(
     seq = 0
     while True:
         try:
-            cctv_log.info("[%s] capturing %ds segment from %s", device_name, duration_sec, stream_url)
-            segment_data, actual_duration, started_at, ended_at, segment_error = await capture_segment(
-                stream_url, duration_sec
+            cctv_log.info(
+                "[%s] capturing %ds segment from %s",
+                device_name,
+                duration_sec,
+                stream_url,
             )
+            (
+                segment_data,
+                actual_duration,
+                started_at,
+                ended_at,
+                segment_error,
+            ) = await capture_segment(stream_url, duration_sec)
             if segment_data:
                 seq += 1
                 cctv_log.info(
@@ -116,7 +127,9 @@ async def _segment_loop(
                     ended_at=ended_at,
                 )
             else:
-                cctv_log.warning("[%s] segment capture failed: %s", device_name, segment_error)
+                cctv_log.warning(
+                    "[%s] segment capture failed: %s", device_name, segment_error
+                )
                 await post_event(
                     device_id,
                     "cctv:segment:error",
@@ -128,7 +141,9 @@ async def _segment_loop(
             raise
         except Exception as exc:  # noqa: BLE001
             cctv_log.exception("[%s] segment loop error", device_name)
-            await post_event(device_id, "cctv:error", "warn", f"Segment capture error: {exc}")
+            await post_event(
+                device_id, "cctv:error", "warn", f"Segment capture error: {exc}"
+            )
 
 
 # ── ffmpeg helpers ─────────────────────────────────────────────────────────
@@ -153,7 +168,9 @@ def _validate_mp4_header(data: bytes) -> str | None:
     return None
 
 
-async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[bytes | None, float, float, float, str]:
+async def capture_segment(
+    stream_url: str, duration_sec: int = 30
+) -> tuple[bytes | None, float, float, float, str]:
     """Use ffmpeg to capture a short video segment.
 
     Returns (data, actual_duration_sec, started_at_monotonic, ended_at_monotonic, error_detail).
@@ -189,7 +206,9 @@ async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[byte
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=duration_sec + 15)
+        _stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=duration_sec + 15
+        )
         ended_at = time.time()
         actual_duration = ended_at - started_at
         dt_ms = int(actual_duration * 1000)
@@ -232,7 +251,9 @@ async def capture_segment(stream_url: str, duration_sec: int = 30) -> tuple[byte
             )
             return None, 0.0, 0.0, 0.0, validation_error
 
-        cctv_log.info("capture_segment ok %dB in %dms for %s", len(data), dt_ms, stream_url)
+        cctv_log.info(
+            "capture_segment ok %dB in %dms for %s", len(data), dt_ms, stream_url
+        )
         return data, actual_duration, started_at, ended_at, ""
     except TimeoutError:
         ended_at = time.time()

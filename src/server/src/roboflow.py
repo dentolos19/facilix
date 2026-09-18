@@ -31,9 +31,15 @@ ROBOFLOW_API_BASE = os.getenv("ROBOFLOW_API_BASE", "https://serverless.roboflow.
 ROBOFLOW_API_KEY = os.getenv("ROBOFLOW_API_KEY", "")
 ROBOFLOW_MAX_CONCURRENCY = max(1, int(os.getenv("ROBOFLOW_MAX_CONCURRENCY", "4")))
 ROBOFLOW_FRAME_RETRIES = max(0, int(os.getenv("ROBOFLOW_FRAME_RETRIES", "1")))
-ROBOFLOW_REQUEST_TIMEOUT_SEC = max(1.0, float(os.getenv("ROBOFLOW_REQUEST_TIMEOUT_SEC", "15")))
-ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC = max(0.1, float(os.getenv("ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC", "2")))
-ROBOFLOW_VIDEO_BUDGET_SEC = max(1.0, float(os.getenv("ROBOFLOW_VIDEO_BUDGET_SEC", "100")))
+ROBOFLOW_REQUEST_TIMEOUT_SEC = max(
+    1.0, float(os.getenv("ROBOFLOW_REQUEST_TIMEOUT_SEC", "15"))
+)
+ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC = max(
+    0.1, float(os.getenv("ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC", "2"))
+)
+ROBOFLOW_VIDEO_BUDGET_SEC = max(
+    1.0, float(os.getenv("ROBOFLOW_VIDEO_BUDGET_SEC", "100"))
+)
 
 _roboflow_request_semaphore = asyncio.Semaphore(ROBOFLOW_MAX_CONCURRENCY)
 
@@ -65,7 +71,9 @@ async def process_video_workflow(
     if not 0 <= min_confidence <= 1:
         raise ValueError("min_confidence must be between 0 and 1")
 
-    output_names = set(data_output_names or [input_name, "detections", "predictions", "count"])
+    output_names = set(
+        data_output_names or [input_name, "detections", "predictions", "count"]
+    )
     output_names.update({"detections", "predictions"})
     allowed_labels = {label.lower() for label in class_filter or []}
 
@@ -119,7 +127,9 @@ async def process_video_workflow(
 
                     if frame_idx % frame_interval == 0:
                         attempted_frames += 1
-                        pending_frames.append((frame.copy(), frame_idx, frame_idx / fps))
+                        pending_frames.append(
+                            (frame.copy(), frame_idx, frame_idx / fps)
+                        )
 
                         if len(pending_frames) >= ROBOFLOW_MAX_CONCURRENCY:
                             if not _has_inference_budget(processing_started_at):
@@ -127,7 +137,9 @@ async def process_video_workflow(
                                 pending_frames.clear()
                                 circuit_open = True
                                 frame_idx += 1
-                                log.warning("stopping video inference after exhausting the processing budget")
+                                log.warning(
+                                    "stopping video inference after exhausting the processing budget"
+                                )
                                 break
                             outputs = await _process_frame_batch(
                                 client=client,
@@ -181,7 +193,9 @@ async def process_video_workflow(
                     else:
                         skipped_frames += len(pending_frames)
                         circuit_open = True
-                        log.warning("skipping the final frame batch after exhausting the processing budget")
+                        log.warning(
+                            "skipping the final frame batch after exhausting the processing budget"
+                        )
                     pending_frames.clear()
 
                 # OpenCV's reported frame count can be missing or inaccurate.
@@ -218,7 +232,9 @@ async def process_video_workflow(
         if frame_idx == 0:
             raise ValueError("Video contains no decodable frames")
         if attempted_frames > 0 and failed_frames == attempted_frames:
-            log.error("vision inference failed for all %d sampled frames", attempted_frames)
+            log.error(
+                "vision inference failed for all %d sampled frames", attempted_frames
+            )
 
         log.info(
             "processed %d frames, %d detections, %d detection outputs (%d inference failures)",
@@ -242,7 +258,9 @@ async def process_video_workflow(
                 "failedFrameCount": failed_frames,
                 "skippedFrameCount": skipped_frames,
                 "circuitOpen": circuit_open,
-                "processingDurationMs": round((time.monotonic() - processing_started_at) * 1000),
+                "processingDurationMs": round(
+                    (time.monotonic() - processing_started_at) * 1000
+                ),
                 "requestTimeoutSec": ROBOFLOW_REQUEST_TIMEOUT_SEC,
                 "queueWaitTimeoutSec": ROBOFLOW_QUEUE_WAIT_TIMEOUT_SEC,
                 "videoBudgetSec": ROBOFLOW_VIDEO_BUDGET_SEC,
@@ -362,8 +380,13 @@ async def _process_frame(
 
 def _has_inference_budget(processing_started_at: float) -> bool:
     retry_delay = sum(2**attempt for attempt in range(ROBOFLOW_FRAME_RETRIES))
-    request_budget = ROBOFLOW_REQUEST_TIMEOUT_SEC * (ROBOFLOW_FRAME_RETRIES + 1) + retry_delay
-    return time.monotonic() - processing_started_at < ROBOFLOW_VIDEO_BUDGET_SEC - request_budget
+    request_budget = (
+        ROBOFLOW_REQUEST_TIMEOUT_SEC * (ROBOFLOW_FRAME_RETRIES + 1) + retry_delay
+    )
+    return (
+        time.monotonic() - processing_started_at
+        < ROBOFLOW_VIDEO_BUDGET_SEC - request_budget
+    )
 
 
 async def _process_frame_batch(
@@ -436,10 +459,19 @@ def _parse_frame_response(
                 continue
 
             # Capture prediction image metadata (dimensions the detections are relative to)
-            if image_meta is None and isinstance(value, dict) and isinstance(value.get("image"), dict):
+            if (
+                image_meta is None
+                and isinstance(value, dict)
+                and isinstance(value.get("image"), dict)
+            ):
                 img = value["image"]
-                if isinstance(img.get("width"), (int, float)) and isinstance(img.get("height"), (int, float)):
-                    image_meta = {"width": int(img["width"]), "height": int(img["height"])}
+                if isinstance(img.get("width"), (int, float)) and isinstance(
+                    img.get("height"), (int, float)
+                ):
+                    image_meta = {
+                        "width": int(img["width"]),
+                        "height": int(img["height"]),
+                    }
 
             raw_detections.extend(_extract_detections(value))
 

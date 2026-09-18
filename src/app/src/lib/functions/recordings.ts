@@ -215,19 +215,17 @@ export const getDeviceDetections = createServerFn({ method: "GET" })
 
     return rows
       .filter((row) => getPlugin(row.pluginId) !== undefined)
-      .map(
-        (row): VideoFrameRow => ({
-          id: row.id,
-          assetId: row.assetId,
-          segmentId: row.segmentId,
-          pluginId: row.pluginId,
-          workflowId: row.workflowId,
-          outputName: row.outputName,
-          frameIndex: row.frameIndex,
-          atSec: row.atSec,
-          detections: row.detections as unknown as RecordingDetection[],
-          image: row.image,
-          createdAt: row.createdAt,
-        }),
-      );
+      .map((row): VideoFrameRow => ({
+        id: row.id,
+        assetId: row.assetId,
+        segmentId: row.segmentId,
+        pluginId: row.pluginId,
+        workflowId: row.workflowId,
+        outputName: row.outputName,
+        frameIndex: row.frameIndex,
+        atSec: row.atSec,
+        detections: row.detections as unknown as RecordingDetection[],
+        image: row.image,
+        createdAt: row.createdAt,
+      }));
   });

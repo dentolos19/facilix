@@ -35,7 +35,12 @@ async def monitor_sensor(
         "sensor:monitoring:started",
         "info",
         f"Started monitoring sensor '{device_name}'",
-        {"sensorType": sensor_type, "dataSource": data_source, "threshold": threshold, "unit": unit},
+        {
+            "sensorType": sensor_type,
+            "dataSource": data_source,
+            "threshold": threshold,
+            "unit": unit,
+        },
     )
 
     while True:
