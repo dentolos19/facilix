@@ -1,5 +1,5 @@
 {
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": ["src", "scripts", "*.config.ts", ".cloudflare/types"],
   "compilerOptions": {
     "target": "es2022",
     "module": "esnext",
@@ -9,7 +9,7 @@
     "paths": {
       "#/*": ["./src/*"]
     },
-    "types": ["vite/client"],
+    "types": ["bun", "vite/client"],
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,

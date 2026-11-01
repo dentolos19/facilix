@@ -75,7 +75,7 @@ import {
 } from "#/lib/functions/facility-members";
 import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facility-settings";
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
-import { createFacilityLayoutDocument, type FacilityLayoutDocument } from "#/lib/layouts";
+import { createFacilityLayoutDocument, parseImportedFacilityLayout } from "#/lib/layouts";
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
 import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
@@ -113,19 +113,9 @@ export const Route = createFileRoute("/(platform)/facility/$id/")({
   }),
 });
 
-function Field({
-  label,
-  noGrow,
-  children,
-  readOnly: _readOnly,
-}: {
-  label: string;
-  readOnly?: boolean;
-  noGrow?: boolean;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className={noGrow ? "flex flex-col gap-1" : "flex flex-col gap-1"}>
+    <div className="flex flex-col gap-1">
       <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
       {children}
     </div>
@@ -243,13 +233,13 @@ function Page() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  function saveSnapshot() {
+  const saveSnapshot = useCallback(() => {
     const current = placedItemsRef.current;
     undoStackRef.current.push(current.map((i) => ({ ...i, props: { ...i.props } })));
     setCanUndo(true);
     redoStackRef.current = []; // new action clears redo
     setCanRedo(false);
-  }
+  }, []);
 
   // ── Load persisted data on mount ────────────────────────────────────────
   useEffect(() => {
@@ -462,7 +452,7 @@ function Page() {
         }
       });
     }
-  }, []);
+  }, [saveSnapshot]);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
@@ -526,8 +516,7 @@ function Page() {
       setPlacedItems((prev) => recomputeZoneLinks(prev.map((item) => (item.id === id ? { ...item, ...patch } : item))));
       setIsDirty(true);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [saveSnapshot],
   );
 
   const updatePlacedItemData = useCallback(
@@ -542,8 +531,7 @@ function Page() {
       );
       setIsDirty(true);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [saveSnapshot],
   );
 
   const removePlacedItem = useCallback((id: string) => {
@@ -554,8 +542,7 @@ function Page() {
       selection?.kind === "device" && selection.deviceId === id ? null : selection,
     );
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   const deleteItems = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
@@ -567,21 +554,19 @@ function Page() {
       selection?.kind === "device" && idSet.has(selection.deviceId) ? null : selection,
     );
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   const moveItemUp = useCallback((id: string) => {
     saveSnapshot();
     setPlacedItems((prev) => {
       const idx = prev.findIndex((item) => item.id === id);
-      if (idx >= prev.length - 1) return prev;
+      if (idx === -1 || idx >= prev.length - 1) return prev;
       const next = [...prev];
       [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
       return recomputeZoneLinks(next);
     });
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   const moveItemDown = useCallback((id: string) => {
     saveSnapshot();
@@ -593,8 +578,7 @@ function Page() {
       return recomputeZoneLinks(next);
     });
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   const moveItemToFront = useCallback((id: string) => {
     saveSnapshot();
@@ -608,8 +592,7 @@ function Page() {
       return recomputeZoneLinks(next);
     });
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   const moveItemToBack = useCallback((id: string) => {
     saveSnapshot();
@@ -623,8 +606,7 @@ function Page() {
       return recomputeZoneLinks(next);
     });
     setIsDirty(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [saveSnapshot]);
 
   // ── Undo / Redo ──────────────────────────────────────────────────────────
 
@@ -802,16 +784,13 @@ function Page() {
     try {
       if (isJson) {
         const text = await file.text();
-        const parsed = JSON.parse(text) as unknown;
-        if (!parsed || typeof parsed !== "object" || !("items" in (parsed as Record<string, unknown>))) {
-          throw new Error("The JSON file does not contain a valid facility layout.");
-        }
+        const items = parseImportedFacilityLayout(JSON.parse(text), placedItemsRef.current);
         saveSnapshot();
-        setPlacedItems((parsed as FacilityLayoutDocument).items);
+        setPlacedItems(items);
         setSelectedItemId(null);
         setMonitoringSelection(null);
         setIsDirty(true);
-        toast.success(`Imported layout with ${(parsed as FacilityLayoutDocument).items.length} items.`, {
+        toast.success(`Imported layout with ${items.length} items.`, {
           description: "Review the result. You can use Undo to restore the previous layout.",
         });
       } else {
@@ -835,7 +814,7 @@ function Page() {
     } finally {
       setIsImporting(false);
     }
-  }, []);
+  }, [saveSnapshot]);
 
   const handleImportFileSelected = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {

@@ -1,11 +1,13 @@
+import { z } from "zod";
+
 import {
   DEFAULT_PROPS,
   DEFAULT_SIZES,
-  recomputeZoneLinks,
   type JsonObject,
   type JsonValue,
   type PlacedItem,
   type PlacedItemType,
+  recomputeZoneLinks,
 } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 export const FACILITY_LAYOUT_FORMAT = "facilix-facility-layout";
@@ -24,6 +26,41 @@ export interface FacilityLayoutDocument {
 
 const ITEM_TYPES = new Set<PlacedItemType>(["Zone", "CCTV", "Sensor", "Signal"]);
 const FORBIDDEN_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+const importedItemSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(["Zone", "CCTV", "Sensor", "Signal"]),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  zoneId: z.string().nullable(),
+  name: z.string(),
+  status: z.string(),
+  notes: z.string(),
+  props: z.record(z.string(), z.json()),
+});
+
+export function parseImportedFacilityLayout(value: unknown, currentItems: PlacedItem[]): PlacedItem[] {
+  const result = z.object({ items: z.array(importedItemSchema) }).safeParse(value);
+  if (!result.success) throw new Error("The JSON file does not contain a valid facility layout.");
+
+  const existingTypes = new Map(currentItems.map((item) => [item.id, item.type]));
+  const idMap = new Map<string, string>();
+  const items = result.data.items.map((item) => {
+    if (idMap.has(item.id)) throw new Error("The layout contains duplicate item IDs.");
+    const id = existingTypes.get(item.id) === item.type ? item.id : crypto.randomUUID();
+    idMap.set(item.id, id);
+    return { ...item, id };
+  });
+
+  return recomputeZoneLinks(
+    items.map((item) => ({
+      ...item,
+      zoneId: item.zoneId ? (idMap.get(item.zoneId) ?? null) : null,
+    })),
+  );
+}
 
 function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;

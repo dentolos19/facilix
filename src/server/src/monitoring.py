@@ -14,6 +14,7 @@ from config import FACILITY_ID, HEARTBEAT_INTERVAL_SEC
 from sensors import monitor_sensor
 
 log = logging.getLogger("facilix")
+STARTED_AT = time.monotonic()
 
 
 async def heartbeat_loop(facility_id: str) -> None:
@@ -25,7 +26,7 @@ async def heartbeat_loop(facility_id: str) -> None:
             "monitoring:heartbeat",
             "info",
             "Container heartbeat",
-            {"uptimeSec": int(time.time())},
+            {"uptimeSec": int(time.monotonic() - STARTED_AT)},
         )
 
 

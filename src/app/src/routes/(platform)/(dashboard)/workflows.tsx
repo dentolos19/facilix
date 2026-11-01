@@ -2,7 +2,7 @@
 
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CircleAlertIcon, RefreshCwIcon, WorkflowIcon } from "lucide-react";
-import { startTransition, useEffect, useEffectEvent, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "#/components/ui/card";
@@ -11,10 +11,10 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "#/components/ui/table";
 import { getFacilities } from "#/lib/functions/facility";
 import {
-  PROCESS_STATUSES,
   type FacilityProcessRow,
   type FacilityProcessStatus,
   getAccessibleFacilityProcesses,
+  PROCESS_STATUSES,
 } from "#/lib/functions/facility-processes";
 
 import { PlatformPageHeader } from "./-components/platform-page-header";
@@ -71,25 +71,28 @@ function Page() {
   const activeCount = processes.filter((process) => ACTIVE_STATUSES.has(process.status)).length;
   const hasActiveProcesses = activeCount > 0;
 
-  const loadProcesses = useEffectEvent(async (refresh = false) => {
-    if (refresh) setIsRefreshing(true);
-    else setIsLoading(true);
-    setError(null);
-    try {
-      const data = await getAccessibleFacilityProcesses({
-        data: {
-          facilityId: facilityId === "all" ? undefined : facilityId,
-          status: status === "all" ? undefined : status,
-        },
-      });
-      startTransition(() => setProcesses(data as FacilityProcessRow[]));
-    } catch {
-      setError("Unable to load workflow processes.");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  });
+  const loadProcesses = useCallback(
+    async (refresh = false) => {
+      if (refresh) setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
+      try {
+        const data = await getAccessibleFacilityProcesses({
+          data: {
+            facilityId: facilityId === "all" ? undefined : facilityId,
+            status: status === "all" ? undefined : status,
+          },
+        });
+        startTransition(() => setProcesses(data as FacilityProcessRow[]));
+      } catch {
+        setError("Unable to load workflow processes.");
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [facilityId, status],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +102,7 @@ function Page() {
     return () => {
       cancelled = true;
     };
-  }, [facilityId, status]);
+  }, [loadProcesses]);
 
   useEffect(() => {
     getFacilities()
@@ -111,7 +114,7 @@ function Page() {
     if (!hasActiveProcesses) return;
     const interval = window.setInterval(() => void loadProcesses(true), 5_000);
     return () => window.clearInterval(interval);
-  }, [hasActiveProcesses, facilityId, status]);
+  }, [hasActiveProcesses, loadProcesses]);
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
@@ -128,7 +131,7 @@ function Page() {
             <CardDescription>Active</CardDescription>
             <CardTitle className="text-3xl tabular-nums">{activeCount}</CardTitle>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-xs">Queued, running, waiting, or paused.</CardContent>
+          <CardContent className="text-xs text-muted-foreground">Queued, running, waiting, or paused.</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -137,7 +140,7 @@ function Page() {
               {processes.filter((process) => process.status === "complete").length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-xs">Loaded in the current filter.</CardContent>
+          <CardContent className="text-xs text-muted-foreground">Loaded in the current filter.</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
@@ -146,7 +149,7 @@ function Page() {
               {processes.filter((process) => process.status === "errored").length}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-muted-foreground text-xs">
+          <CardContent className="text-xs text-muted-foreground">
             Processes that Cloudflare reported as errored.
           </CardContent>
         </Card>
@@ -188,7 +191,7 @@ function Page() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {error ? <p className="text-destructive px-6 py-4 text-sm">{error}</p> : null}
+          {error ? <p className="px-6 py-4 text-sm text-destructive">{error}</p> : null}
           {isLoading ? (
             <div className="space-y-3 p-6">
               {Array.from({ length: 4 }, (_, index) => (
@@ -196,7 +199,7 @@ function Page() {
               ))}
             </div>
           ) : processes.length === 0 ? (
-            <div className="text-muted-foreground flex min-h-56 flex-col items-center justify-center gap-2 text-center">
+            <div className="flex min-h-56 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
               <WorkflowIcon className="size-6" />
               <p className="font-medium">No workflow processes found.</p>
               <p className="max-w-sm text-xs">New CCTV video segments will appear here when processing starts.</p>
@@ -235,19 +238,19 @@ function Page() {
                         {process.step ?? "Queued"}
                         {process.attempt ? ` (${process.attempt})` : ""}
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{formatTime(process.startedAt)}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{formatDuration(process)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatTime(process.startedAt)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDuration(process)}</TableCell>
                       <TableCell>
                         {process.error || process.output ? (
                           <details className="text-xs">
-                            <summary className="text-muted-foreground hover:text-foreground cursor-pointer">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                               View
                             </summary>
                             {process.error ? (
-                              <p className="text-destructive mt-2 max-w-72">{process.error.message}</p>
+                              <p className="mt-2 max-w-72 text-destructive">{process.error.message}</p>
                             ) : null}
                             {process.output ? (
-                              <pre className="bg-muted mt-2 max-w-72 overflow-auto p-2 text-[10px] leading-relaxed">
+                              <pre className="mt-2 max-w-72 overflow-auto bg-muted p-2 text-[10px] leading-relaxed">
                                 {JSON.stringify(process.output, null, 2)}
                               </pre>
                             ) : null}
@@ -263,7 +266,7 @@ function Page() {
           {processes.some((process) => process.error) ? (
             <div className="border-t px-6 py-3 text-xs">
               <p className="flex items-center gap-2 font-medium">
-                <CircleAlertIcon className="text-destructive size-3.5" /> Error details are retained with each process
+                <CircleAlertIcon className="size-3.5 text-destructive" /> Error details are retained with each process
                 record.
               </p>
             </div>

@@ -228,7 +228,7 @@ export function PropertiesPanel({
                     </p>
                   )}
 
-                  <Field label="Name" readOnly={isReadOnly}>
+                  <Field label="Name">
                     <Input
                       className={isReadOnly ? "pointer-events-none opacity-60" : ""}
                       onChange={(e) => onUpdateItem(selected.id, { name: e.target.value })}
@@ -251,7 +251,7 @@ export function PropertiesPanel({
                     </Field>
                   )}
 
-                  <Field label="Position" noGrow>
+                  <Field label="Position">
                     <div className="flex gap-2">
                       <Input
                         className="pointer-events-none w-1/2 opacity-60"
@@ -269,7 +269,7 @@ export function PropertiesPanel({
                   </Field>
 
                   {selected.type === "Zone" && (
-                    <Field label="Size" noGrow>
+                    <Field label="Size">
                       <div className="flex gap-2">
                         <Input
                           className={isReadOnly ? "pointer-events-none w-1/2 opacity-60" : "w-1/2"}
@@ -315,7 +315,7 @@ export function PropertiesPanel({
                     </Field>
                   )}
 
-                  <Field label="Notes" noGrow>
+                  <Field label="Notes">
                     <textarea
                       className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-16 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
                       onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
@@ -878,26 +878,14 @@ export function PropertiesPanel({
 }
 
 /** Small wrapper for a labelled field row. */
-function Field({
-  label,
-  noGrow,
-  children,
-  readOnly: _readOnly,
-}: {
-  label: string;
-  readOnly?: boolean;
-  noGrow?: boolean;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className={noGrow ? "flex flex-col gap-1" : "flex flex-col gap-1"}>
+    <div className="flex flex-col gap-1">
       <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
       {children}
     </div>
   );
 }
-
-// ─── Anomaly Plugins section (CCTV) ────────────────────────────────────────
 
 // ─── Intelligence Plugins section (CCTV) ───────────────────────────────────
 

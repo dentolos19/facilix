@@ -6,6 +6,7 @@ import asyncio
 import logging
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from api import post_event, upload_segment
@@ -126,6 +127,7 @@ async def _segment_loop(
                     started_at=started_at,
                     ended_at=ended_at,
                 )
+                continue
             else:
                 cctv_log.warning(
                     "[%s] segment capture failed: %s", device_name, segment_error
@@ -144,6 +146,7 @@ async def _segment_loop(
             await post_event(
                 device_id, "cctv:error", "warn", f"Segment capture error: {exc}"
             )
+        await asyncio.sleep(5)
 
 
 # ── ffmpeg helpers ─────────────────────────────────────────────────────────
@@ -267,6 +270,10 @@ async def capture_segment(
         cctv_log.error("ffmpeg binary not found in container PATH")
         return None, 0.0, 0.0, 0.0, "ffmpeg_not_found"
     finally:
+        if proc and proc.returncode is None:
+            with suppress(ProcessLookupError):
+                proc.kill()
+            await proc.communicate()
         try:
             Path(tmp_path).unlink(missing_ok=True)
         except OSError:

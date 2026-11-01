@@ -1,0 +1,6 @@
+[fmt]
+sortImports = true
+sortPackageJson = true
+
+[fmt.sortTailwindcss]
+stylesheet = "./src/styles.css"

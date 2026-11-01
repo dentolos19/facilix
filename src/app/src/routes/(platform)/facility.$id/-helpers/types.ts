@@ -81,7 +81,23 @@ export interface PlacedItem {
 export interface CanvasLayoutData {
   version: 1;
   items: CanvasItemLayout[];
+  analyticsFeedGrid?: {
+    version: 1;
+    layouts: FeedLayouts;
+  };
 }
+
+export interface FeedGridLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+}
+
+export type FeedLayouts = Record<string, FeedGridLayoutItem[]>;
 
 export interface CanvasItemLayout {
   id: string;
@@ -215,7 +231,6 @@ export function findZoneForDevice(device: PlacedItem, zones: PlacedItem[]): stri
 /** Recompute zoneId for every non-zone item based on current geometry. */
 export function recomputeZoneLinks(items: PlacedItem[]): PlacedItem[] {
   const zones = items.filter((i) => i.type === "Zone");
-  if (zones.length === 0) return items;
   return items.map((item) => {
     if (item.type === "Zone") return item;
     const zoneId = findZoneForDevice(item, zones);
@@ -278,7 +293,10 @@ export function fromSnapshot(
     };
   });
 
-  return [...zoneItems, ...deviceItems];
+  const order = new Map(layout.items.map((item, index) => [item.id, index]));
+  return [...zoneItems, ...deviceItems].sort(
+    (a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+  );
 }
 
 // ─── UI helper types (local to the facility route) ────────────────────────

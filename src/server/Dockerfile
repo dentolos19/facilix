@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /bin/
 
 # Install system dependencies for video processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,7 +11,7 @@ WORKDIR /app
 
 COPY pyproject.toml .
 COPY uv.lock .
-RUN uv pip install --system -r pyproject.toml
+RUN uv sync --no-dev --frozen
 
 COPY . .
 
@@ -22,6 +22,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 3000
 

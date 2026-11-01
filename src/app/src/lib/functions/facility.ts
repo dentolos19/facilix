@@ -1,29 +1,35 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { getAccessContext, requireAccessContext, requireFacilityAccess } from "#/lib/functions/access";
+import { parseImportedFacilityLayout } from "#/lib/layouts";
 import { createLogger } from "#/lib/logs";
 import {
-  toCanvasData,
-  toDevicePayloads,
-  toZonePayloads,
   type CanvasLayoutData,
   type JsonObject,
   type PlacedItem,
   type PlacedItemType,
+  toCanvasData,
+  toDevicePayloads,
+  toZonePayloads,
 } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 const log = createLogger("facility");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+function idList(ids: Iterable<string>) {
+  // A JSON parameter keeps large layouts below D1's bound-parameter limit.
+  return sql`(select value from json_each(${JSON.stringify([...ids])}))`;
+}
+
 function toFacilityRow(f: typeof schema.facility.$inferSelect, isMember = true): FacilityRow {
   return {
     id: f.id,
     name: f.name,
-    data: f.data as CanvasLayoutData,
+    data: f.data,
     isMember,
     createdAt: f.createdAt,
     updatedAt: f.updatedAt,
@@ -127,7 +133,7 @@ export const createFacility = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const db = createDatabase(env.DATABASE);
     const ctx = await requireAccessContext();
-    const initialItems = data.initialItems ?? [];
+    const initialItems = parseImportedFacilityLayout({ items: data.initialItems ?? [] }, []);
 
     const [facility] = await db
       .insert(schema.facility)
@@ -256,7 +262,7 @@ export const loadFacility = createServerFn({ method: "GET" })
     const snapshot: FacilitySnapshot = {
       id: fac.id,
       name: fac.name,
-      canvasData: fac.data as CanvasLayoutData,
+      canvasData: fac.data,
       zones: zones.map((z) => ({
         id: z.id,
         name: z.name,
@@ -300,6 +306,45 @@ export const saveFacility = createServerFn({ method: "POST" })
     const db = createDatabase(env.DATABASE);
     await requireFacilityAccess(data.facilityId);
 
+    const incomingZoneIds = new Set(data.zones.map((zone) => zone.id));
+    const incomingDeviceIds = new Set(data.devices.map((device) => device.id));
+    if (incomingZoneIds.size !== data.zones.length || incomingDeviceIds.size !== data.devices.length) {
+      throw new Error("Facility layout contains duplicate item IDs");
+    }
+    if (data.devices.some((device) => device.zoneId && !incomingZoneIds.has(device.zoneId))) {
+      throw new Error("A device references a zone outside this layout");
+    }
+
+    const [foreignZones, foreignDevices] = await Promise.all([
+      incomingZoneIds.size
+        ? db
+            .select({ id: schema.facilityZone.id })
+            .from(schema.facilityZone)
+            .where(
+              and(
+                inArray(schema.facilityZone.id, idList(incomingZoneIds)),
+                ne(schema.facilityZone.facilityId, data.facilityId),
+              ),
+            )
+            .limit(1)
+        : [],
+      incomingDeviceIds.size
+        ? db
+            .select({ id: schema.facilityDevice.id })
+            .from(schema.facilityDevice)
+            .where(
+              and(
+                inArray(schema.facilityDevice.id, idList(incomingDeviceIds)),
+                ne(schema.facilityDevice.facilityId, data.facilityId),
+              ),
+            )
+            .limit(1)
+        : [],
+    ]);
+    if (foreignZones.length || foreignDevices.length) {
+      throw new Error("A layout item belongs to another facility");
+    }
+
     // 1. Update the facility row (name + canvas layout metadata)
     //    Preserve extra fields like analyticsFeedGrid in facility.data
     const [existing] = await db
@@ -308,24 +353,19 @@ export const saveFacility = createServerFn({ method: "POST" })
       .where(eq(schema.facility.id, data.facilityId))
       .limit(1);
 
-    const preservedData = (existing?.data as unknown as Record<string, unknown>) ?? {};
-    const { analyticsFeedGrid } = preservedData;
+    const { analyticsFeedGrid } = existing?.data ?? {};
 
     const mergedData = {
       ...data.canvasData,
       ...(analyticsFeedGrid != null ? { analyticsFeedGrid } : {}),
-    } as Record<string, unknown>;
+    };
 
     await db
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update(schema.facility)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .set({ name: data.name, data: mergedData as any })
+      .set({ name: data.name, data: mergedData })
       .where(eq(schema.facility.id, data.facilityId));
 
     // ── Zones ────────────────────────────────────────────────────────────
-    const incomingZoneIds = new Set(data.zones.map((z) => z.id));
-
     // Fetch existing zone IDs for this facility
     const existingZones = await db
       .select({ id: schema.facilityZone.id })
@@ -338,7 +378,10 @@ export const saveFacility = createServerFn({ method: "POST" })
       await db
         .delete(schema.facilityZone)
         .where(
-          and(eq(schema.facilityZone.facilityId, data.facilityId), inArray(schema.facilityZone.id, orphanZoneIds)),
+          and(
+            eq(schema.facilityZone.facilityId, data.facilityId),
+            inArray(schema.facilityZone.id, idList(orphanZoneIds)),
+          ),
         );
     }
 
@@ -354,6 +397,7 @@ export const saveFacility = createServerFn({ method: "POST" })
         })
         .onConflictDoUpdate({
           target: schema.facilityZone.id,
+          setWhere: eq(schema.facilityZone.facilityId, data.facilityId),
           set: {
             name: zone.name,
             data: zone.data,
@@ -363,8 +407,6 @@ export const saveFacility = createServerFn({ method: "POST" })
     }
 
     // ── Devices ──────────────────────────────────────────────────────────
-    const incomingDeviceIds = new Set(data.devices.map((d) => d.id));
-
     const existingDevices = await db
       .select({ id: schema.facilityDevice.id })
       .from(schema.facilityDevice)
@@ -378,7 +420,7 @@ export const saveFacility = createServerFn({ method: "POST" })
         .where(
           and(
             eq(schema.facilityDevice.facilityId, data.facilityId),
-            inArray(schema.facilityDevice.id, orphanDeviceIds),
+            inArray(schema.facilityDevice.id, idList(orphanDeviceIds)),
           ),
         );
     }
@@ -398,6 +440,7 @@ export const saveFacility = createServerFn({ method: "POST" })
         })
         .onConflictDoUpdate({
           target: schema.facilityDevice.id,
+          setWhere: eq(schema.facilityDevice.facilityId, data.facilityId),
           set: {
             zoneId: dev.zoneId,
             name: dev.name,
