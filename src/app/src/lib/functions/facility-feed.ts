@@ -4,6 +4,9 @@ import { desc, eq } from "drizzle-orm";
 
 import { createDatabase, schema } from "#/lib/database";
 import { requireFacilityAccess } from "#/lib/functions/access";
+import type { FeedLayouts } from "#/routes/(platform)/facility.$id/-helpers/types";
+
+export type { FeedGridLayoutItem, FeedLayouts } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -34,18 +37,6 @@ export interface FeedSensorDevice {
   timestamp: string;
   zoneName: string | null;
 }
-
-export interface FeedGridLayoutItem {
-  i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
-}
-
-export type FeedLayouts = Record<string, FeedGridLayoutItem[]>;
 
 export interface FacilityFeedData {
   facilityId: string;
@@ -79,7 +70,6 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
     const zoneNameMap = new Map(zones.map((z) => [z.id, z.name]));
 
     const facilityName = facility[0]?.name ?? "Unknown Facility";
-    const facilityData = (facility[0]?.data as unknown as Record<string, unknown>) ?? {};
 
     // ── CCTV devices ──────────────────────────────────────────────────────
     const cctvDevices: FeedCctvDevice[] = devices
@@ -137,7 +127,7 @@ export const getFacilityFeed = createServerFn({ method: "GET" })
     });
 
     // ── Feed layout (stored in facility.data.analyticsFeedGrid) ────────────
-    const feedLayout = ((facilityData.analyticsFeedGrid as Record<string, unknown>)?.layouts as FeedLayouts) ?? {};
+    const feedLayout = facility[0]?.data?.analyticsFeedGrid?.layouts ?? {};
 
     return {
       facilityId: data.facilityId,
@@ -165,20 +155,9 @@ export const saveFacilityFeedLayout = createServerFn({ method: "POST" })
 
     if (!facility) throw new Error("Facility not found");
 
-    const currentData = (facility.data as unknown as Record<string, unknown>) ?? {};
-    const updatedData = {
-      ...currentData,
-      analyticsFeedGrid: {
-        version: 1,
-        layouts: data.layouts,
-      },
-    } as Record<string, unknown>;
-
     await db
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update(schema.facility)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .set({ data: updatedData as any })
+      .set({ data: { ...facility.data, analyticsFeedGrid: { version: 1, layouts: data.layouts } } })
       .where(eq(schema.facility.id, data.facilityId));
 
     return { success: true };

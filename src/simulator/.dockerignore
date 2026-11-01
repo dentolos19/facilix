@@ -1,38 +1,28 @@
-# Editor configurations
-.vs/
-.idea/
-
-# Build files
-.tanstack/
-.wrangler/
-node_modules/
-dist/
-build/
-out/
-coverage/
-.venv/
+*.d.ts
 *.egg-info/
 *.tsbuildinfo
-*.d.ts
+.DS_Store
+.env*
+.idea/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-__pycache__/
-
-# User files
-.env*
-!.env*.template
-
-# Project-specific rules
-/src/app/src/routeTree.gen.ts
-
-# Docker-specific rules
-/.git/
-Dockerfile
-
-# Miscellaneous files
+.tanstack/
 .tmp/
-.DS_Store
+.venv/
+.vs/
+.wrangler/
+/.git/
+/src/app/src/routeTree.gen.ts
 Desktop.ini
+Dockerfile
 Thumbs.db
+__pycache__/
+build/
+coverage/
+dist/
+node_modules/
+out/
+
+!.env*.template
 !.gitkeep

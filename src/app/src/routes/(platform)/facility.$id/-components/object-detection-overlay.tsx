@@ -182,13 +182,8 @@ async function createDetector() {
   const { FilesetResolver, ObjectDetector } = await import("@mediapipe/tasks-vision");
 
   const vision = await FilesetResolver.forVisionTasks(
-    // Use the local wasm files from @mediapipe/tasks-vision package.
-    // Vite resolves bare module paths in node_modules for dynamic imports.
-    // For WASM files, we need to use the CDN alternate or provide a
-    // Vite-compatible path that resolves to the package's wasm directory.
-    // We delegate resolution to the package's default CDN path so that
-    // the WASM loader can locate the .wasm and .js files it expects.
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm",
+    // Keep the loader version aligned with the installed MediaPipe package.
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm",
   );
 
   return ObjectDetector.createFromOptions(vision, {

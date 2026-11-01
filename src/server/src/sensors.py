@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import time
 
 import httpx
@@ -131,7 +132,9 @@ async def read_sensor(
                 resp = await client.get(url, timeout=httpx.Timeout(5.0))
                 if resp.status_code == 200:
                     data = resp.json()
-                    value = float(data.get("value", 0))
+                    value = float(data["value"])
+                    if not math.isfinite(value):
+                        raise ValueError("sensor reading is not finite")
                     status = data.get("status", "ok")
                     extra["batteryPct"] = data.get("batteryPct")
                     extra["signalRssiDbm"] = data.get("signalRssiDbm")
@@ -149,7 +152,12 @@ async def read_sensor(
             resp = await client.get(pull_url, timeout=httpx.Timeout(10.0))
             if resp.status_code == 200:
                 data = resp.json()
-                value = float(data.get("value", data.get("reading", 0)))
+                raw_value = data.get("value", data.get("reading"))
+                if raw_value is None:
+                    return None, "missing_value", extra
+                value = float(raw_value)
+                if not math.isfinite(value):
+                    return None, "invalid_value", extra
                 extra["batteryPct"] = data.get("batteryPct")
                 extra["signalRssiDbm"] = data.get("signalRssiDbm")
                 return value, "ok", extra

@@ -17,6 +17,7 @@ const config = defineConfig({
   },
   plugins: [
     cloudflare({
+      persistState: { path: ".wrangler/state" },
       viteEnvironment: {
         name: "ssr",
       },

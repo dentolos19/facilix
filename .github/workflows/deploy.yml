@@ -1,4 +1,5 @@
 name: Cloudflare Deployment
+run-name: Cloudflare Deployment
 on:
   push:
     branches:
@@ -7,14 +8,14 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
+env:
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 jobs:
   deploy:
     name: Deploy Worker
     environment: Production
     runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -35,18 +36,19 @@ jobs:
       - name: Setup Just
         uses: extractions/setup-just@v4
 
+      - name: Download Secrets
+        uses: SpicyPizza/create-envfile@v2.0
+        with:
+          directory: src/app
+          envkey_BETTER_AUTH_SECRET: ${{ toJSON(secrets.BETTER_AUTH_SECRET) }}
+          envkey_BETTER_AUTH_URL: ${{ toJSON(vars.BETTER_AUTH_URL) }}
+          envkey_OPENROUTER_API_KEY: ${{ toJSON(secrets.OPENROUTER_API_KEY) }}
+          envkey_OPENROUTER_MODEL: ${{ toJSON(vars.OPENROUTER_MODEL) }}
+          envkey_OPENROUTER_REFERER: ${{ toJSON(vars.OPENROUTER_REFERER) }}
+          envkey_OPENROUTER_TITLE: ${{ toJSON(vars.OPENROUTER_TITLE) }}
+          envkey_ROBOFLOW_API_KEY: ${{ toJSON(secrets.ROBOFLOW_API_KEY) }}
+          envkey_VISION_OBJECT_MODEL: ${{ toJSON(vars.VISION_OBJECT_MODEL) }}
+          envkey_VISION_VEHICLE_MODEL: ${{ toJSON(vars.VISION_VEHICLE_MODEL) }}
+
       - name: Deploy Worker
         run: just deploy
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL: ${{ vars.BETTER_AUTH_URL }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
-          OPENROUTER_REFERER: ${{ vars.OPENROUTER_REFERER }}
-          OPENROUTER_TITLE: ${{ vars.OPENROUTER_TITLE }}
-          ROBOFLOW_API_KEY: ${{ secrets.ROBOFLOW_API_KEY }}
-          VISION_OBJECT_MODEL: ${{ vars.VISION_OBJECT_MODEL }}
-          VISION_VEHICLE_MODEL: ${{ vars.VISION_VEHICLE_MODEL }}
-
-      - name: Migrate Database
-        run: just migrate --remote
