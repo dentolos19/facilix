@@ -3,6 +3,7 @@
 .idea/
 
 # Build files
+.cloudflare/
 .tanstack/
 .wrangler/
 node_modules/

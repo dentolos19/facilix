@@ -38,9 +38,7 @@ function baseUrl(): string {
 function requireApiKey(): string {
   const key = env.OPENROUTER_API_KEY;
   if (!key || key.length === 0) {
-    throw new Error(
-      "OPENROUTER_API_KEY is not configured. Set it as a Cloudflare secret (wrangler secret put OPENROUTER_API_KEY).",
-    );
+    throw new Error("OPENROUTER_API_KEY is not configured. Set it in the deployment environment.");
   }
   return key;
 }

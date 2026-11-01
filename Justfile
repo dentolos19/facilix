@@ -1,7 +1,13 @@
 set dotenv-load
+set dotenv-filename := dotenv_path
+set dotenv-override
+
+environment := ""
+dotenv_file := if environment == "" { ".env" } else { ".env." + environment }
+dotenv_path := "src/app/" + dotenv_file
 
 setup: install
-    just migrate
+    just environment={{ quote(environment) }} migrate
 
 install:
     cd src/app && bun install --frozen-lockfile
@@ -15,7 +21,7 @@ build:
     cd src/app && bun run build
 
 check:
-    cd src/app && bun run check
+    cd src/app && bun lint --fix && bun fmt && bun check --no-script
     cd src/server && uv run ruff check --fix && uv run ruff format && uv run ty check
     cd src/simulator && uv run ruff check --fix && uv run ruff format && uv run ty check
 
@@ -25,7 +31,6 @@ migrate *args:
 deploy: install build
     #!/usr/bin/env bash
     set -euo pipefail
-    cd src/app
     secrets=(
         BETTER_AUTH_SECRET
         BETTER_AUTH_URL
@@ -36,5 +41,7 @@ deploy: install build
         ROBOFLOW_API_KEY
     )
     for secret in "${secrets[@]}"; do if [[ -z "${!secret:-}" ]]; then echo "Missing secret value: $secret" >&2; exit 1; fi; done
-    node -e 'process.stdout.write(JSON.stringify(Object.fromEntries(process.argv.slice(1).map((name) => [name, process.env[name]]))))' "${secrets[@]}" | bun wrangler secret bulk
-    bun wrangler deploy
+    test -f {{ quote(dotenv_path) }}
+    just environment={{ quote(environment) }} migrate --remote
+    cd src/app
+    bun run deploy --prebuilt --secrets-file {{ quote(dotenv_file) }}
