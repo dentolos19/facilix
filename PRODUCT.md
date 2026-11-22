@@ -57,7 +57,7 @@ The main goals of Facilix are:
 
 ## Key Product Requirements
 
-## 1. Factory Zone Monitoring
+### 1. Factory Zone Monitoring
 
 Facilix should divide the factory into clear operational zones. Each zone should have a visible status so staff can quickly understand whether the area is operating normally or requires attention.
 
@@ -76,7 +76,7 @@ The system should support zones such as:
 
 Each zone should be able to show whether it is normal, under warning, experiencing a breach, or locked down.
 
-## 2. Access Control and Movement Tracking
+### 2. Access Control and Movement Tracking
 
 Facilix should help monitor who is entering and moving through different factory zones.
 
@@ -91,7 +91,7 @@ The system should support:
 
 The factory should be designed so that sensitive food operation zones have stricter entry requirements, especially areas that require PPE.
 
-## 3. Security Monitoring
+### 3. Security Monitoring
 
 Facilix should help security staff monitor the factory more effectively without relying only on a fixed security room.
 
@@ -107,7 +107,7 @@ The system should support:
 
 Security staff should be able to view important alerts and factory status while moving around the facility.
 
-## 4. PPE and Compliance Monitoring
+### 4. PPE and Compliance Monitoring
 
 Facilix should help monitor whether people in required areas are following PPE and compliance rules.
 
@@ -121,7 +121,7 @@ The system should support:
 
 This is especially important in food manufacturing areas where hygiene and safety standards must be maintained.
 
-## 5. Hygiene and Pest Monitoring
+### 5. Hygiene and Pest Monitoring
 
 Facilix should help detect hygiene-related risks early.
 
@@ -135,7 +135,7 @@ The system should support:
 
 The goal is to reduce the chance of food safety issues and help staff respond quickly before small issues become serious.
 
-## 6. Loading Bay and Logistics Monitoring
+### 6. Loading Bay and Logistics Monitoring
 
 Facilix should help manage loading bay usage and reduce delivery congestion.
 
@@ -150,7 +150,7 @@ The system should support:
 
 Since the factory has 2 loading bays, visibility and planning are important to prevent unnecessary delays.
 
-## 7. CCTV Intelligence Plugins
+### 7. CCTV Intelligence Plugins
 
 Facilix should support configurable, outcome-oriented intelligence plugins for CCTV video analysis. Plugins should describe an operational job that facility staff recognize rather than exposing underlying AI capabilities such as generic person, vehicle, object, or natural-language detection.
 
@@ -160,7 +160,7 @@ Plugins that share the same vision model must reuse one inference pass for each 
 
 Plugins that additionally use a vision-language model must provide both the original frame and its vision-annotated frame as analysis context. The original frame remains the source of truth; annotations are treated as location hints.
 
-### Plugin Types
+#### Plugin Types
 
 **Restricted Area Protection** — Protects sensitive areas by detecting unexpected people, entry transitions, and occupancy breaches.
 
@@ -172,7 +172,7 @@ Plugins that additionally use a vision-language model must provide both the orig
 
 **Workplace Safety** — Reviews operational areas for falls, blocked access, unsafe crowding, and dangerous person–vehicle proximity.
 
-### Alert Rules
+#### Alert Rules
 
 Plugins provide practical default policies that staff can adjust:
 
@@ -182,7 +182,7 @@ Plugins provide practical default policies that staff can adjust:
 - **Safety Review** — Alert when a clearly visible safety scenario matches a configured rule.
 - **Operational State** — Project plugin results into states such as clear, breach, available, occupied, normal, or attention.
 
-### Configuration
+#### Configuration
 
 - Enable or disable each plugin per camera.
 - Select the operational policy and editable alert rules.
@@ -192,7 +192,7 @@ Plugins provide practical default policies that staff can adjust:
 - Allow staff to select an individual plugin in the Predictions tab and review only that plugin's detections.
 - Do not expose or execute the removed People Detection, Vehicle Detection, Object Detection, or Natural Language legacy plugins.
 
-## 8. Dashboard and Operational Visibility
+### 8. Dashboard and Operational Visibility
 
 Facilix should provide a clear dashboard that gives staff a complete view of factory operations.
 
@@ -220,7 +220,7 @@ The dashboard should show:
 
 The dashboard should be easy to understand, even during stressful situations.
 
-## 9. Factory Map View
+### 9. Factory Map View
 
 Facilix should include a visual map of the factory.
 
@@ -234,7 +234,7 @@ The map should allow staff to:
 
 The map should feel like a professional facility monitoring interface, inspired by security camera map layouts, but designed for a real industrial environment.
 
-## 10. Incident Alerts and Response
+### 10. Incident Alerts and Response
 
 Facilix should help staff understand and respond to incidents quickly.
 
@@ -253,7 +253,7 @@ In the global event list, selecting one event should show only that event's evid
 
 The system should help reduce confusion and make incident response faster and more organized.
 
-## 11. Reporting and Review
+### 11. Reporting and Review
 
 Facilix should help management review past activity and identify operational problems.
 
@@ -267,6 +267,10 @@ The system should support:
 - Operational performance summaries.
 
 This helps management understand recurring issues and improve factory operations over time.
+
+## Out of Scope
+
+- HTTP push ingestion for sensors is not implemented. The properties panel offers an `HTTP Push / Ingest` data source and shows an ingest endpoint, but no route accepts pushed readings, and the monitoring service reports such sensors as `push_only` without polling them.
 
 ## Expected Outcomes
 

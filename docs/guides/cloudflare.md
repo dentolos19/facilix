@@ -1,4 +1,4 @@
-# Cloudflare development
+# Cloudflare Development
 
 The app uses the beta `cf` CLI and Cloudflare Vite plugin with `src/app/cloudflare.config.ts`.
 Run `just setup`, `just start`, and `just check` from the repository root. Bun handles the
