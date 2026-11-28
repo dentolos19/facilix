@@ -1,6 +1,6 @@
 import { useSelector } from "@tanstack/react-store";
 
-import { chatStore, getChatClient, getChatEntry, type FacilityChatState } from "#/lib/chat/store";
+import { chatStore, type FacilityChatState, getChatClient, getChatEntry } from "#/lib/chat/store";
 
 export interface UseFacilityChatReturn extends FacilityChatState {
   sendMessage: (content: string) => Promise<void>;

@@ -72,9 +72,9 @@ function processStepState(process: FacilityProcessRow, index: number): StepState
 
 function StepMarker({ state }: { state: StepState }) {
   if (state === "complete") return <CheckIcon className="size-3.5 text-emerald-500" />;
-  if (state === "error") return <CircleAlertIcon className="text-destructive size-3.5" />;
-  if (state === "active") return <Loader2Icon className="text-primary size-3.5 animate-spin" />;
-  return <CircleIcon className="text-muted-foreground/30 size-3.5" />;
+  if (state === "error") return <CircleAlertIcon className="size-3.5 text-destructive" />;
+  if (state === "active") return <Loader2Icon className="size-3.5 animate-spin text-primary" />;
+  return <CircleIcon className="size-3.5 text-muted-foreground/30" />;
 }
 
 function ProcessStatusBadge({ status }: { status: FacilityProcessStatus }) {
@@ -128,12 +128,12 @@ function ProcessList({ facilityId, open }: { facilityId: string; open: boolean }
     <ScrollArea className="h-full min-h-0">
       <div className="px-6 py-2">
         {isLoading && processes.length === 0 ? (
-          <p className="text-muted-foreground px-6 py-8 text-center text-xs">Loading workflows…</p>
+          <p className="px-6 py-8 text-center text-xs text-muted-foreground">Loading workflows…</p>
         ) : null}
-        {error ? <p className="text-destructive px-6 py-4 text-xs">{error}</p> : null}
+        {error ? <p className="px-6 py-4 text-xs text-destructive">{error}</p> : null}
         {!isLoading && processes.length === 0 ? (
-          <div className="text-muted-foreground flex flex-col items-center gap-2 py-12 text-xs">
-            <WorkflowIcon className="text-muted-foreground/30 size-6" />
+          <div className="flex flex-col items-center gap-2 py-12 text-xs text-muted-foreground">
+            <WorkflowIcon className="size-6 text-muted-foreground/30" />
             <p>No workflows yet</p>
           </div>
         ) : null}
@@ -141,25 +141,25 @@ function ProcessList({ facilityId, open }: { facilityId: string; open: boolean }
           {processes.map((process) => (
             <AccordionItem key={process.id} value={process.id}>
               <AccordionTrigger className="gap-3 py-3 hover:no-underline">
-                <WorkflowIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+                <WorkflowIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-foreground/80 font-medium">{process.name}</span>
+                    <span className="font-medium text-foreground/80">{process.name}</span>
                     <ProcessStatusBadge status={process.status} />
                   </div>
-                  <p className="text-muted-foreground/60 mt-0.5 truncate font-mono text-[10px]">
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60">
                     {process.step ?? "Queued"}
                     {process.attempt ? ` · Attempt ${process.attempt}` : ""}
                   </p>
                 </div>
-                <span className="text-muted-foreground/40 mr-2 shrink-0 text-[10px]">
+                <span className="mr-2 shrink-0 text-[10px] text-muted-foreground/40">
                   {new Date(process.createdAt).toLocaleTimeString()}
                 </span>
               </AccordionTrigger>
               <AccordionContent className="pb-4 pl-7">
                 <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
                   <div>
-                    <p className="text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
+                    <p className="mb-2 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                       Step progress
                     </p>
                     <div className="space-y-2">
@@ -196,17 +196,17 @@ function ProcessList({ facilityId, open }: { facilityId: string; open: boolean }
                   </dl>
                 </div>
                 {process.error ? (
-                  <div className="border-destructive/20 bg-destructive/5 text-destructive mt-4 border p-2.5">
+                  <div className="mt-4 border border-destructive/20 bg-destructive/5 p-2.5 text-destructive">
                     <p className="font-medium">{process.error.name}</p>
                     <p className="mt-1 leading-relaxed">{process.error.message}</p>
                   </div>
                 ) : null}
                 {process.output ? (
                   <details className="mt-4">
-                    <summary className="text-muted-foreground cursor-pointer text-[10px] font-medium tracking-wider uppercase">
+                    <summary className="cursor-pointer text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                       Output
                     </summary>
-                    <pre className="bg-muted mt-2 max-h-40 overflow-auto p-2.5 text-[10px] leading-relaxed">
+                    <pre className="mt-2 max-h-40 overflow-auto bg-muted p-2.5 text-[10px] leading-relaxed">
                       {JSON.stringify(process.output, null, 2)}
                     </pre>
                   </details>
@@ -295,7 +295,7 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent className="flex h-[min(42rem,85vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="border-border border-b px-6 pt-6 pb-4">
+        <DialogHeader className="border-b border-border px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <TerminalIcon className="size-4" />
             Logs &amp; Workflows
@@ -308,9 +308,9 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
         <div className="min-h-0 flex-1 overflow-hidden">
           {activeTab === "logs" ? (
             <div className="flex h-full min-h-0 flex-col">
-              <div className="border-border flex flex-wrap items-center gap-2 border-b px-6 py-3">
+              <div className="flex flex-wrap items-center gap-2 border-b border-border px-6 py-3">
                 <div className="relative min-w-44 flex-1">
-                  <SearchIcon className="text-muted-foreground/50 pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+                  <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground/50" />
                   <Input
                     aria-label="Search events"
                     className="h-8 pl-8 text-xs"
@@ -337,7 +337,7 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
 
                 {onClearLogs ? (
                   <Button
-                    className="text-muted-foreground/70 hover:text-destructive h-8 gap-1.5"
+                    className="h-8 gap-1.5 text-muted-foreground/70 hover:text-destructive"
                     onClick={handleDeleteAll}
                     size="sm"
                     variant="ghost"
@@ -349,11 +349,11 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
               </div>
 
               <ScrollArea className="min-h-0 flex-1">
-                <div className="divide-border/50 divide-y">
+                <div className="divide-y divide-border/50">
                   {filteredLogs.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-12">
-                      <TerminalIcon className="text-muted-foreground/20 size-6" />
-                      <p className="text-muted-foreground/40 text-xs">
+                      <TerminalIcon className="size-6 text-muted-foreground/20" />
+                      <p className="text-xs text-muted-foreground/40">
                         {searchQuery ? "No matching events" : "No events yet"}
                       </p>
                     </div>
@@ -363,16 +363,16 @@ export function FacilityLogsDialog({ facilityId, open, onOpenChange, events, onC
                       <EventSeverityBadge severity={event.severity} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-foreground/80 font-medium">{event.type}</span>
+                          <span className="font-medium text-foreground/80">{event.type}</span>
                           {event.deviceId ? (
-                            <span className="bg-muted text-muted-foreground/60 shrink-0 px-1.5 py-0.5 font-mono text-[9px]">
+                            <span className="shrink-0 bg-muted px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground/60">
                               {event.deviceId.slice(0, 8)}
                             </span>
                           ) : null}
                         </div>
-                        <p className="text-muted-foreground/60 mt-0.5 leading-snug">{event.message}</p>
+                        <p className="mt-0.5 leading-snug text-muted-foreground/60">{event.message}</p>
                       </div>
-                      <span className="text-muted-foreground/40 shrink-0 text-[10px]">
+                      <span className="shrink-0 text-[10px] text-muted-foreground/40">
                         {new Date(event.createdAt).toLocaleTimeString()}
                       </span>
                     </div>

@@ -1,10 +1,9 @@
 set dotenv-load
-set dotenv-filename := dotenv_path
+set dotenv-filename := dotenv_file
 set dotenv-override
 
 environment := ""
 dotenv_file := if environment == "" { ".env" } else { ".env." + environment }
-dotenv_path := "src/app/" + dotenv_file
 
 setup: install
     just environment={{ quote(environment) }} migrate
@@ -35,17 +34,7 @@ migrate *args:
 deploy: install build
     #!/usr/bin/env bash
     set -euo pipefail
-    secrets=(
-        BETTER_AUTH_SECRET
-        BETTER_AUTH_URL
-        OPENROUTER_API_KEY
-        OPENROUTER_MODEL
-        OPENROUTER_REFERER
-        OPENROUTER_TITLE
-        ROBOFLOW_API_KEY
-    )
-    for secret in "${secrets[@]}"; do if [[ -z "${!secret:-}" ]]; then echo "Missing secret value: $secret" >&2; exit 1; fi; done
-    test -f {{ quote(dotenv_path) }}
-    just environment={{ quote(environment) }} migrate --remote
     cd src/app
+    test -f {{ quote(dotenv_file) }}
+    just environment={{ quote(environment) }} migrate --remote
     bun run deploy --prebuilt --secrets-file {{ quote(dotenv_file) }}

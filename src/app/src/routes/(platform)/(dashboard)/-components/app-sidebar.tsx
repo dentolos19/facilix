@@ -43,12 +43,12 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
               <Link to="/dashboard">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-none">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-none bg-sidebar-primary text-sidebar-primary-foreground">
                   <Building2Icon />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-heading font-semibold">Facilix</span>
-                  <span className="text-muted-foreground text-[10px]">Operations Center</span>
+                  <span className="text-[10px] text-muted-foreground">Operations Center</span>
                 </div>
               </Link>
             </SidebarMenuButton>

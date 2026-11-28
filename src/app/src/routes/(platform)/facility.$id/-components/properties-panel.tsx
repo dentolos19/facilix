@@ -22,18 +22,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#
 import { Switch } from "#/components/ui/switch";
 import { startSimulationStream, stopSimulationStream } from "#/lib/functions/settings";
 import {
+  type ComparisonOperator,
+  type CountThresholdAlertRule,
+  createPluginConfig,
   DEFAULT_COUNTING_OPERATOR,
   DEFAULT_COUNTING_THRESHOLD,
   DEFAULT_PLUGIN_CONFIDENCE,
-  type ComparisonOperator,
-  type CountThresholdAlertRule,
   type DetectionAlertRule,
   type DevicePluginConfig,
-  createPluginConfig,
   getPlugin,
   normalizePlugins,
-  PLUGINS,
   type Plugin,
+  PLUGINS,
   type SceneAlertRule,
   type SceneMatchAlertRule,
   type SegmentAnalysisDeviceConfig,
@@ -189,7 +189,7 @@ export function PropertiesPanel({
       <div className="flex min-h-full w-full flex-col p-4">
         {/* ── Header with title and delete button ── */}
         <div className="mb-3 flex shrink-0 items-center justify-between">
-          <h3 className="font-heading text-muted-foreground text-xs font-medium tracking-wider uppercase">
+          <h3 className="font-heading text-xs font-medium tracking-wider text-muted-foreground uppercase">
             Properties
           </h3>
           {selected && editMode === "edit" && (
@@ -207,7 +207,7 @@ export function PropertiesPanel({
 
         {!selected && (
           <div className="flex flex-1 flex-col items-center justify-center gap-1 px-2 text-center">
-            <span className="text-muted-foreground/50 text-[11px]">
+            <span className="text-[11px] text-muted-foreground/50">
               {editMode === "monitoring"
                 ? "Switch to Edit mode to select components"
                 : "Click a component on the canvas to view its properties"}
@@ -223,7 +223,7 @@ export function PropertiesPanel({
               <AccordionContent>
                 <div className="flex flex-col gap-2">
                   {isReadOnly && (
-                    <p className="bg-muted text-muted-foreground rounded-none px-2 py-1 text-[11px]">
+                    <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
                       Read-only — switch to Edit to modify
                     </p>
                   )}
@@ -238,14 +238,14 @@ export function PropertiesPanel({
                   </Field>
 
                   <Field label="Type">
-                    <div className="border-input bg-muted/30 text-muted-foreground flex h-8 items-center rounded-none border px-2.5 text-xs">
+                    <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
                       {selected.type}
                     </div>
                   </Field>
 
                   {selected.type !== "Zone" && (
                     <Field label="Zone">
-                      <div className="border-input bg-muted/30 text-muted-foreground flex h-8 items-center rounded-none border px-2.5 text-xs">
+                      <div className="flex h-8 items-center rounded-none border border-input bg-muted/30 px-2.5 text-xs text-muted-foreground">
                         {placedItems.find((i) => i.type === "Zone" && i.id === selected.zoneId)?.name ?? "Unassigned"}
                       </div>
                     </Field>
@@ -309,7 +309,7 @@ export function PropertiesPanel({
                           ))}
                         </SelectContent>
                       </Select>
-                      <span className="text-muted-foreground/50 text-[9px]">
+                      <span className="text-[9px] text-muted-foreground/50">
                         Determines auto-generated furniture in 3D view.
                       </span>
                     </Field>
@@ -317,7 +317,7 @@ export function PropertiesPanel({
 
                   <Field label="Notes">
                     <textarea
-                      className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-16 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
+                      className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${isReadOnly ? "pointer-events-none opacity-60" : ""}`}
                       onChange={(e) => onUpdateItem(selected.id, { notes: e.target.value })}
                       readOnly={isReadOnly}
                       rows={3}
@@ -328,7 +328,7 @@ export function PropertiesPanel({
                   <Field label="Icon Color">
                     <div className="flex gap-2">
                       <input
-                        className="border-input h-8 w-10 cursor-pointer rounded-none border bg-transparent p-0.5 disabled:pointer-events-none disabled:opacity-60"
+                        className="h-8 w-10 cursor-pointer rounded-none border border-input bg-transparent p-0.5 disabled:pointer-events-none disabled:opacity-60"
                         disabled={isReadOnly}
                         onChange={(e) => onUpdateItem(selected.id, { props: { iconColor: e.target.value } })}
                         type="color"
@@ -474,7 +474,7 @@ export function PropertiesPanel({
                               <RefreshCwIcon className={`size-3.5 ${streamsLoading ? "animate-spin" : ""}`} />
                             </Button>
                           </div>
-                          {streamsError && <p className="text-destructive text-[10px]">{streamsError}</p>}
+                          {streamsError && <p className="text-[10px] text-destructive">{streamsError}</p>}
                         </Field>
                       </>
                     ) : (
@@ -517,7 +517,7 @@ export function PropertiesPanel({
                             ?.durationSec ?? 30,
                         )}
                       />
-                      <p className="text-muted-foreground/60 text-[10px]">
+                      <p className="text-[10px] text-muted-foreground/60">
                         Length of each recorded clip (5–300 s). Default: 30 s.
                       </p>
                     </Field>
@@ -618,7 +618,7 @@ export function PropertiesPanel({
                               <RefreshCwIcon className={`size-3.5 ${sensorDevicesLoading ? "animate-spin" : ""}`} />
                             </Button>
                           </div>
-                          {sensorDevicesError && <p className="text-destructive text-[10px]">{sensorDevicesError}</p>}
+                          {sensorDevicesError && <p className="text-[10px] text-destructive">{sensorDevicesError}</p>}
                         </Field>
                         <Field label="Poll Interval (s)">
                           <Input
@@ -881,7 +881,7 @@ export function PropertiesPanel({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
+      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -924,18 +924,18 @@ function CctvPluginsSection({
   return (
     <div className="flex flex-col gap-3">
       {isReadOnly && (
-        <p className="bg-muted text-muted-foreground rounded-none px-2 py-1 text-[11px]">
+        <p className="rounded-none bg-muted px-2 py-1 text-[11px] text-muted-foreground">
           Read-only — switch to Edit to modify
         </p>
       )}
 
       {configs.length === 0 && (
-        <div className="border-border bg-muted/20 text-muted-foreground flex flex-col items-start gap-1 rounded-none border border-dashed p-3 text-[11px]">
-          <div className="text-foreground/70 flex items-center gap-1.5 font-medium">
+        <div className="flex flex-col items-start gap-1 rounded-none border border-dashed border-border bg-muted/20 p-3 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1.5 font-medium text-foreground/70">
             <ShieldAlertIcon className="size-3.5" />
             No intelligence plugins installed
           </div>
-          <p className="text-muted-foreground/70 text-[10px] leading-snug">
+          <p className="text-[10px] leading-snug text-muted-foreground/70">
             Add an operational plugin to protect an area, enforce compliance, monitor a loading bay, or spot safety
             risks.
           </p>
@@ -960,10 +960,10 @@ function CctvPluginsSection({
       </div>
 
       {!isReadOnly && available.length > 0 && (
-        <div className="border-border flex flex-col gap-1.5 border-t pt-2">
+        <div className="flex flex-col gap-1.5 border-t border-border pt-2">
           <div className="flex items-center justify-between gap-2">
-            <Label className="text-muted-foreground text-[11px] font-medium">Add operational plugin</Label>
-            <span className="text-muted-foreground/50 font-mono text-[9px] uppercase">Outcome catalog</span>
+            <Label className="text-[11px] font-medium text-muted-foreground">Add operational plugin</Label>
+            <span className="font-mono text-[9px] text-muted-foreground/50 uppercase">Outcome catalog</span>
           </div>
           <div className="flex flex-col gap-1">
             {available.map((plugin) => (
@@ -976,17 +976,17 @@ function CctvPluginsSection({
               >
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="flex items-center gap-1.5">
-                    <span className="text-foreground/80 text-[11px] font-medium">{plugin.name}</span>
-                    <span className="bg-muted text-muted-foreground rounded-sm px-1 py-0.5 font-mono text-[8px] uppercase">
+                    <span className="text-[11px] font-medium text-foreground/80">{plugin.name}</span>
+                    <span className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[8px] text-muted-foreground uppercase">
                       {plugin.category}
                     </span>
                   </span>
-                  <span className="text-muted-foreground/70 text-[10px] font-normal">{plugin.description}</span>
-                  <span className="text-muted-foreground/50 truncate text-[9px] font-normal">
+                  <span className="text-[10px] font-normal text-muted-foreground/70">{plugin.description}</span>
+                  <span className="truncate text-[9px] font-normal text-muted-foreground/50">
                     Best for: {plugin.recommendedFor.join(" · ")}
                   </span>
                 </span>
-                <PlusIcon className="text-muted-foreground size-3.5" />
+                <PlusIcon className="size-3.5 text-muted-foreground" />
               </Button>
             ))}
           </div>
@@ -1010,20 +1010,20 @@ function PluginCard({
   onRemove: () => void;
 }) {
   return (
-    <Collapsible className="border-border bg-muted/10 flex flex-col rounded-none border">
-      <div className="border-border bg-muted/30 text-muted-foreground flex items-center justify-between border-b px-2 py-1 font-mono text-[8px] tracking-wider uppercase">
+    <Collapsible className="flex flex-col rounded-none border border-border bg-muted/10">
+      <div className="flex items-center justify-between border-b border-border bg-muted/30 px-2 py-1 font-mono text-[8px] tracking-wider text-muted-foreground uppercase">
         <span>{plugin.category}</span>
         <span>{plugin.kind === "segment-understanding" ? "vision + scene review" : "vision model"}</span>
       </div>
       <CollapsibleTrigger className="group/collapsible flex w-full items-start justify-between gap-2 p-2 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <ChevronDownIcon className="text-muted-foreground/50 hidden size-3 shrink-0 group-data-[state=closed]/collapsible:inline" />
-            <ChevronUpIcon className="text-muted-foreground/50 hidden size-3 shrink-0 group-data-[state=open]/collapsible:inline" />
-            <ShieldAlertIcon className="text-foreground/70 size-3.5 shrink-0" />
-            <p className="text-foreground/90 truncate text-[11px] font-medium">{plugin.name}</p>
+            <ChevronDownIcon className="hidden size-3 shrink-0 text-muted-foreground/50 group-data-[state=closed]/collapsible:inline" />
+            <ChevronUpIcon className="hidden size-3 shrink-0 text-muted-foreground/50 group-data-[state=open]/collapsible:inline" />
+            <ShieldAlertIcon className="size-3.5 shrink-0 text-foreground/70" />
+            <p className="truncate text-[11px] font-medium text-foreground/90">{plugin.name}</p>
           </div>
-          <p className="text-muted-foreground/70 mt-0.5 text-[10px] leading-snug">{plugin.description}</p>
+          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/70">{plugin.description}</p>
         </div>
         <div className="flex items-center gap-1">
           {!isReadOnly && (
@@ -1047,20 +1047,20 @@ function PluginCard({
         <div className="flex flex-col gap-2 p-2 pt-0">
           <div className="grid grid-cols-2 gap-2 border-y py-2">
             <div className="min-w-0">
-              <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Watches</p>
-              <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.watchFor.join(" · ")}</p>
+              <p className="font-mono text-[8px] tracking-wider text-muted-foreground/50 uppercase">Watches</p>
+              <p className="mt-0.5 text-[9px] leading-snug text-foreground/70">{plugin.watchFor.join(" · ")}</p>
             </div>
             <div className="min-w-0 border-l pl-2">
-              <p className="text-muted-foreground/50 font-mono text-[8px] tracking-wider uppercase">Alerts when</p>
-              <p className="text-foreground/70 mt-0.5 text-[9px] leading-snug">{plugin.alertsWhen.join(" · ")}</p>
+              <p className="font-mono text-[8px] tracking-wider text-muted-foreground/50 uppercase">Alerts when</p>
+              <p className="mt-0.5 text-[9px] leading-snug text-foreground/70">{plugin.alertsWhen.join(" · ")}</p>
             </div>
           </div>
 
           {/* Enable switch */}
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-foreground/80 text-[11px] font-medium">Enabled</p>
-              <p className="text-muted-foreground/60 text-[10px]">Run analysis and raise alerts.</p>
+              <p className="text-[11px] font-medium text-foreground/80">Enabled</p>
+              <p className="text-[10px] text-muted-foreground/60">Run analysis and raise alerts.</p>
             </div>
             <Switch
               aria-label={`Enable ${plugin.name}`}
@@ -1081,15 +1081,15 @@ function PluginCard({
             <DetectionPluginConfig config={config} isReadOnly={isReadOnly} onChange={onChange} />
           )}
 
-          <div className="border-border flex flex-col gap-2 border-t pt-2">
+          <div className="flex flex-col gap-2 border-t border-border pt-2">
             <div>
-              <p className="text-foreground/80 text-[11px] font-medium">Event evidence</p>
-              <p className="text-muted-foreground/60 text-[10px]">
+              <p className="text-[11px] font-medium text-foreground/80">Event evidence</p>
+              <p className="text-[10px] text-muted-foreground/60">
                 Attach reviewable evidence when this plugin raises an alert.
               </p>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground text-[10px]">Source video clip</span>
+              <span className="text-[10px] text-muted-foreground">Source video clip</span>
               <Switch
                 aria-label={`Attach video for ${plugin.name}`}
                 checked={config.evidence.attachVideo}
@@ -1104,7 +1104,7 @@ function PluginCard({
               />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground text-[10px]">Annotated frames</span>
+              <span className="text-[10px] text-muted-foreground">Annotated frames</span>
               <Switch
                 aria-label={`Attach annotated frames for ${plugin.name}`}
                 checked={config.evidence.attachAnnotatedFrames}
@@ -1159,7 +1159,7 @@ function WorkflowInputConfig({
   onChange: (patch: (current: DevicePluginConfig) => DevicePluginConfig) => void;
 }) {
   return (
-    <div className="border-border flex flex-col gap-2 border-t pt-2">
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
       <div className="grid grid-cols-2 gap-2">
         <Field label="Model">
           <Input className="font-mono text-[10px]" readOnly value={plugin.workflow.workflowId} />
@@ -1201,7 +1201,7 @@ function WorkflowInputConfig({
           value={config.classes?.join(", ") ?? ""}
         />
       </Field>
-      <p className="text-muted-foreground/60 text-[10px]">
+      <p className="text-[10px] text-muted-foreground/60">
         Plugins sharing this workflow reuse one inference pass. Results are filtered per plugin afterward.
       </p>
     </div>
@@ -1252,10 +1252,10 @@ function SegmentAnalysisConfig({
   return (
     <>
       {/* Legacy Prompt */}
-      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Review guidance</Label>
+      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+        <Label className="text-[11px] font-medium text-muted-foreground">Review guidance</Label>
         <textarea
-          className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-20 w-full min-w-0 resize-none rounded-none border bg-transparent px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-xs ${
+          className={`h-20 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2.5 py-1 text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-xs dark:bg-input/30 dark:disabled:bg-input/80 ${
             isReadOnly ? "pointer-events-none opacity-60" : ""
           }`}
           disabled={isReadOnly}
@@ -1268,13 +1268,13 @@ function SegmentAnalysisConfig({
           placeholder="Describe what anomalies to look for in this CCTV feed..."
           value={config.prompt}
         />
-        <p className="text-muted-foreground/60 text-[10px]">Guidance used when reviewing each recorded segment.</p>
+        <p className="text-[10px] text-muted-foreground/60">Guidance used when reviewing each recorded segment.</p>
       </div>
 
       {/* Scene Alert Rules */}
-      <div className="border-border flex flex-col gap-2 border-t pt-2">
+      <div className="flex flex-col gap-2 border-t border-border pt-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium">Operational rules</Label>
+          <Label className="text-[11px] font-medium text-muted-foreground">Operational rules</Label>
           {!isReadOnly && (
             <Button className="h-5 px-1.5 text-[10px]" onClick={addAlert} size="sm" variant="outline">
               <PlusIcon className="mr-0.5 size-2.5" />
@@ -1284,11 +1284,11 @@ function SegmentAnalysisConfig({
         </div>
 
         {alerts.length === 0 && (
-          <p className="text-muted-foreground/60 text-[10px]">No operational rules configured.</p>
+          <p className="text-[10px] text-muted-foreground/60">No operational rules configured.</p>
         )}
 
         {alerts.map((alert, index) => (
-          <div className="bg-muted/20 flex flex-col gap-1.5 rounded-none border p-2" key={index}>
+          <div className="flex flex-col gap-1.5 rounded-none border bg-muted/20 p-2" key={index}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <Switch
@@ -1298,7 +1298,7 @@ function SegmentAnalysisConfig({
                   onCheckedChange={(checked) => updateAlert(index, (a) => ({ ...a, enabled: checked }))}
                   size="sm"
                 />
-                <span className="text-foreground/80 text-[10px] font-medium">Risk condition</span>
+                <span className="text-[10px] font-medium text-foreground/80">Risk condition</span>
               </div>
               {!isReadOnly && (
                 <Button
@@ -1313,7 +1313,7 @@ function SegmentAnalysisConfig({
             </div>
 
             <textarea
-              className={`border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 disabled:bg-input/50 dark:bg-input/30 dark:disabled:bg-input/80 h-16 w-full min-w-0 resize-none rounded-none border bg-transparent px-2 py-1 text-[10px] transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`h-16 w-full min-w-0 resize-none rounded-none border border-input bg-transparent px-2 py-1 text-[10px] transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 dark:disabled:bg-input/80 ${
                 isReadOnly ? "pointer-events-none opacity-60" : ""
               }`}
               disabled={isReadOnly}
@@ -1324,7 +1324,7 @@ function SegmentAnalysisConfig({
 
             <div className="flex items-center gap-2">
               <select
-                className="border-input bg-muted/30 text-foreground/80 h-6 flex-1 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+                className="h-6 flex-1 rounded-none border border-input bg-muted/30 px-1.5 text-[10px] text-foreground/80 disabled:opacity-60"
                 disabled={isReadOnly}
                 onChange={(e) =>
                   updateAlert(index, (a) => ({
@@ -1344,10 +1344,10 @@ function SegmentAnalysisConfig({
       </div>
 
       {/* Legacy Severity */}
-      <div className="border-border flex flex-col gap-1.5 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Default severity</Label>
+      <div className="flex flex-col gap-1.5 border-t border-border pt-2">
+        <Label className="text-[11px] font-medium text-muted-foreground">Default severity</Label>
         <select
-          className="border-input bg-muted/30 text-foreground/80 h-8 rounded-none border px-2 text-xs disabled:opacity-60"
+          className="h-8 rounded-none border border-input bg-muted/30 px-2 text-xs text-foreground/80 disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((c) => ({
@@ -1419,9 +1419,9 @@ function DetectionPluginConfig({
   return (
     <>
       {/* Alert Rules */}
-      <div className="border-border flex flex-col gap-2 border-t pt-2">
+      <div className="flex flex-col gap-2 border-t border-border pt-2">
         <div className="flex items-center justify-between">
-          <Label className="text-muted-foreground text-[11px] font-medium">Operational rules</Label>
+          <Label className="text-[11px] font-medium text-muted-foreground">Operational rules</Label>
           {!isReadOnly && (
             <div className="flex gap-1">
               <Button
@@ -1456,11 +1456,11 @@ function DetectionPluginConfig({
         </div>
 
         {alerts.length === 0 && (
-          <p className="text-muted-foreground/60 text-[10px]">No operational rules configured.</p>
+          <p className="text-[10px] text-muted-foreground/60">No operational rules configured.</p>
         )}
 
         {alerts.map((alert, index) => (
-          <div className="bg-muted/20 flex flex-col gap-1.5 rounded-none border p-2" key={index}>
+          <div className="flex flex-col gap-1.5 rounded-none border bg-muted/20 p-2" key={index}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
                 <Switch
@@ -1470,7 +1470,7 @@ function DetectionPluginConfig({
                   onCheckedChange={(checked) => updateAlert(index, (a) => ({ ...a, enabled: checked }))}
                   size="sm"
                 />
-                <span className="text-foreground/80 text-[10px] font-medium">
+                <span className="text-[10px] font-medium text-foreground/80">
                   {alert.kind === "count-threshold" && "Occupancy limit"}
                   {alert.kind === "object-enters" && "Arrival or entry"}
                   {alert.kind === "object-leaves" && "Departure or exit"}
@@ -1508,8 +1508,8 @@ function DetectionPluginConfig({
       </div>
 
       {/* Cooldown */}
-      <div className="border-border flex flex-col gap-1 border-t pt-2">
-        <Label className="text-muted-foreground text-[11px] font-medium">Cooldown (seconds)</Label>
+      <div className="flex flex-col gap-1 border-t border-border pt-2">
+        <Label className="text-[11px] font-medium text-muted-foreground">Cooldown (seconds)</Label>
         <Input
           className={isReadOnly ? "pointer-events-none opacity-60" : ""}
           max={3600}
@@ -1525,7 +1525,7 @@ function DetectionPluginConfig({
           type="number"
           value={String(config.cooldownSec ?? "")}
         />
-        <p className="text-muted-foreground/60 text-[10px]">
+        <p className="text-[10px] text-muted-foreground/60">
           Minimum seconds between alerts for this plugin. Leave empty for no cooldown.
         </p>
       </div>
@@ -1546,7 +1546,7 @@ function CountThresholdAlertFields({
     <>
       <div className="flex items-center gap-2">
         <select
-          className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          className="h-7 rounded-none border border-input bg-muted/30 px-1.5 text-[10px] text-foreground/80 disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((a) => ({
@@ -1580,7 +1580,7 @@ function CountThresholdAlertFields({
       </div>
       <div className="flex items-center gap-2">
         <select
-          className="border-input bg-muted/30 text-foreground/80 h-7 flex-1 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          className="h-7 flex-1 rounded-none border border-input bg-muted/30 px-1.5 text-[10px] text-foreground/80 disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((a) => ({
@@ -1595,7 +1595,7 @@ function CountThresholdAlertFields({
           <option value="unique-tracks">Unique tracks</option>
         </select>
         <select
-          className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+          className="h-7 rounded-none border border-input bg-muted/30 px-1.5 text-[10px] text-foreground/80 disabled:opacity-60"
           disabled={isReadOnly}
           onChange={(e) =>
             onChange((a) => ({
@@ -1646,7 +1646,7 @@ function TransitionAlertFields({
         value={"labels" in alert && alert.labels ? alert.labels.join(", ") : ""}
       />
       <select
-        className="border-input bg-muted/30 text-foreground/80 h-7 rounded-none border px-1.5 text-[10px] disabled:opacity-60"
+        className="h-7 rounded-none border border-input bg-muted/30 px-1.5 text-[10px] text-foreground/80 disabled:opacity-60"
         disabled={isReadOnly}
         onChange={(e) =>
           onChange((a) => ({

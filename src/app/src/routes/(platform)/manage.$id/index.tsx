@@ -120,7 +120,7 @@ function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap",
         styles[severity] ?? styles.info,
       )}
     >
@@ -151,19 +151,19 @@ function KpiCard({
     <Card>
       <CardHeader>
         <CardDescription className="flex items-center gap-1.5">
-          {Icon && <Icon className="text-muted-foreground/60 size-3.5" />}
+          {Icon && <Icon className="size-3.5 text-muted-foreground/60" />}
           {title}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex items-end justify-between gap-2">
         <div>
           <p className="font-heading text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-          {subtitle && <p className="text-muted-foreground mt-0.5 text-[10px]">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
         </div>
         {trend && (
           <span
             className={cn(
-              "flex shrink-0 items-center gap-0.5 font-medium text-[10px] tabular-nums",
+              "flex shrink-0 items-center gap-0.5 text-[10px] font-medium tabular-nums",
               trendDirection === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-destructive",
             )}
           >
@@ -188,7 +188,7 @@ function EventTrendChart({ data, range }: { data: EventBucket[]; range: Analytic
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-xs">No events in this period</p>
+        <p className="text-xs text-muted-foreground">No events in this period</p>
       </div>
     );
   }
@@ -239,7 +239,7 @@ function DeviceCompositionChart({ data }: { data: DeviceTypeCount[] }) {
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-xs">No devices configured</p>
+        <p className="text-xs text-muted-foreground">No devices configured</p>
       </div>
     );
   }
@@ -289,7 +289,7 @@ function SeverityBarChart({ data }: { data: { severity: string; count: number }[
   if (data.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-xs">No events in this period</p>
+        <p className="text-xs text-muted-foreground">No events in this period</p>
       </div>
     );
   }
@@ -321,7 +321,7 @@ function RecentAlertsTable({ alerts }: { alerts: RecentAlert[] }) {
   if (alerts.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-muted-foreground text-xs">No alerts recorded</p>
+        <p className="text-xs text-muted-foreground">No alerts recorded</p>
       </div>
     );
   }
@@ -349,8 +349,8 @@ function RecentAlertsTable({ alerts }: { alerts: RecentAlert[] }) {
               </span>
             </TableCell>
             <TableCell className="hidden truncate sm:table-cell">{alert.deviceName ?? "—"}</TableCell>
-            <TableCell className="text-muted-foreground hidden md:table-cell">{alert.type}</TableCell>
-            <TableCell className="text-muted-foreground text-right tabular-nums">
+            <TableCell className="hidden text-muted-foreground md:table-cell">{alert.type}</TableCell>
+            <TableCell className="text-right text-muted-foreground tabular-nums">
               {formatTimestamp(alert.createdAt)}
             </TableCell>
           </TableRow>
@@ -366,7 +366,7 @@ function DeviceHealthTable({ devices }: { devices: DeviceInfo[] }) {
   if (devices.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-muted-foreground text-xs">No devices configured</p>
+        <p className="text-xs text-muted-foreground">No devices configured</p>
       </div>
     );
   }
@@ -389,7 +389,7 @@ function DeviceHealthTable({ devices }: { devices: DeviceInfo[] }) {
             <TableCell>
               <StatusBadge status={device.status} />
             </TableCell>
-            <TableCell className="text-muted-foreground hidden sm:table-cell">{device.zoneName ?? "—"}</TableCell>
+            <TableCell className="hidden text-muted-foreground sm:table-cell">{device.zoneName ?? "—"}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -431,7 +431,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap",
         style.class,
       )}
     >
@@ -456,7 +456,7 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
   if (metrics.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <p className="text-muted-foreground text-xs">No sensor readings available</p>
+        <p className="text-xs text-muted-foreground">No sensor readings available</p>
       </div>
     );
   }
@@ -487,7 +487,7 @@ function SensorMetricsTable({ metrics }: { metrics: SensorMetric[] }) {
             <TableCell className="hidden text-right tabular-nums md:table-cell">
               {m.batteryPct !== null ? `${Math.round(m.batteryPct)}%` : "—"}
             </TableCell>
-            <TableCell className="text-muted-foreground hidden text-right lg:table-cell">
+            <TableCell className="hidden text-right text-muted-foreground lg:table-cell">
               {formatTimestamp(m.timestamp)}
             </TableCell>
           </TableRow>
@@ -564,9 +564,9 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   return (
     <div className="flex flex-1 items-center justify-center p-6">
       <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <AlertCircleIcon className="text-muted-foreground/30 size-12" />
+        <AlertCircleIcon className="size-12 text-muted-foreground/30" />
         <h2 className="font-heading text-lg font-medium">Failed to Load Analytics</h2>
-        <p className="text-muted-foreground text-sm">{message}</p>
+        <p className="text-sm text-muted-foreground">{message}</p>
         <Button onClick={onRetry} size="sm" variant="outline">
           <RefreshCwIcon data-icon="inline-start" />
           Try Again
@@ -924,7 +924,7 @@ function Page() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <BarChart3Icon className="text-muted-foreground size-4" />
+                  <BarChart3Icon className="size-4 text-muted-foreground" />
                   Event Trend
                 </CardTitle>
                 <CardDescription>Events over time by severity</CardDescription>
@@ -946,7 +946,7 @@ function Page() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <MonitorIcon className="text-muted-foreground size-4" />
+                  <MonitorIcon className="size-4 text-muted-foreground" />
                   Devices
                 </CardTitle>
                 <CardDescription>By type</CardDescription>
@@ -963,9 +963,9 @@ function Page() {
                 </div>
                 {/* Legend */}
                 {data && data.devicesByType.length > 0 && (
-                  <div className="border-border mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3">
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3">
                     {data.devicesByType.map((d, i) => (
-                      <span className="text-muted-foreground flex items-center gap-1.5 text-[10px]" key={d.type}>
+                      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground" key={d.type}>
                         <span
                           className="inline-block size-2 rounded-none"
                           style={{
@@ -973,7 +973,7 @@ function Page() {
                           }}
                         />
                         {d.type}
-                        <span className="text-foreground font-medium tabular-nums">{d.count}</span>
+                        <span className="font-medium text-foreground tabular-nums">{d.count}</span>
                       </span>
                     ))}
                   </div>
@@ -987,7 +987,7 @@ function Page() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <AlertTriangleIcon className="text-muted-foreground size-4" />
+                  <AlertTriangleIcon className="size-4 text-muted-foreground" />
                   Events by Severity
                 </CardTitle>
                 <CardDescription>Count in selected period</CardDescription>
@@ -1008,7 +1008,7 @@ function Page() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ActivityIcon className="text-muted-foreground size-4" />
+                  <ActivityIcon className="size-4 text-muted-foreground" />
                   Sensor Metrics
                 </CardTitle>
                 <CardDescription>Latest readings per sensor device</CardDescription>
@@ -1025,7 +1025,7 @@ function Page() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <AlertCircleIcon className="text-muted-foreground size-4" />
+                <AlertCircleIcon className="size-4 text-muted-foreground" />
                 Recent Alerts
               </CardTitle>
               <CardDescription>Last 20 events across all devices</CardDescription>
@@ -1041,7 +1041,7 @@ function Page() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <MonitorIcon className="text-muted-foreground size-4" />
+                <MonitorIcon className="size-4 text-muted-foreground" />
                 Device Health
               </CardTitle>
               <CardDescription>{data?.totalDevices ?? 0} device(s) configured</CardDescription>
@@ -1084,15 +1084,15 @@ function ManageHeaderShell({
   return (
     <div className="flex shrink-0 flex-col">
       {/* Header */}
-      <div className="border-border flex shrink-0 items-center gap-3 border-b px-4 py-3">
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <Link params={{ id: facilityId }} to="/facility/$id">
           <Button aria-label="Back to facility" size="icon-sm" variant="ghost">
             <ArrowLeftIcon className="size-4" />
           </Button>
         </Link>
         <div className="min-w-0">
-          <h1 className="font-heading text-foreground truncate text-sm font-medium">{facilityName ?? "Manage"}</h1>
-          <p className="text-muted-foreground/60 truncate text-[11px]">
+          <h1 className="truncate font-heading text-sm font-medium text-foreground">{facilityName ?? "Manage"}</h1>
+          <p className="truncate text-[11px] text-muted-foreground/60">
             {activeTab === "dashboard"
               ? "Operational overview and device health"
               : activeTab === "feed"

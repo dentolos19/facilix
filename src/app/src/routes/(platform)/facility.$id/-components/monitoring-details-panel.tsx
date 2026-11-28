@@ -50,7 +50,7 @@ export function MonitoringDetailsPanel({
   }
 
   return (
-    <div className="text-muted-foreground/50 flex h-full items-center justify-center px-6 text-center text-[11px]">
+    <div className="flex h-full items-center justify-center px-6 text-center text-[11px] text-muted-foreground/50">
       Select an event to inspect its evidence, or select a device or zone to view its operational details.
     </div>
   );

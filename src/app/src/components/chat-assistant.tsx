@@ -168,9 +168,9 @@ function ActivityDetails({
   toolParts: ToolCallPart[];
 }) {
   return (
-    <div className="border-border ml-2 flex flex-col gap-4 border-l pl-4">
+    <div className="ml-2 flex flex-col gap-4 border-l border-border pl-4">
       {thinkingParts.length > 0 ? (
-        <div className="text-muted-foreground flex flex-col gap-2 text-xs leading-relaxed">
+        <div className="flex flex-col gap-2 text-xs leading-relaxed text-muted-foreground">
           {thinkingParts.map((part, index) => (
             <div className="whitespace-pre-wrap" key={`${messageId}-thinking-${index}`}>
               <Streamdown>{part.content || "Reasoning through the facility data\u2026"}</Streamdown>
@@ -199,7 +199,7 @@ function ActivityDetails({
                 </MarkerIcon>
                 <MarkerContent className="flex flex-col gap-0.5">
                   <span>{complete ? presentation.completeLabel : presentation.activeLabel}</span>
-                  {detail ? <span className="text-muted-foreground/70 line-clamp-2">{detail}</span> : null}
+                  {detail ? <span className="line-clamp-2 text-muted-foreground/70">{detail}</span> : null}
                 </MarkerContent>
               </Marker>
             );
@@ -259,7 +259,7 @@ function AssistantActivity({
   return (
     <Accordion className="max-w-xl" collapsible type="single">
       <AccordionItem className="border-0" value="activity">
-        <AccordionTrigger className="text-muted-foreground py-1 text-sm font-normal hover:no-underline">
+        <AccordionTrigger className="py-1 text-sm font-normal text-muted-foreground hover:no-underline">
           {summary}
         </AccordionTrigger>
         <AccordionContent className="pt-3 pb-1">
@@ -333,7 +333,7 @@ function ChatMessage({ message, isLatest, isLoading }: { message: UIMessage; isL
           }
           return (
             <Bubble key={`${message.id}-text-${index}`} variant="ghost">
-              <BubbleContent className="prose prose-sm dark:prose-invert max-w-none text-[0.9375rem] leading-7">
+              <BubbleContent className="prose prose-sm max-w-none text-[0.9375rem] leading-7 dark:prose-invert">
                 <Streamdown>{part.content}</Streamdown>
               </BubbleContent>
             </Bubble>
@@ -372,13 +372,13 @@ export function ChatAssistant({
   return (
     <section
       aria-label="Chat assistant"
-      className={cn("@container/chat bg-background flex min-h-0 flex-1 flex-col overflow-hidden", className)}
+      className={cn("@container/chat flex min-h-0 flex-1 flex-col overflow-hidden bg-background", className)}
     >
       {!hideHeader ? (
-        <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
+        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-medium">Facility assistant</h2>
-            <p className="text-muted-foreground truncate text-[11px]">Powered by Qwen</p>
+            <p className="truncate text-[11px] text-muted-foreground">Powered by Qwen</p>
           </div>
           {groupedMessages.length > 0 ? (
             <Button aria-label="Clear chat" onClick={clear} size="icon-sm" variant="ghost">

@@ -2,7 +2,7 @@ import { AlertTriangleIcon, ImageIcon, Maximize2Icon, VideoIcon, ZoomInIcon, Zoo
 import type { CSSProperties } from "react";
 import { useMemo, useState } from "react";
 
-import { EvidenceImage, type DetectionBox } from "#/components/evidence-image";
+import { type DetectionBox, EvidenceImage } from "#/components/evidence-image";
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
 import { ScrollArea } from "#/components/ui/scroll-area";
@@ -121,10 +121,10 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
         <div className="flex flex-col gap-3 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">Event details</p>
-              <h3 className="text-foreground mt-0.5 text-sm leading-snug font-medium">{event.message}</h3>
+              <p className="font-mono text-[9px] tracking-wider text-muted-foreground/50 uppercase">Event details</p>
+              <h3 className="mt-0.5 text-sm leading-snug font-medium text-foreground">{event.message}</h3>
               {event.occurrenceCount > 1 && (
-                <p className="text-muted-foreground/60 mt-1 font-mono text-[9px]">
+                <p className="mt-1 font-mono text-[9px] text-muted-foreground/60">
                   {event.occurrenceCount} observations grouped into this incident
                 </p>
               )}
@@ -137,7 +137,7 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
               <p className="font-mono text-[9px] tracking-wider text-violet-700 uppercase dark:text-violet-400">
                 {incidentSummarySource === "ai" ? "AI incident summary" : "Incident summary"}
               </p>
-              <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{incidentSummary}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">{incidentSummary}</p>
             </section>
           )}
 
@@ -158,45 +158,45 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
               <p className="font-mono text-[9px] tracking-wider text-sky-700 uppercase dark:text-sky-400">
                 What to look for
               </p>
-              <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{attachmentContext}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">{attachmentContext}</p>
             </section>
           )}
 
-          <section className="border-border bg-muted/20 border p-3">
-            <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">What happened</p>
-            <p className="text-foreground/80 mt-1 text-[11px] leading-relaxed">{description}</p>
+          <section className="border border-border bg-muted/20 p-3">
+            <p className="font-mono text-[9px] tracking-wider text-muted-foreground/50 uppercase">What happened</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">{description}</p>
             {reason && (
-              <div className="border-border/60 mt-2 border-t pt-2">
-                <p className="text-muted-foreground/50 text-[10px]">Reason</p>
-                <p className="text-foreground/75 mt-0.5 text-[11px] leading-relaxed">{reason}</p>
+              <div className="mt-2 border-t border-border/60 pt-2">
+                <p className="text-[10px] text-muted-foreground/50">Reason</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-foreground/75">{reason}</p>
               </div>
             )}
           </section>
 
           {findings.length > 0 && (
-            <section className="border-border border">
-              <div className="border-border/60 border-b px-3 py-2">
-                <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">
+            <section className="border border-border">
+              <div className="border-b border-border/60 px-3 py-2">
+                <p className="font-mono text-[9px] tracking-wider text-muted-foreground/50 uppercase">
                   Compiled findings
                 </p>
               </div>
               {findings.map((finding, index) => (
-                <article className="border-border/60 border-b p-3 last:border-b-0" key={finding.key}>
+                <article className="border-b border-border/60 p-3 last:border-b-0" key={finding.key}>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-foreground/80 text-[11px] font-medium">
+                    <p className="text-[11px] font-medium text-foreground/80">
                       {finding.pluginName ?? `Finding ${index + 1}`}
                     </p>
                     <EventSeverityBadge severity={finding.severity} />
                   </div>
                   {finding.reason && (
-                    <p className="text-muted-foreground/75 mt-1 text-[10px] leading-relaxed">{finding.reason}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground/75">{finding.reason}</p>
                   )}
                 </article>
               ))}
             </section>
           )}
 
-          <section className="border-border border">
+          <section className="border border-border">
             <DetailRow label="Device" value={event.deviceName} />
             {event.zoneName && <DetailRow label="Zone" value={event.zoneName} />}
             <DetailRow label="Event type" monospace value={event.type} />
@@ -223,7 +223,7 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
               </p>
               <div className="mt-1 flex flex-col gap-1.5">
                 {recommendedActions.map((action) => (
-                  <p className="text-foreground/80 text-[11px] leading-relaxed" key={action}>
+                  <p className="text-[11px] leading-relaxed text-foreground/80" key={action}>
                     {action}
                   </p>
                 ))}
@@ -232,22 +232,22 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
           )}
 
           {event.occurrenceCount > 1 && (
-            <section className="border-border border">
-              <div className="border-border/60 border-b px-3 py-2">
-                <p className="text-muted-foreground/50 font-mono text-[9px] tracking-wider uppercase">
+            <section className="border border-border">
+              <div className="border-b border-border/60 px-3 py-2">
+                <p className="font-mono text-[9px] tracking-wider text-muted-foreground/50 uppercase">
                   Observation history
                 </p>
               </div>
               {event.occurrences.map((occurrence) => (
-                <div className="border-border/60 border-b px-3 py-2 last:border-b-0" key={occurrence.id}>
+                <div className="border-b border-border/60 px-3 py-2 last:border-b-0" key={occurrence.id}>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-foreground/75 text-[10px]">{occurrence.message}</p>
-                    <span className="text-muted-foreground/50 shrink-0 font-mono text-[9px]">
+                    <p className="text-[10px] text-foreground/75">{occurrence.message}</p>
+                    <span className="shrink-0 font-mono text-[9px] text-muted-foreground/50">
                       {new Date(occurrence.createdAt).toLocaleString()}
                     </span>
                   </div>
                   {occurrence.attachments.length > 0 && (
-                    <p className="text-muted-foreground/45 mt-0.5 font-mono text-[9px]">
+                    <p className="mt-0.5 font-mono text-[9px] text-muted-foreground/45">
                       {occurrence.attachments.length} evidence {occurrence.attachments.length === 1 ? "file" : "files"}
                     </p>
                   )}
@@ -257,7 +257,7 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
           )}
 
           {Object.keys(technicalData).length > 0 && (
-            <details className="border-border text-muted-foreground border p-2 text-[10px]">
+            <details className="border border-border p-2 text-[10px] text-muted-foreground">
               <summary className="cursor-pointer font-medium">Technical metadata</summary>
               <pre className="mt-2 overflow-x-auto font-mono text-[9px] break-all whitespace-pre-wrap">
                 {JSON.stringify(technicalData, null, 2)}
@@ -272,7 +272,7 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
           <DialogHeader>
             <DialogTitle>Evidence image</DialogTitle>
           </DialogHeader>
-          <div className="border-border flex min-h-0 flex-1 items-center justify-center overflow-auto border bg-black/95">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto border border-border bg-black/95">
             {selectedAttachment?.kind === "image" && (
               <EventEvidenceImage
                 alt={`Evidence from ${event.deviceName}`}
@@ -294,7 +294,7 @@ export function EventDetailsPanel({ event }: { event: FacilityEventView }) {
             >
               <ZoomOutIcon className="size-3.5" />
             </Button>
-            <span className="text-muted-foreground w-14 text-center font-mono text-[10px]">
+            <span className="w-14 text-center font-mono text-[10px] text-muted-foreground">
               {Math.round(zoom * 100)}%
             </span>
             <Button
@@ -330,7 +330,7 @@ function EventAttachmentViewer({
 }) {
   if (attachments.length === 0) {
     return (
-      <div className="border-border bg-muted/10 text-muted-foreground/60 flex min-h-28 flex-col items-center justify-center gap-2 border border-dashed p-4 text-center">
+      <div className="flex min-h-28 flex-col items-center justify-center gap-2 border border-dashed border-border bg-muted/10 p-4 text-center text-muted-foreground/60">
         <ImageIcon className="size-5 opacity-50" />
         <p className="text-[10px]">No evidence attachments were captured for this event.</p>
       </div>
@@ -339,9 +339,9 @@ function EventAttachmentViewer({
 
   return (
     <section className="flex flex-col gap-2">
-      <div className="border-border relative aspect-video overflow-hidden border bg-black/90">
+      <div className="relative aspect-video overflow-hidden border border-border bg-black/90">
         {selectedAttachment?.id === failedAttachmentId ? (
-          <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-center">
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <AlertTriangleIcon className="size-5" />
             <p className="text-[10px]">This evidence file is no longer available.</p>
           </div>
@@ -381,15 +381,15 @@ function EventAttachmentViewer({
           {attachments.map((item) => (
             <button
               aria-label={`View ${item.kind} attachment`}
-              className={`border-border bg-muted/20 flex aspect-video items-center justify-center overflow-hidden border transition-colors ${
-                selectedAttachment?.id === item.id ? "ring-ring ring-1" : "hover:bg-muted/40"
+              className={`flex aspect-video items-center justify-center overflow-hidden border border-border bg-muted/20 transition-colors ${
+                selectedAttachment?.id === item.id ? "ring-1 ring-ring" : "hover:bg-muted/40"
               }`}
               key={item.id}
               onClick={() => onSelectAttachment(item.id)}
               type="button"
             >
               {item.kind === "video" ? (
-                <VideoIcon className="text-muted-foreground size-4" />
+                <VideoIcon className="size-4 text-muted-foreground" />
               ) : (
                 <img alt="" className="h-full w-full object-cover" loading="lazy" src={item.url} />
               )}
@@ -521,9 +521,9 @@ function buildAttachmentContext(
 
 function DetailRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
   return (
-    <div className="border-border/60 flex items-start justify-between gap-3 border-b px-3 py-2 last:border-b-0">
-      <dt className="text-muted-foreground/60 shrink-0 text-[10px]">{label}</dt>
-      <dd className={`text-foreground/75 text-right text-[10px] break-words ${monospace ? "font-mono" : ""}`}>
+    <div className="flex items-start justify-between gap-3 border-b border-border/60 px-3 py-2 last:border-b-0">
+      <dt className="shrink-0 text-[10px] text-muted-foreground/60">{label}</dt>
+      <dd className={`text-right text-[10px] break-words text-foreground/75 ${monospace ? "font-mono" : ""}`}>
         {value}
       </dd>
     </div>

@@ -45,13 +45,13 @@ export function GlobalEventsPanel({
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-2 p-4">
-        <h3 className="font-heading text-muted-foreground shrink-0 text-xs font-medium tracking-wider uppercase">
+        <h3 className="shrink-0 font-heading text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Global Events
         </h3>
 
         {events.length === 0 && (
           <div className="flex flex-1 items-center justify-center">
-            <span className="text-muted-foreground/50 text-[11px]">No events yet</span>
+            <span className="text-[11px] text-muted-foreground/50">No events yet</span>
           </div>
         )}
 
@@ -63,11 +63,11 @@ export function GlobalEventsPanel({
               <button
                 aria-label={`${event.deviceName}: ${event.message}`}
                 aria-pressed={eventSelected || deviceSelected}
-                className={`hover:bg-muted focus-visible:ring-ring flex flex-col gap-0.5 rounded-none border-l-2 px-2 py-1.5 text-left text-[11px] leading-relaxed transition-colors focus-visible:ring-1 focus-visible:outline-none ${
+                className={`flex flex-col gap-0.5 rounded-none border-l-2 px-2 py-1.5 text-left text-[11px] leading-relaxed transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none ${
                   eventSelected
-                    ? "bg-accent/40 border-foreground"
+                    ? "border-foreground bg-accent/40"
                     : deviceSelected
-                      ? "bg-muted border-muted-foreground/50"
+                      ? "border-muted-foreground/50 bg-muted"
                       : "border-transparent"
                 }`}
                 key={event.id}
@@ -85,15 +85,15 @@ export function GlobalEventsPanel({
                 type="button"
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-foreground/80 shrink-0 font-medium">{event.deviceName}</span>
+                  <span className="shrink-0 font-medium text-foreground/80">{event.deviceName}</span>
                   <EventSeverityBadge severity={event.severity} />
                   {event.occurrenceCount > 1 && (
-                    <span className="bg-foreground/7 text-foreground/65 px-1 font-mono text-[9px]">
+                    <span className="bg-foreground/7 px-1 font-mono text-[9px] text-foreground/65">
                       {event.occurrenceCount} observations
                     </span>
                   )}
                   {event.attachments.length > 0 && (
-                    <span className="text-muted-foreground/50 font-mono text-[9px]">
+                    <span className="font-mono text-[9px] text-muted-foreground/50">
                       {event.attachments.length} {event.attachments.length === 1 ? "attachment" : "attachments"}
                     </span>
                   )}

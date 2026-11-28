@@ -160,7 +160,7 @@ function RouteComponent() {
         <PortfolioEmpty />
       ) : (
         <>
-          {error ? <p className="text-destructive text-xs">Refresh failed: {error}</p> : null}
+          {error ? <p className="text-xs text-destructive">Refresh failed: {error}</p> : null}
 
           <section aria-label="Security metrics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <MetricCard
@@ -243,22 +243,22 @@ function RouteComponent() {
                   <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
                     <ShieldCheckIcon className="size-5 text-emerald-500" />
                     <p className="font-medium">Camera coverage is healthy</p>
-                    <p className="text-muted-foreground max-w-52 text-[10px]">
+                    <p className="max-w-52 text-[10px] text-muted-foreground">
                       All configured cameras are currently online.
                     </p>
                   </div>
                 ) : (
                   coverageGaps.slice(0, 8).map((device) => (
                     <Link
-                      className="hover:bg-muted/50 focus-visible:ring-ring flex items-center gap-2 px-2 py-2 outline-none focus-visible:ring-1"
+                      className="flex items-center gap-2 px-2 py-2 outline-none hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-ring"
                       key={device.id}
                       params={{ id: device.id }}
                       to="/device/$id"
                     >
-                      <CctvIcon className="text-muted-foreground size-4 shrink-0" />
+                      <CctvIcon className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{device.name}</span>
-                        <span className="text-muted-foreground block truncate text-[10px]">
+                        <span className="block truncate text-[10px] text-muted-foreground">
                           {device.facilityName} · {device.zoneName ?? "Unassigned zone"}
                         </span>
                       </span>
@@ -310,7 +310,7 @@ function RouteComponent() {
                   <TableBody>
                     {alerts.length === 0 ? (
                       <TableRow>
-                        <TableCell className="text-muted-foreground h-24 text-center" colSpan={7}>
+                        <TableCell className="h-24 text-center text-muted-foreground" colSpan={7}>
                           No alerts match the current filters.
                         </TableCell>
                       </TableRow>
@@ -324,13 +324,13 @@ function RouteComponent() {
                             <span className="line-clamp-2">{alert.message}</span>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">{alert.facilityName}</TableCell>
-                          <TableCell className="text-muted-foreground hidden md:table-cell">
+                          <TableCell className="hidden text-muted-foreground md:table-cell">
                             {alert.deviceName ?? "Facility system"}
                           </TableCell>
-                          <TableCell className="text-muted-foreground hidden lg:table-cell">
+                          <TableCell className="hidden text-muted-foreground lg:table-cell">
                             {humanizeEventType(alert.type)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
+                          <TableCell className="text-right whitespace-nowrap text-muted-foreground tabular-nums">
                             {formatTimestamp(alert.createdAt)}
                           </TableCell>
                           <TableCell>

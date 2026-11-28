@@ -103,7 +103,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap",
         style.bg,
         className,
       )}

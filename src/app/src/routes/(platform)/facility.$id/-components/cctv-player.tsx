@@ -143,17 +143,17 @@ function HlsVideoElement({
 
       {/* State overlays — use parent's nearest positioned ancestor */}
       {(state === "loading" || state === "error") && (
-        <div className="bg-muted/80 absolute inset-0 flex flex-col items-center justify-center gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80">
           {state === "loading" && (
             <>
-              <div className="border-muted-foreground/30 border-t-muted-foreground size-5 animate-spin rounded-full border-2" />
-              <span className="text-muted-foreground/60 text-[11px]">Connecting…</span>
+              <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground/60">Connecting…</span>
             </>
           )}
           {state === "error" && (
             <>
-              <VideoIcon className="text-muted-foreground/40 size-6" />
-              <span className="text-muted-foreground/50 text-[11px]">Stream unavailable</span>
+              <VideoIcon className="size-6 text-muted-foreground/40" />
+              <span className="text-[11px] text-muted-foreground/50">Stream unavailable</span>
             </>
           )}
         </div>
@@ -648,8 +648,8 @@ function Placeholder({
   return (
     <div className={cn("relative w-full overflow-hidden rounded-none border border-border bg-muted/40", className)}>
       <div className="flex h-full flex-col items-center justify-center gap-2">
-        <Icon className="text-muted-foreground/40 size-6" />
-        <span className="text-muted-foreground/50 text-[11px]">{text}</span>
+        <Icon className="size-6 text-muted-foreground/40" />
+        <span className="text-[11px] text-muted-foreground/50">{text}</span>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { hasAdminRole, useSession } from "#/lib/auth/client";
-import { getFacilityAnalytics, type AnalyticsTimeRange, type FacilityAnalytics } from "#/lib/functions/analytics";
-import { getFacilities, type FacilityRow } from "#/lib/functions/facility";
+import { type AnalyticsTimeRange, type FacilityAnalytics, getFacilityAnalytics } from "#/lib/functions/analytics";
+import { type FacilityRow, getFacilities } from "#/lib/functions/facility";
 import { getShowAllFacilitiesPreference } from "#/lib/preferences";
 
 export interface PortfolioFacility {

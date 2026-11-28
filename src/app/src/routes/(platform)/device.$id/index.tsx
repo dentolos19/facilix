@@ -50,7 +50,7 @@ function Page() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
       </div>
     );
   }
@@ -59,8 +59,8 @@ function Page() {
   if (error || !device) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <VideoIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">{error ?? "Device not found"}</p>
+        <VideoIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">{error ?? "Device not found"}</p>
       </div>
     );
   }
@@ -80,10 +80,10 @@ function Page() {
 function GenericDeviceDetail({ device }: { device: DeviceDetail }) {
   return (
     <DeviceDetailLayout device={device} sidebar={<DeviceDetailSidebar device={device} />}>
-      <div className="border-border bg-muted/20 flex h-full items-center justify-center rounded-none border">
+      <div className="flex h-full items-center justify-center rounded-none border border-border bg-muted/20">
         <div className="flex flex-col items-center gap-2">
-          <VideoIcon className="text-muted-foreground/30 size-6" />
-          <span className="text-muted-foreground/50 text-[11px]">
+          <VideoIcon className="size-6 text-muted-foreground/30" />
+          <span className="text-[11px] text-muted-foreground/50">
             No detail view available for {device.type} devices
           </span>
         </div>

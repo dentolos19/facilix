@@ -7,7 +7,7 @@ export function FacilitySummaryCard({ data }: { data: UiFacilitySummary }) {
     data.healthScore >= 90 ? "text-green-500" : data.healthScore >= 70 ? "text-amber-500" : "text-red-500";
 
   return (
-    <div className="border-border my-2 flex flex-col gap-3 rounded-lg border p-4">
+    <div className="my-2 flex flex-col gap-3 rounded-lg border border-border p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">{data.facilityName}</h3>
         <span className={`text-2xl font-bold tabular-nums ${healthColor}`}>{data.healthScore}%</span>
@@ -41,10 +41,10 @@ function Metric({
   valueClass?: string;
 }) {
   return (
-    <div className="border-border/50 bg-muted/20 flex items-center gap-2 rounded border px-3 py-2">
-      <Icon className="text-muted-foreground/60 size-4 shrink-0" />
+    <div className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-3 py-2">
+      <Icon className="size-4 shrink-0 text-muted-foreground/60" />
       <div className="min-w-0">
-        <p className="text-muted-foreground/60 text-[10px] leading-tight">{label}</p>
+        <p className="text-[10px] leading-tight text-muted-foreground/60">{label}</p>
         <p className={`text-sm font-semibold tabular-nums ${valueClass ?? "text-foreground"}`}>{value}</p>
       </div>
     </div>

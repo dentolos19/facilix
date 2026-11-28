@@ -10,15 +10,15 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { EvidenceImage, type DetectionBox } from "#/components/evidence-image";
+import { type DetectionBox, EvidenceImage } from "#/components/evidence-image";
 import { ScrollArea, ScrollBar } from "#/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "#/components/ui/select";
 import type { DeviceDetail } from "#/lib/functions/facility";
 import {
   getDeviceDetections,
   getDeviceRecordings,
-  type VideoFrameRow,
   type RecordingRow,
+  type VideoFrameRow,
 } from "#/lib/functions/recordings";
 import { getPlugin } from "#/lib/monitoring/plugins";
 
@@ -264,7 +264,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
       </div>
     );
   }
@@ -272,8 +272,8 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <BrainCircuitIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">{error}</p>
+        <BrainCircuitIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">{error}</p>
       </div>
     );
   }
@@ -281,8 +281,8 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
   if (detections.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <BrainCircuitIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">No detections available for this device.</p>
+        <BrainCircuitIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">No detections available for this device.</p>
       </div>
     );
   }
@@ -296,10 +296,10 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
 
   return (
     <div className="flex h-full min-h-0 w-full max-w-[calc(100vw-2rem)] min-w-0 flex-col gap-3 overflow-hidden">
-      <div className="border-border bg-muted/20 flex shrink-0 items-center justify-between gap-3 border px-3 py-2">
+      <div className="flex shrink-0 items-center justify-between gap-3 border border-border bg-muted/20 px-3 py-2">
         <div className="min-w-0">
-          <p className="text-foreground/80 text-[11px] font-medium">{selectedPluginName}</p>
-          <p className="text-muted-foreground/50 text-[9px]">
+          <p className="text-[11px] font-medium text-foreground/80">{selectedPluginName}</p>
+          <p className="text-[9px] text-muted-foreground/50">
             {sortedDetections.length} detection frame{sortedDetections.length === 1 ? "" : "s"}
           </p>
         </div>
@@ -332,12 +332,12 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
       </div>
 
       {/* ─ Image viewer ──────────────────────────────────────────────────── */}
-      <div className="border-border bg-muted/40 relative min-h-[160px] min-w-0 flex-1 overflow-hidden border">
+      <div className="relative min-h-[160px] min-w-0 flex-1 overflow-hidden border border-border bg-muted/40">
         {selected && <DetectionFrame frame={selected} />}
 
         {/* Timestamp overlay */}
         {selectedTimestamp && (
-          <div className="border-border bg-background/80 text-foreground/70 pointer-events-none absolute top-2 left-2 z-10 rounded-none border px-2 py-1 font-mono text-[10px] tabular-nums backdrop-blur-sm">
+          <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-none border border-border bg-background/80 px-2 py-1 font-mono text-[10px] text-foreground/70 tabular-nums backdrop-blur-sm">
             {formatWallClock(selectedTimestamp)}
           </div>
         )}
@@ -347,7 +347,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
           <>
             <button
               aria-label="Previous detection"
-              className="bg-background/80 hover:bg-background/60 absolute top-1/2 left-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center backdrop-blur-sm transition-colors disabled:opacity-30"
+              className="absolute top-1/2 left-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center bg-background/80 backdrop-blur-sm transition-colors hover:bg-background/60 disabled:opacity-30"
               disabled={selectedIdx === 0}
               onClick={goPrev}
               type="button"
@@ -356,7 +356,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
             </button>
             <button
               aria-label="Next detection"
-              className="bg-background/80 hover:bg-background/60 absolute top-1/2 right-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center backdrop-blur-sm transition-colors disabled:opacity-30"
+              className="absolute top-1/2 right-2 z-10 flex size-8 -translate-y-1/2 items-center justify-center bg-background/80 backdrop-blur-sm transition-colors hover:bg-background/60 disabled:opacity-30"
               disabled={selectedIdx === sortedDetections.length - 1}
               onClick={goNext}
               type="button"
@@ -367,13 +367,13 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
         )}
 
         {/* Bottom info bar */}
-        <div className="border-border bg-background/80 absolute right-0 bottom-0 left-0 z-10 flex items-center justify-between border-t px-3 py-2 backdrop-blur-sm">
+        <div className="absolute right-0 bottom-0 left-0 z-10 flex items-center justify-between border-t border-border bg-background/80 px-3 py-2 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+            <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
               Frame {selected?.frameIndex}
             </span>
             <span className="text-muted-foreground/40">·</span>
-            <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+            <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
               {selected?.atSec.toFixed(1)}s into segment
             </span>
           </div>
@@ -390,7 +390,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
       </div>
 
       {/* ─ Detection playback timeline ──────────────────────────────────── */}
-      <div className="border-border bg-muted/20 flex w-full max-w-[calc(100vw-2rem)] min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-none border p-2">
+      <div className="flex w-full max-w-[calc(100vw-2rem)] min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-none border border-border bg-muted/20 p-2">
         <ScrollArea
           className="h-32 w-full max-w-[calc(100vw-3rem)] min-w-0 overflow-hidden"
           viewportRef={timelineViewportRef}
@@ -405,8 +405,8 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
               return (
                 <button
                   aria-label={`Show detection ${i + 1} of ${sortedDetections.length}`}
-                  className={`border-border flex w-36 shrink-0 flex-col items-center gap-1 rounded-none border p-1.5 transition-colors ${
-                    isSelected ? "bg-muted/40 ring-foreground/20 ring-1" : "bg-muted/10 hover:bg-muted/20"
+                  className={`flex w-36 shrink-0 flex-col items-center gap-1 rounded-none border border-border p-1.5 transition-colors ${
+                    isSelected ? "bg-muted/40 ring-1 ring-foreground/20" : "bg-muted/10 hover:bg-muted/20"
                   }`}
                   key={pred.id}
                   onClick={() => {
@@ -416,7 +416,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
                   ref={isSelected ? selectedThumbnailRef : undefined}
                   type="button"
                 >
-                  <div className="bg-muted aspect-video w-full overflow-hidden">
+                  <div className="aspect-video w-full overflow-hidden bg-muted">
                     <img
                       alt={`Frame ${pred.frameIndex}`}
                       className="size-full object-contain"
@@ -425,10 +425,10 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
                       src={`/assets/${encodeURIComponent(pred.assetId)}`}
                     />
                   </div>
-                  <p className="text-muted-foreground/60 font-mono text-[8px] tabular-nums">
+                  <p className="font-mono text-[8px] text-muted-foreground/60 tabular-nums">
                     {wallClock ? formatWallClock(wallClock) : `${pred.atSec.toFixed(1)}s`}
                   </p>
-                  <p className="text-muted-foreground/40 font-mono text-[7px]">
+                  <p className="font-mono text-[7px] text-muted-foreground/40">
                     {count} {count === 1 ? "det" : "dets"}
                   </p>
                 </button>
@@ -444,7 +444,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
             aria-valuemax={sortedDetections.length}
             aria-valuemin={1}
             aria-valuenow={selectedIdx + 1}
-            className="bg-muted relative h-1.5 w-full cursor-pointer touch-none rounded-full transition-colors group-hover:h-2"
+            className="relative h-1.5 w-full cursor-pointer touch-none rounded-full bg-muted transition-colors group-hover:h-2"
             onKeyDown={(event) => {
               if (event.key === "ArrowLeft") goPrev();
               if (event.key === "ArrowRight") goNext();
@@ -465,7 +465,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
           >
             {sortedDetections.map((_, i) => (
               <div
-                className="bg-foreground/15 absolute top-0 h-full w-px"
+                className="absolute top-0 h-full w-px bg-foreground/15"
                 key={i}
                 style={{
                   left: `${sortedDetections.length > 1 ? (i / (sortedDetections.length - 1)) * 100 : 100}%`,
@@ -473,11 +473,11 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
               />
             ))}
             <div
-              className="bg-foreground/60 absolute top-0 h-full rounded-full transition-[width] duration-75"
+              className="absolute top-0 h-full rounded-full bg-foreground/60 transition-[width] duration-75"
               style={{ width: `${progressPct}%` }}
             />
             <div
-              className="bg-foreground absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              className="absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
               style={{ left: `${progressPct}%` }}
             />
           </div>
@@ -486,7 +486,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
         <div className="flex items-center gap-1">
           <button
             aria-label={playbackActive ? "Pause detection playback" : "Play detections"}
-            className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors disabled:opacity-30"
+            className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
             disabled={sortedDetections.length <= 1}
             onClick={togglePlay}
             type="button"
@@ -495,7 +495,7 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
           </button>
           <button
             aria-label="Previous detection"
-            className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors disabled:opacity-30"
+            className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
             disabled={selectedIdx === 0}
             onClick={goPrev}
             type="button"
@@ -504,19 +504,19 @@ export function CctvDetectionsTab({ device }: { device: DeviceDetail }) {
           </button>
           <button
             aria-label="Next detection"
-            className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors disabled:opacity-30"
+            className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
             disabled={selectedIdx === sortedDetections.length - 1}
             onClick={goNext}
             type="button"
           >
             <SkipForwardIcon className="size-3.5" />
           </button>
-          <span className="text-foreground/60 ml-1 font-mono text-[10px] tabular-nums">
+          <span className="ml-1 font-mono text-[10px] text-foreground/60 tabular-nums">
             {selectedIdx + 1} / {sortedDetections.length}
           </span>
           <div className="flex-1" />
           {selectedTimestamp && (
-            <span className="text-foreground/40 mr-1 font-mono text-[9px] tabular-nums">
+            <span className="mr-1 font-mono text-[9px] text-foreground/40 tabular-nums">
               {formatWallClock(selectedTimestamp)}
             </span>
           )}

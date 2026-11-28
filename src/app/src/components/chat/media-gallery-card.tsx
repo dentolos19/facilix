@@ -2,16 +2,16 @@ import { AlertTriangleIcon, VideoIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Dialog, DialogContent } from "#/components/ui/dialog";
-import type { UiMediaGallery, UiMediaEntry } from "#/lib/chat/ui";
+import type { UiMediaEntry, UiMediaGallery } from "#/lib/chat/ui";
 
 export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
   const [preview, setPreview] = useState<UiMediaEntry | null>(null);
 
   if (data.entries.length === 0) {
     return (
-      <div className="border-border bg-muted/10 my-2 flex flex-col items-center gap-2 rounded-lg border p-6 text-center">
-        <VideoIcon className="text-muted-foreground/40 size-6" />
-        <p className="text-muted-foreground/60 text-[11px]">No media available</p>
+      <div className="my-2 flex flex-col items-center gap-2 rounded-lg border border-border bg-muted/10 p-6 text-center">
+        <VideoIcon className="size-6 text-muted-foreground/40" />
+        <p className="text-[11px] text-muted-foreground/60">No media available</p>
       </div>
     );
   }
@@ -20,20 +20,20 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
 
   return (
     <>
-      <div className="border-border my-2 rounded-lg border">
+      <div className="my-2 rounded-lg border border-border">
         <div className="grid grid-cols-3 gap-1 p-1 sm:grid-cols-4">
           {entries.map((entry) => (
             <button
               aria-label={`View ${entry.name}`}
-              className="border-border bg-muted/20 group hover:bg-muted/40 relative aspect-video overflow-hidden rounded border transition-colors"
+              className="group relative aspect-video overflow-hidden rounded border border-border bg-muted/20 transition-colors hover:bg-muted/40"
               key={entry.id}
               onClick={() => setPreview(entry)}
               type="button"
             >
               {entry.kind === "video" ? (
                 <div className="flex size-full flex-col items-center justify-center gap-1">
-                  <VideoIcon className="text-muted-foreground/50 size-5" />
-                  <span className="text-muted-foreground/40 text-[8px]">
+                  <VideoIcon className="size-5 text-muted-foreground/50" />
+                  <span className="text-[8px] text-muted-foreground/40">
                     {entry.durationSec ? `${entry.durationSec}s` : "Video"}
                   </span>
                 </div>
@@ -49,7 +49,7 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
                 />
               )}
               {entry.source === "detection" && (
-                <span className="bg-primary/80 absolute top-1 right-1 rounded px-1 py-0.5 text-[7px] text-white">
+                <span className="absolute top-1 right-1 rounded bg-primary/80 px-1 py-0.5 text-[7px] text-white">
                   AI
                 </span>
               )}
@@ -57,8 +57,8 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
           ))}
         </div>
         {data.entries.length > 12 && (
-          <div className="border-border/50 bg-muted/20 border-t px-3 py-1.5 text-center">
-            <span className="text-muted-foreground/50 text-[10px]">{data.entries.length} media files total</span>
+          <div className="border-t border-border/50 bg-muted/20 px-3 py-1.5 text-center">
+            <span className="text-[10px] text-muted-foreground/50">{data.entries.length} media files total</span>
           </div>
         )}
       </div>
@@ -82,9 +82,9 @@ export function MediaGalleryCard({ data }: { data: UiMediaGallery }) {
               src={preview.url}
             />
           ) : (
-            <AlertTriangleIcon className="text-muted-foreground size-8" />
+            <AlertTriangleIcon className="size-8 text-muted-foreground" />
           )}
-          {preview && <p className="text-muted-foreground text-[11px]">{preview.name}</p>}
+          {preview && <p className="text-[11px] text-muted-foreground">{preview.name}</p>}
         </DialogContent>
       </Dialog>
     </>

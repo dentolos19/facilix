@@ -14,11 +14,11 @@ interface PlatformTabsProps {
  */
 export function PlatformTabs({ tabs, activeTab, onChange }: PlatformTabsProps) {
   return (
-    <div className="border-border flex shrink-0 border-b">
+    <div className="flex shrink-0 border-b border-border">
       {tabs.map((tab) => (
         <button
           className={cn(
-            "relative px-3 py-2 font-medium text-[11px] uppercase tracking-wider transition-colors",
+            "relative px-3 py-2 text-[11px] font-medium tracking-wider uppercase transition-colors",
             activeTab === tab.id ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground",
           )}
           key={tab.id}
@@ -26,7 +26,7 @@ export function PlatformTabs({ tabs, activeTab, onChange }: PlatformTabsProps) {
           type="button"
         >
           {tab.label}
-          {activeTab === tab.id && <span className="bg-foreground absolute right-0 bottom-0 left-0 h-px" />}
+          {activeTab === tab.id && <span className="absolute right-0 bottom-0 left-0 h-px bg-foreground" />}
         </button>
       ))}
     </div>

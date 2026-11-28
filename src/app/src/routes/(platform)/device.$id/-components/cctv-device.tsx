@@ -89,7 +89,7 @@ function CctvLiveTab({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
       <main className="flex min-h-0 flex-1 flex-col gap-2">
-        <h2 className="font-heading text-muted-foreground shrink-0 text-[11px] font-medium tracking-wider uppercase">
+        <h2 className="shrink-0 font-heading text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           Live Feed
         </h2>
         <div className="min-h-0 flex-1">
@@ -142,16 +142,16 @@ function CctvCaptureSettingsCard({ device }: { device: DeviceDetail }) {
   const segments = { durationSec: 30, ...capture.segments };
 
   return (
-    <section className="border-border bg-muted/20 rounded-none border p-3">
-      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+    <section className="rounded-none border border-border bg-muted/20 p-3">
+      <h2 className="mb-2 font-heading text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         Capture Settings
       </h2>
       <div className="flex flex-col gap-2">
         {/* Segment capture */}
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-foreground/80 text-[11px] font-medium">Segments</p>
-            <p className="text-muted-foreground/60 text-[10px] leading-snug">
+            <p className="text-[11px] font-medium text-foreground/80">Segments</p>
+            <p className="text-[10px] leading-snug text-muted-foreground/60">
               Continuous recording, {segments.durationSec ?? 30}s per segment
             </p>
           </div>
@@ -174,14 +174,14 @@ function CctvOptionsCard({
   onObjectDetectionChange: (enabled: boolean) => void;
 }) {
   return (
-    <section className="border-border bg-muted/20 rounded-none border p-3">
-      <h2 className="font-heading text-muted-foreground mb-2 text-[11px] font-medium tracking-wider uppercase">
+    <section className="rounded-none border border-border bg-muted/20 p-3">
+      <h2 className="mb-2 font-heading text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
         Options
       </h2>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-foreground/80 text-[11px] font-medium">Live object detection</p>
-          <p className="text-muted-foreground/60 mt-0.5 text-[10px] leading-snug">
+          <p className="text-[11px] font-medium text-foreground/80">Live object detection</p>
+          <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/60">
             Draw MediaPipe labels and bounding boxes on the current HLS feed.
           </p>
         </div>
@@ -194,7 +194,7 @@ function CctvOptionsCard({
         />
       </div>
       {disabled && (
-        <p className="text-muted-foreground/50 mt-2 text-[10px]">Connect a stream before enabling detection.</p>
+        <p className="mt-2 text-[10px] text-muted-foreground/50">Connect a stream before enabling detection.</p>
       )}
     </section>
   );
@@ -216,18 +216,18 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
     );
 
   return (
-    <section className="border-border bg-muted/20 rounded-none border p-3">
+    <section className="rounded-none border border-border bg-muted/20 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="font-heading text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+        <h2 className="font-heading text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
           Intelligence Plugins
         </h2>
-        <span className="text-muted-foreground/60 text-[10px]">
+        <span className="text-[10px] text-muted-foreground/60">
           {installed.length === 0 ? "None" : `${installed.length}`}
         </span>
       </div>
 
       {installed.length === 0 ? (
-        <div className="text-muted-foreground/70 flex items-start gap-2 text-[11px]">
+        <div className="flex items-start gap-2 text-[11px] text-muted-foreground/70">
           <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
           <p className="leading-snug">No operational plugins installed for this camera.</p>
         </div>
@@ -242,13 +242,13 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
 
             return (
               <div
-                className="border-border bg-background/50 flex flex-col gap-1 rounded-none border p-2"
+                className="flex flex-col gap-1 rounded-none border border-border bg-background/50 p-2"
                 key={plugin.id}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-foreground/80 text-[11px] font-medium">{plugin.name}</p>
-                    <p className="text-muted-foreground/50 font-mono text-[8px] uppercase">
+                    <p className="text-[11px] font-medium text-foreground/80">{plugin.name}</p>
+                    <p className="font-mono text-[8px] text-muted-foreground/50 uppercase">
                       {plugin.category} · vision
                     </p>
                   </div>
@@ -256,7 +256,7 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                     className={
                       config.enabled
                         ? "rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium text-green-600 uppercase"
-                        : "bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
+                        : "rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase"
                     }
                   >
                     {config.enabled ? "On" : "Off"}
@@ -265,14 +265,14 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                 {isDetection && detConfig && (
                   <>
                     {detConfig.classes && detConfig.classes.length > 0 && (
-                      <p className="text-muted-foreground/60 text-[10px]">Classes: {detConfig.classes.join(", ")}</p>
+                      <p className="text-[10px] text-muted-foreground/60">Classes: {detConfig.classes.join(", ")}</p>
                     )}
-                    <p className="text-muted-foreground/60 text-[10px]">
+                    <p className="text-[10px] text-muted-foreground/60">
                       Min confidence: {Math.round(detConfig.minConfidence * 100)}%
                     </p>
                     <div className="flex flex-col gap-0.5">
                       {(detConfig.alerts ?? []).map((alert, i) => (
-                        <p className="text-muted-foreground/60 text-[10px]" key={i}>
+                        <p className="text-[10px] text-muted-foreground/60" key={i}>
                           {alert.kind === "count-threshold" &&
                             `Alert: count ${alert.operator} ${alert.threshold} (${alert.thresholdMode}) [${alert.severity}]`}
                           {alert.kind === "object-enters" &&
@@ -289,7 +289,7 @@ function CctvIntelligencePluginsCard({ device }: { device: DeviceDetail }) {
                     {(segConfig.alerts ?? []).length > 0 && (
                       <div className="flex flex-col gap-0.5">
                         {segConfig.alerts.map((alert, i) => (
-                          <p className="text-muted-foreground/60 text-[10px] leading-snug" key={i}>
+                          <p className="text-[10px] leading-snug text-muted-foreground/60" key={i}>
                             {alert.kind === "scene-match" && (
                               <>
                                 {alert.description.length > 50

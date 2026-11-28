@@ -70,7 +70,11 @@ class MonitoringTests(unittest.IsolatedAsyncioTestCase):
         ):
             await monitoring.heartbeat_loop("facility")
         post.assert_awaited_once_with(
-            "facility", "monitoring:heartbeat", "info", "Container heartbeat", {"uptimeSec": 120}
+            "facility",
+            "monitoring:heartbeat",
+            "info",
+            "Container heartbeat",
+            {"uptimeSec": 120},
         )
 
     async def test_sensor_readings_do_not_default_to_zero(self):

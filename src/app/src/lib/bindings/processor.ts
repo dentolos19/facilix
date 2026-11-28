@@ -7,6 +7,8 @@ import { createLogger } from "#/lib/logs";
 import { selectRepresentativeFrames, type StoredDetectionRef } from "#/lib/monitoring/event-evidence";
 import {
   countByLabelFilter,
+  type DetectionAlertRule,
+  type DevicePluginConfig,
   evaluateCountThreshold,
   evaluateTransition,
   filterDetectionsForPlugin,
@@ -14,23 +16,21 @@ import {
   groupPluginsByWorkflow,
   isCooldownElapsed,
   normalizePlugins,
-  resolveEnabledPlugins,
-  workflowIdentity,
-  type DetectionAlertRule,
-  type DevicePluginConfig,
   type PluginCategory,
   type ResolvedPlugin,
+  resolveEnabledPlugins,
   type SceneMatchAlertRule,
-  type WorkflowObjectDetectionPlugin,
+  workflowIdentity,
   type WorkflowObjectDetectionDeviceConfig,
+  type WorkflowObjectDetectionPlugin,
 } from "#/lib/monitoring/plugins";
 import {
-  runVideoObjectDetection,
-  type DetectionVideoMeta,
   type DetectionFrame,
+  type DetectionVideoMeta,
+  runVideoObjectDetection,
   type WorkflowDetection,
 } from "#/lib/monitoring/roboflow";
-import { recordEvent, type EventAttachmentInput } from "#/lib/monitoring/utils";
+import { type EventAttachmentInput, recordEvent } from "#/lib/monitoring/utils";
 import type { JsonObject } from "#/routes/(platform)/facility.$id/-helpers/types";
 
 /**
@@ -73,14 +73,7 @@ const INFERENCE_STEP_RETRIES = {
 };
 
 type FacilityProcessStatus =
-  | "queued"
-  | "running"
-  | "waiting"
-  | "paused"
-  | "errored"
-  | "terminated"
-  | "complete"
-  | "unknown";
+  "queued" | "running" | "waiting" | "paused" | "errored" | "terminated" | "complete" | "unknown";
 
 type FacilityProcessUpdate = {
   status?: FacilityProcessStatus;

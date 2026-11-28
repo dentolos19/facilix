@@ -1,5 +1,5 @@
 import type Konva from "konva";
-import { ArrowDownIcon, ArrowUpIcon, ArrowDownToLineIcon, ArrowUpToLineIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowDownToLineIcon, ArrowUpIcon, ArrowUpToLineIcon, Trash2Icon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, Group, Layer, Path, Rect, Stage, Text, Transformer } from "react-konva";
@@ -509,53 +509,53 @@ export function CanvasEditor({
       )}
       {contextMenu && (
         <div
-          className="bg-popover text-popover-foreground ring-foreground/10 z-50 min-w-40 rounded-none border shadow-md ring-1"
+          className="z-50 min-w-40 rounded-none border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10"
           onClick={(e) => e.stopPropagation()}
           style={{ position: "fixed", left: contextMenu.x, top: contextMenu.y }}
         >
           {contextMenuItem && (
-            <div className="border-muted/40 text-muted-foreground border-b px-2.5 py-1.5 text-[11px] font-medium">
+            <div className="border-b border-muted/40 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground">
               {contextMenuItem.name || contextMenuItem.type}
             </div>
           )}
           <div
-            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
+            className="group/ctx-item flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none hover:bg-accent hover:text-accent-foreground"
             onClick={handleMoveUp}
           >
             <ArrowUpIcon className="size-3.5" />
             Move Up
           </div>
           <div
-            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
+            className="group/ctx-item flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none hover:bg-accent hover:text-accent-foreground"
             onClick={handleMoveDown}
           >
             <ArrowDownIcon className="size-3.5" />
             Move Down
           </div>
-          <div className="bg-border -mx-0 h-px" />
+          <div className="-mx-0 h-px bg-border" />
           <div
-            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
+            className="group/ctx-item flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none hover:bg-accent hover:text-accent-foreground"
             onClick={handleMoveToFront}
           >
             <ArrowUpToLineIcon className="size-3.5" />
             Bring to Front
           </div>
           <div
-            className="group/ctx-item hover:bg-accent hover:text-accent-foreground flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
+            className="group/ctx-item flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none hover:bg-accent hover:text-accent-foreground"
             onClick={handleMoveToBack}
           >
             <ArrowDownToLineIcon className="size-3.5" />
             Send to Back
           </div>
-          <div className="bg-border -mx-0 h-px" />
+          <div className="-mx-0 h-px bg-border" />
           <div
-            className="group/ctx-item hover:bg-destructive/10 text-destructive hover:text-destructive flex cursor-default items-center gap-2 px-2 py-1.5 text-xs select-none"
+            className="group/ctx-item flex cursor-default items-center gap-2 px-2 py-1.5 text-xs text-destructive select-none hover:bg-destructive/10 hover:text-destructive"
             onClick={handleDeleteSelected}
           >
             <Trash2Icon className="size-3.5" />
             Delete
             {selectedItemIds.size > 1 && (
-              <span className="text-muted-foreground ml-auto text-[10px]">{selectedItemIds.size}</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">{selectedItemIds.size}</span>
             )}
           </div>
         </div>

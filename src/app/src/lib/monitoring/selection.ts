@@ -1,8 +1,5 @@
 export type MonitoringSelection =
-  | { kind: "event"; eventId: string }
-  | { kind: "device"; deviceId: string }
-  | { kind: "zone"; zoneId: string }
-  | null;
+  { kind: "event"; eventId: string } | { kind: "device"; deviceId: string } | { kind: "zone"; zoneId: string } | null;
 
 export function isEventSelected(selection: MonitoringSelection, eventId: string): boolean {
   return selection?.kind === "event" && selection.eventId === eventId;

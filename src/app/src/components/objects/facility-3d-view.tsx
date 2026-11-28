@@ -3,7 +3,7 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { CuboidIcon } from "lucide-react";
-import { Component, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Component, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { Object3D } from "three";
 
 import { buildSceneDescriptor } from "#/routes/(platform)/facility.$id/-helpers/scene-geometry";
@@ -174,7 +174,7 @@ function SceneContent({
 function SceneLoading() {
   return (
     <div className="flex h-full w-full items-center justify-center">
-      <span className="text-muted-foreground/50 text-xs">Loading 3D view…</span>
+      <span className="text-xs text-muted-foreground/50">Loading 3D view…</span>
     </div>
   );
 }
@@ -198,7 +198,7 @@ class SceneErrorBoundary extends Component<{ children: ReactNode; fallback?: Rea
       return (
         this.props.fallback ?? (
           <div className="flex h-full w-full items-center justify-center">
-            <span className="text-muted-foreground text-xs">Failed to render 3D view.</span>
+            <span className="text-xs text-muted-foreground">Failed to render 3D view.</span>
           </div>
         )
       );
@@ -233,8 +233,8 @@ export function Facility3DView({
   if (webglError) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-        <CuboidIcon className="text-muted-foreground/40 size-8" />
-        <span className="text-muted-foreground text-xs">WebGL is not available in this browser.</span>
+        <CuboidIcon className="size-8 text-muted-foreground/40" />
+        <span className="text-xs text-muted-foreground">WebGL is not available in this browser.</span>
       </div>
     );
   }
@@ -244,8 +244,8 @@ export function Facility3DView({
       <SceneErrorBoundary
         fallback={
           <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-            <CuboidIcon className="text-muted-foreground/40 size-8" />
-            <span className="text-muted-foreground text-xs">3D view failed to load.</span>
+            <CuboidIcon className="size-8 text-muted-foreground/40" />
+            <span className="text-xs text-muted-foreground">3D view failed to load.</span>
           </div>
         }
       >

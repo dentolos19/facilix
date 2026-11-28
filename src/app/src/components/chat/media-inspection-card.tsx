@@ -8,12 +8,12 @@ export function MediaInspectionCard({ data }: { data: UiMediaInspection }) {
   const canPreview = isImage || isVideo;
 
   return (
-    <div className="border-border my-2 flex flex-col gap-3 rounded-lg border p-3">
+    <div className="my-2 flex flex-col gap-3 rounded-lg border border-border p-3">
       <div className="flex items-center gap-2">
-        <EyeIcon className="text-muted-foreground/60 size-4" />
+        <EyeIcon className="size-4 text-muted-foreground/60" />
         <span className="text-xs font-medium">Media Inspection</span>
         <a
-          className="text-muted-foreground/50 hover:text-foreground ml-auto transition-colors"
+          className="ml-auto text-muted-foreground/50 transition-colors hover:text-foreground"
           href={data.assetUrl}
           rel="noopener noreferrer"
           target="_blank"
@@ -22,10 +22,10 @@ export function MediaInspectionCard({ data }: { data: UiMediaInspection }) {
         </a>
       </div>
 
-      <p className="text-muted-foreground/80 text-[11px] leading-relaxed">{data.answer}</p>
+      <p className="text-[11px] leading-relaxed text-muted-foreground/80">{data.answer}</p>
 
       {canPreview && (
-        <div className="border-border bg-muted/10 relative aspect-video overflow-hidden rounded border">
+        <div className="relative aspect-video overflow-hidden rounded border border-border bg-muted/10">
           {isVideo ? (
             <video className="size-full object-contain" controls playsInline preload="metadata" src={data.assetUrl} />
           ) : (

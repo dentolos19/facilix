@@ -45,7 +45,7 @@ export function DeviceLogs({ device }: { device: DeviceDetail }) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
       </div>
     );
   }
@@ -53,8 +53,8 @@ export function DeviceLogs({ device }: { device: DeviceDetail }) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <FileTextIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">{error}</p>
+        <FileTextIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">{error}</p>
       </div>
     );
   }
@@ -62,8 +62,8 @@ export function DeviceLogs({ device }: { device: DeviceDetail }) {
   if (events.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <FileTextIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">No logs for this device yet.</p>
+        <FileTextIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">No logs for this device yet.</p>
       </div>
     );
   }
@@ -71,10 +71,10 @@ export function DeviceLogs({ device }: { device: DeviceDetail }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+        <h3 className="font-heading text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
           Recent events
         </h3>
-        <span className="text-muted-foreground/50 text-[10px]">{events.length} shown</span>
+        <span className="text-[10px] text-muted-foreground/50">{events.length} shown</span>
       </div>
       <div className="flex flex-col gap-2">
         {events.map((event) => (
@@ -95,7 +95,7 @@ function LogRow({ event }: { event: FacilityEventRow }) {
 
   return (
     <button
-      className="border-border bg-background hover:bg-muted/30 flex gap-3 rounded-none border p-2.5 text-left transition-colors"
+      className="flex gap-3 rounded-none border border-border bg-background p-2.5 text-left transition-colors hover:bg-muted/30"
       onClick={() => hasData && setExpanded(!expanded)}
       type="button"
     >
@@ -104,21 +104,21 @@ function LogRow({ event }: { event: FacilityEventRow }) {
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-foreground/80 truncate text-[11px] font-medium">{event.type}</span>
+          <span className="truncate text-[11px] font-medium text-foreground/80">{event.type}</span>
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className="text-muted-foreground/50 text-[10px] tabular-nums">
+            <span className="text-[10px] text-muted-foreground/50 tabular-nums">
               {new Date(event.createdAt).toLocaleString()}
             </span>
             {hasData && (
               <ChevronDownIcon
-                className={`text-muted-foreground/40 size-3 transition-transform ${expanded ? "rotate-180" : ""}`}
+                className={`size-3 text-muted-foreground/40 transition-transform ${expanded ? "rotate-180" : ""}`}
               />
             )}
           </div>
         </div>
-        <p className="text-foreground/70 text-[11px]">{event.message}</p>
+        <p className="text-[11px] text-foreground/70">{event.message}</p>
         {hasData && expanded && (
-          <dl className="bg-muted/30 mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-none p-1.5 text-[10px]">
+          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-none bg-muted/30 p-1.5 text-[10px]">
             {dataKeys.map(([key, value]) => (
               <DataField key={key} keyName={key} value={value} />
             ))}
@@ -140,7 +140,7 @@ function DataField({ keyName, value }: { keyName: string; value: unknown }) {
     return (
       <>
         <dt className="text-muted-foreground/60">{label}</dt>
-        <dd className="text-foreground/70 truncate font-mono">{isLargeArray ? `${value.length} items` : str}</dd>
+        <dd className="truncate font-mono text-foreground/70">{isLargeArray ? `${value.length} items` : str}</dd>
       </>
     );
   }
@@ -149,7 +149,7 @@ function DataField({ keyName, value }: { keyName: string; value: unknown }) {
   return (
     <>
       <dt className="text-muted-foreground/60">{label}</dt>
-      <dd className="text-foreground/70 truncate font-mono">{display}</dd>
+      <dd className="truncate font-mono text-foreground/70">{display}</dd>
     </>
   );
 }

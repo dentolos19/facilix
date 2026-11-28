@@ -1,5 +1,5 @@
 import { ExpandIcon } from "lucide-react";
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "#/components/ui/dialog";
@@ -64,9 +64,9 @@ export function FacilityMapCard({ data }: { data: UiFacilityMap }) {
 
   return (
     <>
-      <div ref={containerRef} className="border-border bg-muted/10 relative my-2 overflow-hidden rounded-lg border">
+      <div ref={containerRef} className="relative my-2 overflow-hidden rounded-lg border border-border bg-muted/10">
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
-          <span className="text-muted-foreground text-[11px] font-medium">Facility Layout</span>
+          <span className="text-[11px] font-medium text-muted-foreground">Facility Layout</span>
           <Button aria-label="Expand map" onClick={() => setExpanded(true)} size="icon-xs" variant="ghost">
             <ExpandIcon className="size-3.5" />
           </Button>
@@ -87,7 +87,7 @@ export function FacilityMapCard({ data }: { data: UiFacilityMap }) {
           ))}
         </svg>
         {selectedDeviceName && (
-          <div className="bg-background/90 absolute right-2 bottom-2 rounded px-2 py-1 text-[10px] font-medium backdrop-blur-sm">
+          <div className="absolute right-2 bottom-2 rounded bg-background/90 px-2 py-1 text-[10px] font-medium backdrop-blur-sm">
             {selectedDeviceName}
           </div>
         )}

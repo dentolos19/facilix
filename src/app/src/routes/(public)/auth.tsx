@@ -65,11 +65,11 @@ function AuthPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
       <Card className="w-full max-w-sm pt-0">
-        <div className="border-border flex border-b">
+        <div className="flex border-b border-border">
           <button
             className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
               mode === "login"
-                ? "border-primary text-foreground border-b-2"
+                ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => navigate({ to: "/auth", search: { mode: "login" }, replace: true })}
@@ -79,7 +79,7 @@ function AuthPage() {
           <button
             className={`flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
               mode === "register"
-                ? "border-primary text-foreground border-b-2"
+                ? "border-b-2 border-primary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => navigate({ to: "/auth", search: { mode: "register" }, replace: true })}
@@ -157,11 +157,11 @@ function LoginForm() {
               value={password}
             />
           </div>
-          {error && <p className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">{error}</p>}
+          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <Button disabled={loading} type="submit">
             {loading ? modeConfig.login.loadingLabel : modeConfig.login.submitLabel}
           </Button>
-          <p className="text-muted-foreground text-center text-sm">
+          <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
             <Link className="underline underline-offset-2" search={{ mode: "register" }} to="/auth">
               Sign up
@@ -252,11 +252,11 @@ function RegisterForm() {
               value={password}
             />
           </div>
-          {error && <p className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">{error}</p>}
+          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
           <Button disabled={loading} type="submit">
             {loading ? modeConfig.register.loadingLabel : modeConfig.register.submitLabel}
           </Button>
-          <p className="text-muted-foreground text-center text-sm">
+          <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link className="underline underline-offset-2" search={{ mode: "login" }} to="/auth">
               Sign in

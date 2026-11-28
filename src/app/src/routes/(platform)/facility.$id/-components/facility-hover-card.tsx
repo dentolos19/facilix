@@ -61,7 +61,7 @@ export function FacilityHoverCard({ item, x, y, containerRef }: FacilityHoverCar
 
   return (
     <div
-      className="bg-background border-border pointer-events-none absolute z-40 max-w-[260px] min-w-[180px] rounded-none border p-2.5 shadow-md"
+      className="pointer-events-none absolute z-40 max-w-[260px] min-w-[180px] rounded-none border border-border bg-background p-2.5 shadow-md"
       ref={cardRef}
       style={{
         left: x,
@@ -71,14 +71,14 @@ export function FacilityHoverCard({ item, x, y, containerRef }: FacilityHoverCar
     >
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-foreground truncate text-xs font-medium">{details.name}</span>
-          <span className="text-muted-foreground/70 shrink-0 text-[10px]">{details.subtitle}</span>
+          <span className="truncate text-xs font-medium text-foreground">{details.name}</span>
+          <span className="shrink-0 text-[10px] text-muted-foreground/70">{details.subtitle}</span>
         </div>
         <div className="flex flex-col gap-0.5">
           {details.rows.map((row) => (
             <div className="flex items-center justify-between gap-2" key={row.label}>
-              <span className="text-muted-foreground/60 shrink-0 text-[10px]">{row.label}</span>
-              <span className="text-foreground/70 truncate text-right text-[10px]">{row.value}</span>
+              <span className="shrink-0 text-[10px] text-muted-foreground/60">{row.label}</span>
+              <span className="truncate text-right text-[10px] text-foreground/70">{row.value}</span>
             </div>
           ))}
         </div>

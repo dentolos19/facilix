@@ -24,16 +24,16 @@ function StatusBadge({ status }: { status: string }) {
 export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
   if (data.length === 0) {
     return (
-      <div className="border-border bg-muted/10 my-2 flex flex-col items-center gap-2 rounded-lg border p-6 text-center">
-        <CpuIcon className="text-muted-foreground/40 size-6" />
-        <p className="text-muted-foreground/60 text-[11px]">No devices configured</p>
+      <div className="my-2 flex flex-col items-center gap-2 rounded-lg border border-border bg-muted/10 p-6 text-center">
+        <CpuIcon className="size-6 text-muted-foreground/40" />
+        <p className="text-[11px] text-muted-foreground/60">No devices configured</p>
       </div>
     );
   }
 
   return (
-    <div className="border-border my-2 overflow-hidden rounded-lg border">
-      <div className="divide-border flex flex-col divide-y">
+    <div className="my-2 overflow-hidden rounded-lg border border-border">
+      <div className="flex flex-col divide-y divide-border">
         {data.map((device) => {
           const reading = device.latestReading;
           return (
@@ -43,7 +43,7 @@ export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
                   <span className="text-sm leading-tight font-medium">{device.name}</span>
                   <StatusBadge status={device.status} />
                 </div>
-                <div className="text-muted-foreground/70 flex items-center gap-2 text-[11px]">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
                   <span>{device.type}</span>
                   {device.zoneName && (
                     <>
@@ -53,7 +53,7 @@ export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
                   )}
                 </div>
                 {reading && (
-                  <div className="text-muted-foreground/60 mt-1 flex items-center gap-3 text-[10px]">
+                  <div className="mt-1 flex items-center gap-3 text-[10px] text-muted-foreground/60">
                     <span>
                       {reading.sensorType}: {reading.value}
                       {reading.unit}
@@ -78,8 +78,8 @@ export function DeviceListCard({ data }: { data: UiDeviceEntry[] }) {
         })}
       </div>
       {data.length > 10 && (
-        <div className="border-border/50 bg-muted/20 border-t px-3 py-1.5 text-center">
-          <span className="text-muted-foreground/50 text-[10px]">{data.length} devices total</span>
+        <div className="border-t border-border/50 bg-muted/20 px-3 py-1.5 text-center">
+          <span className="text-[10px] text-muted-foreground/50">{data.length} devices total</span>
         </div>
       )}
     </div>

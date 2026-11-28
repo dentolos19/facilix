@@ -120,7 +120,7 @@ function RouteComponent() {
         <PortfolioEmpty />
       ) : (
         <>
-          {error ? <p className="text-destructive text-xs">Refresh failed: {error}</p> : null}
+          {error ? <p className="text-xs text-destructive">Refresh failed: {error}</p> : null}
 
           <section aria-label="Portfolio metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
@@ -217,14 +217,14 @@ function RouteComponent() {
                   <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center">
                     <HeartPulseIcon className="size-5 text-emerald-500" />
                     <p className="font-medium">No priority events</p>
-                    <p className="text-muted-foreground max-w-52 text-[10px]">
+                    <p className="max-w-52 text-[10px] text-muted-foreground">
                       All recent facility events are informational.
                     </p>
                   </div>
                 ) : (
                   recentPriorityEvents.map((event) => (
                     <Link
-                      className="hover:bg-muted/50 focus-visible:ring-ring grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 px-2 py-2 outline-none focus-visible:ring-1"
+                      className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 px-2 py-2 outline-none hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-ring"
                       key={event.id}
                       params={{ id: event.facilityId }}
                       search={{ tab: "logs" }}
@@ -232,7 +232,7 @@ function RouteComponent() {
                     >
                       <SeverityBadge severity={event.severity} />
                       <span className="truncate font-medium">{event.message}</span>
-                      <span className="text-muted-foreground col-start-2 truncate text-[10px]">
+                      <span className="col-start-2 truncate text-[10px] text-muted-foreground">
                         {event.facilityName} · {formatTimestamp(event.createdAt)}
                       </span>
                     </Link>
@@ -247,7 +247,7 @@ function RouteComponent() {
               <CardHeader>
                 <CardTitle>Facility Readiness</CardTitle>
                 <CardDescription>Health, coverage, and current activity for every facility in scope.</CardDescription>
-                <CardAction className="text-muted-foreground flex items-center gap-1 text-[10px]">
+                <CardAction className="flex items-center gap-1 text-[10px] text-muted-foreground">
                   <MapPinnedIcon className="size-3.5" />
                   {totalZones} zones
                 </CardAction>
@@ -287,7 +287,7 @@ function RouteComponent() {
                           <TableCell className="hidden text-right tabular-nums md:table-cell">
                             {facilityPriorityEvents}
                           </TableCell>
-                          <TableCell className="text-muted-foreground hidden lg:table-cell">
+                          <TableCell className="hidden text-muted-foreground lg:table-cell">
                             {latestEvent ? formatTimestamp(latestEvent.createdAt) : "No activity"}
                           </TableCell>
                           <TableCell>

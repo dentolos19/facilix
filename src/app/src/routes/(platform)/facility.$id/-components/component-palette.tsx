@@ -8,10 +8,10 @@ export function ComponentPalette() {
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
         <div className="space-y-1">
-          <h3 className="font-heading text-muted-foreground text-xs font-medium tracking-wider uppercase">
+          <h3 className="font-heading text-xs font-medium tracking-wider text-muted-foreground uppercase">
             Components
           </h3>
-          <p className="text-muted-foreground/60 text-[11px] leading-relaxed">
+          <p className="text-[11px] leading-relaxed text-muted-foreground/60">
             Drag items onto the canvas to place them.
           </p>
         </div>
@@ -20,7 +20,7 @@ export function ComponentPalette() {
             const Icon = item.icon;
             return (
               <button
-                className="group hover:bg-muted/80 flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:shadow-sm active:scale-[0.98] active:cursor-grabbing"
+                className="group flex cursor-grab items-center gap-3 rounded-md px-3 py-2.5 text-left text-xs transition-all hover:bg-muted/80 hover:shadow-sm active:scale-[0.98] active:cursor-grabbing"
                 draggable
                 key={item.label}
                 onDragStart={(e) => {
@@ -35,8 +35,8 @@ export function ComponentPalette() {
                   <Icon className={`h-4 w-4 ${item.color}`} />
                 </span>
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-foreground/90 font-medium">{item.label}</span>
-                  <span className="text-muted-foreground/60 text-[10px] leading-tight">{item.description}</span>
+                  <span className="font-medium text-foreground/90">{item.label}</span>
+                  <span className="text-[10px] leading-tight text-muted-foreground/60">{item.description}</span>
                 </div>
               </button>
             );

@@ -22,12 +22,12 @@ import { hasAdminRole, signOut, useSession } from "#/lib/auth/client";
 import {
   getSimulationStatus,
   getSimulationStreams,
+  type SimulationStatus,
+  type SimulationStream,
   startSimulation,
   startSimulationStream,
   stopSimulation,
   stopSimulationStream,
-  type SimulationStatus,
-  type SimulationStream,
 } from "#/lib/functions/settings";
 import { getShowAllFacilitiesPreference, setShowAllFacilitiesPreference } from "#/lib/preferences";
 import { getSimulatorBase } from "#/lib/simulation/url";
@@ -100,7 +100,7 @@ function Page() {
             </Field>
 
             {mounted && theme && (
-              <p className="text-muted-foreground mt-3 text-xs">
+              <p className="mt-3 text-xs text-muted-foreground">
                 {THEME_OPTIONS.find((o) => o.value === theme)?.description}
               </p>
             )}
@@ -119,7 +119,7 @@ function Page() {
                   <label className="text-sm font-medium" htmlFor="show-all-facilities">
                     Show all facilities
                   </label>
-                  <p className="text-muted-foreground mt-1 text-xs">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Include facilities where you are not listed as a member on the Facilities page.
                   </p>
                 </div>
@@ -252,7 +252,7 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
             {!checked ? (
-              <Loader2Icon className="text-muted-foreground size-4 animate-spin" />
+              <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
             ) : down ? (
               <XCircleIcon className="text-destructive" />
             ) : (
@@ -261,7 +261,7 @@ function LocalSimulatorStatus({ isAdmin }: { isAdmin: boolean }) {
             <div className="flex flex-col">
               <span className="text-sm font-medium">{!checked ? "Checking\u2026" : down ? "Down" : "Healthy"}</span>
               {health && (
-                <span className="text-muted-foreground text-xs">
+                <span className="text-xs text-muted-foreground">
                   {health.sensors.online}/{health.sensors.total} sensors online
                 </span>
               )}
@@ -412,10 +412,10 @@ function CloudflareSimulatorControl({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-sm font-medium">{status ? STATUS_LABELS[status.overall] : "Unknown"}</span>
               </div>
             </div>
-            {actionLoading && <Loader2Icon className="text-muted-foreground size-4 animate-spin" />}
+            {actionLoading && <Loader2Icon className="size-4 animate-spin text-muted-foreground" />}
           </div>
 
-          {error && <p className="text-destructive bg-destructive/10 rounded-md px-3 py-2 text-xs">{error}</p>}
+          {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
 
           {status?.overall === "running" && (
             <CctvStreamControls
@@ -454,10 +454,10 @@ function CctvStreamControls({
 }) {
   return (
     <div className="rounded-md border">
-      <div className="text-muted-foreground border-b px-3 py-2 text-xs font-medium">CCTV Streams</div>
-      {error && <p className="text-destructive bg-destructive/10 px-3 py-2 text-xs">{error}</p>}
+      <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">CCTV Streams</div>
+      {error && <p className="bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
       {streams.length === 0 ? (
-        <p className="text-muted-foreground px-3 py-2 text-xs">No streams are registered.</p>
+        <p className="px-3 py-2 text-xs text-muted-foreground">No streams are registered.</p>
       ) : (
         streams.map((stream) => {
           const active = stream.status === "running" || stream.status === "starting";
@@ -469,7 +469,7 @@ function CctvStreamControls({
             >
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium">{formatStreamLabel(stream.label ?? stream.name)}</p>
-                <p className="text-muted-foreground truncate font-mono text-[10px]">
+                <p className="truncate font-mono text-[10px] text-muted-foreground">
                   {stream.name} &middot; {stream.hlsReady ? "HLS-ready" : (stream.hlsError ?? stream.status)}
                 </p>
               </div>

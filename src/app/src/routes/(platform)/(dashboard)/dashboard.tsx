@@ -58,7 +58,7 @@ function FacilityLayoutPreview({ data }: { data: CanvasLayoutData }) {
 
   if (items.length === 0) {
     return (
-      <div className="bg-muted/20 text-muted-foreground/50 flex h-40 items-center justify-center border-b text-[10px]">
+      <div className="flex h-40 items-center justify-center border-b bg-muted/20 text-[10px] text-muted-foreground/50">
         No layout yet
       </div>
     );
@@ -82,7 +82,7 @@ function FacilityLayoutPreview({ data }: { data: CanvasLayoutData }) {
   const viewBox = `${bounds.minX - padding} ${bounds.minY - padding} ${bounds.maxX - bounds.minX + padding * 2} ${bounds.maxY - bounds.minY + padding * 2}`;
 
   return (
-    <div className="bg-muted/20 relative h-40 overflow-hidden border-b">
+    <div className="relative h-40 overflow-hidden border-b bg-muted/20">
       <div className="absolute inset-0 bg-[radial-gradient(circle,var(--border)_1px,transparent_1px)] bg-[size:12px_12px] opacity-40" />
       <svg aria-hidden="true" className="relative size-full p-3" preserveAspectRatio="xMidYMid meet" viewBox={viewBox}>
         {items.map((item) => {
@@ -104,7 +104,7 @@ function FacilityLayoutPreview({ data }: { data: CanvasLayoutData }) {
 
           return (
             <circle
-              className="stroke-background fill-emerald-500"
+              className="fill-emerald-500 stroke-background"
               cx={item.x}
               cy={item.y}
               key={item.id}
@@ -115,7 +115,7 @@ function FacilityLayoutPreview({ data }: { data: CanvasLayoutData }) {
           );
         })}
       </svg>
-      <span className="bg-background/85 text-muted-foreground absolute right-2 bottom-2 border px-1.5 py-0.5 text-[9px] backdrop-blur-sm">
+      <span className="absolute right-2 bottom-2 border bg-background/85 px-1.5 py-0.5 text-[9px] text-muted-foreground backdrop-blur-sm">
         {items.length} {items.length === 1 ? "item" : "items"}
       </span>
     </div>
@@ -251,7 +251,7 @@ function Page() {
                     Optional. Upload a JPEG, PNG, or WebP floorplan up to 8 MB to build the initial layout.
                   </FieldDescription>
                   {newFacilityLayoutImage && (
-                    <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <ImagePlusIcon className="size-3.5" />
                       {newFacilityLayoutImage.name}
                     </p>
@@ -282,7 +282,7 @@ function Page() {
         <FacilityGridSkeleton />
       ) : error ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12">
-          <p className="text-destructive text-sm font-medium">{error}</p>
+          <p className="text-sm font-medium text-destructive">{error}</p>
           <Button onClick={fetchFacilities} size="sm" variant="outline">
             <RefreshCwIcon />
             Retry
@@ -312,27 +312,27 @@ function Page() {
             const status = statuses[facility.id] ?? "stopped";
             return (
               <Link
-                className="focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
+                className="focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
                 key={facility.id}
                 params={{ id: facility.id }}
                 to="/facility/$id"
               >
-                <Card className="hover:bg-muted/50 relative h-full gap-0 pt-0 transition-colors">
+                <Card className="relative h-full gap-0 pt-0 transition-colors hover:bg-muted/50">
                   {!facility.isMember && (
-                    <span className="bg-background/90 absolute top-2 left-2 z-10 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 backdrop-blur-sm dark:text-amber-300">
+                    <span className="absolute top-2 left-2 z-10 border border-amber-500/30 bg-background/90 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 backdrop-blur-sm dark:text-amber-300">
                       External
                     </span>
                   )}
                   <FacilityLayoutPreview data={facility.data} />
                   <CardHeader className="pt-4">
                     <CardTitle className="flex items-center gap-2">
-                      <Building2Icon className="text-muted-foreground size-4" />
+                      <Building2Icon className="size-4 text-muted-foreground" />
                       {facility.name}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between">
-                      <p className="text-muted-foreground text-xs">Created {facility.createdAt.toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">Created {facility.createdAt.toLocaleDateString()}</p>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center">

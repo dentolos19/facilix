@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ResponsiveGridLayout, useContainerWidth, verticalCompactor } from "react-grid-layout/react";
 
 import { Button } from "#/components/ui/button";
-import type { FeedCctvDevice, FeedSensorDevice, FeedLayouts } from "#/lib/functions/facility-feed";
+import type { FeedCctvDevice, FeedLayouts, FeedSensorDevice } from "#/lib/functions/facility-feed";
 import { getFacilityFeed, saveFacilityFeedLayout } from "#/lib/functions/facility-feed";
 import { simulationHlsUrl } from "#/lib/simulation/cctv";
 import { cn } from "#/lib/utils";
@@ -113,17 +113,17 @@ function CctvFeedCard({ device }: { device: FeedCctvDevice }) {
   const streamName = device.simulationStream;
 
   return (
-    <div className="border-border bg-card flex h-full min-h-0 flex-col overflow-hidden rounded-none border">
-      <div className="feed-drag-handle border-border flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing">
-        <VideoIcon className="text-muted-foreground/60 size-3" />
-        <span className="text-foreground truncate text-[11px] font-medium">{device.name}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card">
+      <div className="feed-drag-handle flex cursor-grab items-center gap-2 border-b border-border px-3 py-2 active:cursor-grabbing">
+        <VideoIcon className="size-3 text-muted-foreground/60" />
+        <span className="truncate text-[11px] font-medium text-foreground">{device.name}</span>
         {device.zoneName && (
-          <span className="text-muted-foreground/50 flex items-center gap-0.5 text-[10px]">
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/50">
             <MapPinIcon className="size-2.5" />
             {device.zoneName}
           </span>
         )}
-        <GripVerticalIcon className="text-muted-foreground/40 ml-auto size-3.5 shrink-0" />
+        <GripVerticalIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground/40" />
       </div>
       <div className="min-h-0 flex-1">
         <CctvPlayer
@@ -144,17 +144,17 @@ function SensorFeedCard({ device }: { device: FeedSensorDevice }) {
   const isAboveThreshold = device.sensorStatus === "warn" || device.sensorStatus === "error";
 
   return (
-    <div className="border-border bg-card flex h-full min-h-0 flex-col overflow-hidden rounded-none border">
-      <div className="feed-drag-handle border-border flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing">
-        <ActivityIcon className="text-muted-foreground/60 size-3" />
-        <span className="text-foreground truncate text-[11px] font-medium">{device.name}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border border-border bg-card">
+      <div className="feed-drag-handle flex cursor-grab items-center gap-2 border-b border-border px-3 py-2 active:cursor-grabbing">
+        <ActivityIcon className="size-3 text-muted-foreground/60" />
+        <span className="truncate text-[11px] font-medium text-foreground">{device.name}</span>
         {device.zoneName && (
-          <span className="text-muted-foreground/50 flex items-center gap-0.5 text-[10px]">
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground/50">
             <MapPinIcon className="size-2.5" />
             {device.zoneName}
           </span>
         )}
-        <GripVerticalIcon className="text-muted-foreground/40 ml-auto size-3.5 shrink-0" />
+        <GripVerticalIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground/40" />
       </div>
       <div className="min-h-0 flex-1 p-3">
         <div className="flex h-full flex-col justify-between">
@@ -164,29 +164,29 @@ function SensorFeedCard({ device }: { device: FeedSensorDevice }) {
             >
               {device.value.toFixed(1)}
             </span>
-            <span className="text-muted-foreground/60 text-sm">{device.unit}</span>
+            <span className="text-sm text-muted-foreground/60">{device.unit}</span>
           </div>
           {device.secondaryValue != null && (
-            <p className="text-muted-foreground/50 text-[10px]">
+            <p className="text-[10px] text-muted-foreground/50">
               {device.secondaryValue.toFixed(1)} {device.secondaryUnit ?? ""}
             </p>
           )}
           <div className="mt-auto flex items-center gap-3 text-[10px]">
             {device.batteryPct != null && (
-              <span className="text-muted-foreground/60 flex items-center gap-1">
+              <span className="flex items-center gap-1 text-muted-foreground/60">
                 <BatteryIcon className="size-2.5" />
                 {device.batteryPct.toFixed(0)}%
               </span>
             )}
             {device.signalRssiDbm != null && (
-              <span className="text-muted-foreground/60 flex items-center gap-1">
+              <span className="flex items-center gap-1 text-muted-foreground/60">
                 <WifiIcon className="size-2.5" />
                 {device.signalRssiDbm} dBm
               </span>
             )}
           </div>
           {device.timestamp && (
-            <p className="text-muted-foreground/40 mt-1 text-[9px]">{formatTimestamp(device.timestamp)}</p>
+            <p className="mt-1 text-[9px] text-muted-foreground/40">{formatTimestamp(device.timestamp)}</p>
           )}
         </div>
       </div>
@@ -294,7 +294,7 @@ export function FacilityFeedTab({ facilityId }: FeedTabProps) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2Icon className="text-muted-foreground/50 size-5 animate-spin" />
+        <Loader2Icon className="size-5 animate-spin text-muted-foreground/50" />
       </div>
     );
   }
@@ -303,8 +303,8 @@ export function FacilityFeedTab({ facilityId }: FeedTabProps) {
   if (error) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <VideoIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-xs">{error}</p>
+        <VideoIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">{error}</p>
         <Button onClick={fetchFeed} size="sm" variant="outline">
           <RefreshCwIcon className="mr-1.5 size-3" />
           Retry
@@ -318,8 +318,8 @@ export function FacilityFeedTab({ facilityId }: FeedTabProps) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <VideoIcon className="text-muted-foreground/30 size-8" />
-          <p className="text-muted-foreground/50 text-xs">No CCTV or sensor devices configured in this facility</p>
+          <VideoIcon className="size-8 text-muted-foreground/30" />
+          <p className="text-xs text-muted-foreground/50">No CCTV or sensor devices configured in this facility</p>
         </div>
       </div>
     );

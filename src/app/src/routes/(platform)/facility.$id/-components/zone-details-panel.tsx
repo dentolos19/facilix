@@ -9,12 +9,12 @@ import { getZoneTypeConfig } from "../-helpers/zone-types";
 function PropRow({ label, value, monospace }: { label: string; value: string; monospace?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-2">
-      <dt className="text-muted-foreground/60 shrink-0 text-[10px]">{label}</dt>
+      <dt className="shrink-0 text-[10px] text-muted-foreground/60">{label}</dt>
       <dd
         className={
           monospace
-            ? "text-foreground/70 text-right font-mono text-[10px] break-all"
-            : "text-foreground/70 text-right text-[10px] break-words"
+            ? "text-right font-mono text-[10px] break-all text-foreground/70"
+            : "text-right text-[10px] break-words text-foreground/70"
         }
       >
         {value}
@@ -39,16 +39,16 @@ function DeviceRow({ device, onSelect }: { device: PlacedItem; onSelect: () => v
   return (
     <button
       aria-label={`View properties for ${device.name || device.type}`}
-      className="border-border bg-muted/20 hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-ring/50 flex w-full items-center gap-2 border p-2 text-left transition-colors outline-none focus-visible:ring-1"
+      className="flex w-full items-center gap-2 border border-border bg-muted/20 p-2 text-left transition-colors outline-none hover:bg-muted/40 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
       onClick={onSelect}
       type="button"
     >
-      <div className="bg-muted/50 text-muted-foreground flex size-7 shrink-0 items-center justify-center">
+      <div className="flex size-7 shrink-0 items-center justify-center bg-muted/50 text-muted-foreground">
         <CpuIcon className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-foreground truncate text-[11px] font-medium">{device.name || device.type}</p>
-        <p className="text-muted-foreground/60 text-[10px]">{device.type}</p>
+        <p className="truncate text-[11px] font-medium text-foreground">{device.name || device.type}</p>
+        <p className="text-[10px] text-muted-foreground/60">{device.type}</p>
       </div>
       <span
         className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase ${statusStyle.badge}`}
@@ -56,7 +56,7 @@ function DeviceRow({ device, onSelect }: { device: PlacedItem; onSelect: () => v
         <span className={`size-1.5 rounded-full ${statusStyle.dot}`} />
         {device.status}
       </span>
-      <ChevronRightIcon className="text-muted-foreground/50 size-3.5 shrink-0" />
+      <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
     </button>
   );
 }
@@ -74,7 +74,7 @@ export function ZoneDetailsPanel({
 
   if (!selectedZone) {
     return (
-      <div className="text-muted-foreground/50 flex h-full items-center justify-center px-6 text-center text-[11px]">
+      <div className="flex h-full items-center justify-center px-6 text-center text-[11px] text-muted-foreground/50">
         Select a zone on the map to view its details.
       </div>
     );
@@ -86,26 +86,26 @@ export function ZoneDetailsPanel({
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-3 p-4">
-        <h3 className="font-heading text-muted-foreground shrink-0 text-xs font-medium tracking-wider uppercase">
+        <h3 className="shrink-0 font-heading text-xs font-medium tracking-wider text-muted-foreground uppercase">
           Zone Details
         </h3>
 
-        <div className="border-border bg-muted/20 rounded-none border p-2">
+        <div className="rounded-none border border-border bg-muted/20 p-2">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-foreground text-xs font-medium">{selectedZone.name}</p>
-              <p className="text-muted-foreground/70 text-[11px]">{zoneTypeCfg.label}</p>
+              <p className="text-xs font-medium text-foreground">{selectedZone.name}</p>
+              <p className="text-[11px] text-muted-foreground/70">{zoneTypeCfg.label}</p>
             </div>
             <button
               aria-label="View zone details"
-              className="text-muted-foreground/50 hover:bg-muted/40 hover:text-foreground flex size-6 items-center justify-center rounded transition-colors"
+              className="flex size-6 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted/40 hover:text-foreground"
               onClick={() => navigate({ to: "/device/$id", params: { id: selectedZone.id } })}
             >
               <ExternalLinkIcon className="size-3.5" />
             </button>
           </div>
 
-          <dl className="border-border/50 mt-2 flex flex-col gap-1.5 border-t pt-2">
+          <dl className="mt-2 flex flex-col gap-1.5 border-t border-border/50 pt-2">
             <PropRow label="Zone Type" value={zoneTypeCfg.label} />
             <PropRow label="Width" value={`${selectedZone.width}px`} />
             <PropRow label="Height" value={`${selectedZone.height}px`} />
@@ -116,7 +116,7 @@ export function ZoneDetailsPanel({
         </div>
 
         <div className="flex flex-col gap-1">
-          <h4 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+          <h4 className="font-heading text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
             Devices ({assignedDevices.length})
           </h4>
           {assignedDevices.length > 0 ? (
@@ -124,9 +124,9 @@ export function ZoneDetailsPanel({
               <DeviceRow device={device} key={device.id} onSelect={() => onSelectDevice(device.id)} />
             ))
           ) : (
-            <div className="border-border bg-muted/10 flex flex-col items-center gap-1.5 border border-dashed px-3 py-5 text-center">
-              <CpuIcon className="text-muted-foreground/30 size-5" />
-              <p className="text-muted-foreground/60 text-[10px]">No devices assigned to this zone.</p>
+            <div className="flex flex-col items-center gap-1.5 border border-dashed border-border bg-muted/10 px-3 py-5 text-center">
+              <CpuIcon className="size-5 text-muted-foreground/30" />
+              <p className="text-[10px] text-muted-foreground/60">No devices assigned to this zone.</p>
             </div>
           )}
         </div>

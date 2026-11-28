@@ -1,8 +1,8 @@
 import {
-  type DevicePlacement,
   DEVICE_MARKER_HEIGHT,
   DEVICE_MARKER_RADIUS,
   DEVICE_POLE_RADIUS,
+  type DevicePlacement,
 } from "#/routes/(platform)/facility.$id/-helpers/scene-geometry";
 
 import { ModelPart } from "./model-part";

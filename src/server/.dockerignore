@@ -2,9 +2,11 @@
 *.egg-info/
 *.tsbuildinfo
 .DS_Store
+.cloudflare/
 .env*
 .idea/
 .mypy_cache/
+.playwright-cli/
 .pytest_cache/
 .ruff_cache/
 .tanstack/

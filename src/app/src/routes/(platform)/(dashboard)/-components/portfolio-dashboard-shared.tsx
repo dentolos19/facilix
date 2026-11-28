@@ -4,8 +4,8 @@ import {
   ArrowRightIcon,
   BarChart3Icon,
   Building2Icon,
-  RefreshCwIcon,
   type LucideIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 
 import { Button } from "#/components/ui/button";
@@ -59,7 +59,7 @@ export function DashboardControls({
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {lastUpdated ? (
-        <span className="text-muted-foreground hidden text-[10px] tabular-nums lg:inline">
+        <span className="hidden text-[10px] text-muted-foreground tabular-nums lg:inline">
           Updated {formatTimestamp(lastUpdated)}
         </span>
       ) : null}
@@ -112,13 +112,13 @@ export function MetricCard({
     <Card size="sm">
       <CardHeader>
         <CardDescription className="flex items-center gap-1.5">
-          <Icon className="text-muted-foreground/60 size-3.5" />
+          <Icon className="size-3.5 text-muted-foreground/60" />
           {label}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <p className="font-heading text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-        <p className="text-muted-foreground mt-0.5 text-[10px]">{detail}</p>
+        <p className="mt-0.5 text-[10px] text-muted-foreground">{detail}</p>
       </CardContent>
     </Card>
   );
@@ -149,7 +149,7 @@ export function FacilityStatus({ status }: { status: OverallStatus }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap",
         style.className,
       )}
     >
@@ -164,7 +164,7 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-none border px-1.5 py-0.5 font-medium text-[10px] leading-none",
+        "inline-flex items-center gap-1 rounded-none border px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap",
         isCritical
           ? "border-destructive/20 bg-destructive/10 text-destructive"
           : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400",
@@ -245,7 +245,7 @@ export function PortfolioEmpty() {
 
 export function ChartEmpty({ label = "No events in this period" }: { label?: string }) {
   return (
-    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-xs">
+    <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
       <BarChart3Icon className="size-5 opacity-40" />
       <span>{label}</span>
     </div>

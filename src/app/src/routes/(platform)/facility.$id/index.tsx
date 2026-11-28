@@ -28,7 +28,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ChatAssistant } from "#/components/chat-assistant";
@@ -68,8 +68,8 @@ import {
 import { deleteFacility, duplicateFacility, loadFacility, saveFacility } from "#/lib/functions/facility";
 import { generateFacilityLayoutFromFile } from "#/lib/functions/facility-layout";
 import {
-  type FacilityMemberRow,
   addFacilityMember,
+  type FacilityMemberRow,
   getFacilityMembers,
   removeFacilityMember,
 } from "#/lib/functions/facility-members";
@@ -77,7 +77,7 @@ import { getFacilitySettings, saveFacilitySettings } from "#/lib/functions/facil
 import { clearContainerLogs, getMonitoringStatus, startMonitoring, stopMonitoring } from "#/lib/functions/server";
 import { createFacilityLayoutDocument, parseImportedFacilityLayout } from "#/lib/layouts";
 import { type FacilitySettings, logTypesByCategory } from "#/lib/monitoring/logs";
-import { selectedDeviceId, type MonitoringSelection } from "#/lib/monitoring/selection";
+import { type MonitoringSelection, selectedDeviceId } from "#/lib/monitoring/selection";
 import type { MonitoringStatus, ObserverSocketMessage } from "#/lib/monitoring/types";
 import { fetchSimulationStreams } from "#/lib/simulation/cctv";
 import { fetchSimulationSensors } from "#/lib/simulation/sensors";
@@ -116,7 +116,7 @@ export const Route = createFileRoute("/(platform)/facility/$id/")({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <Label className="text-muted-foreground text-[11px] font-medium">{label}</Label>
+      <Label className="text-[11px] font-medium text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -387,72 +387,75 @@ function Page() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
 
-  const addPlacedItem = useCallback((type: PlacedItemType, x: number, y: number) => {
-    saveSnapshot();
-    const id = crypto.randomUUID();
-    const size = DEFAULT_SIZES[type];
+  const addPlacedItem = useCallback(
+    (type: PlacedItemType, x: number, y: number) => {
+      saveSnapshot();
+      const id = crypto.randomUUID();
+      const size = DEFAULT_SIZES[type];
 
-    const defaultProps = { ...DEFAULT_PROPS[type] };
+      const defaultProps = { ...DEFAULT_PROPS[type] };
 
-    setPlacedItems((prev) =>
-      recomputeZoneLinks([
-        ...prev,
-        {
-          id,
-          type,
-          x,
-          y,
-          width: size.width,
-          height: size.height,
-          zoneId: null,
-          name: type,
-          status: "unknown",
-          notes: "",
-          props: defaultProps,
-        },
-      ]),
-    );
-    setIsDirty(true);
+      setPlacedItems((prev) =>
+        recomputeZoneLinks([
+          ...prev,
+          {
+            id,
+            type,
+            x,
+            y,
+            width: size.width,
+            height: size.height,
+            zoneId: null,
+            name: type,
+            status: "unknown",
+            notes: "",
+            props: defaultProps,
+          },
+        ]),
+      );
+      setIsDirty(true);
 
-    // Fire-and-forget: auto-select first available simulation source.
-    if (type === "CCTV") {
-      fetchSimulationStreams().then((streams) => {
-        if (streams.length > 0) {
-          setPlacedItems((prev) =>
-            recomputeZoneLinks(
-              prev.map((item) =>
-                item.id === id && !item.props.simulationStream
-                  ? { ...item, props: { ...item.props, simulationStream: streams[0].name } }
-                  : item,
+      // Fire-and-forget: auto-select first available simulation source.
+      if (type === "CCTV") {
+        fetchSimulationStreams().then((streams) => {
+          if (streams.length > 0) {
+            setPlacedItems((prev) =>
+              recomputeZoneLinks(
+                prev.map((item) =>
+                  item.id === id && !item.props.simulationStream
+                    ? { ...item, props: { ...item.props, simulationStream: streams[0].name } }
+                    : item,
+                ),
               ),
-            ),
-          );
-        }
-      });
-    }
-    if (type === "Sensor") {
-      fetchSimulationSensors().then((devices) => {
-        if (devices.length > 0) {
-          setPlacedItems((prev) =>
-            recomputeZoneLinks(
-              prev.map((item) =>
-                item.id === id && !item.props.simulationDeviceId
-                  ? {
-                      ...item,
-                      props: {
-                        ...item.props,
-                        simulationDeviceId: devices[0].deviceId,
-                        sensorType: devices[0].sensorType,
-                      },
-                    }
-                  : item,
+            );
+          }
+        });
+      }
+      if (type === "Sensor") {
+        fetchSimulationSensors().then((devices) => {
+          if (devices.length > 0) {
+            setPlacedItems((prev) =>
+              recomputeZoneLinks(
+                prev.map((item) =>
+                  item.id === id && !item.props.simulationDeviceId
+                    ? {
+                        ...item,
+                        props: {
+                          ...item.props,
+                          simulationDeviceId: devices[0].deviceId,
+                          sensorType: devices[0].sensorType,
+                        },
+                      }
+                    : item,
+                ),
               ),
-            ),
-          );
-        }
-      });
-    }
-  }, [saveSnapshot]);
+            );
+          }
+        });
+      }
+    },
+    [saveSnapshot],
+  );
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [monitoringSelection, setMonitoringSelection] = useState<MonitoringSelection>(null);
@@ -534,79 +537,97 @@ function Page() {
     [saveSnapshot],
   );
 
-  const removePlacedItem = useCallback((id: string) => {
-    saveSnapshot();
-    setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => item.id !== id)));
-    setSelectedItemId((prev) => (prev === id ? null : prev));
-    setMonitoringSelection((selection) =>
-      selection?.kind === "device" && selection.deviceId === id ? null : selection,
-    );
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const removePlacedItem = useCallback(
+    (id: string) => {
+      saveSnapshot();
+      setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => item.id !== id)));
+      setSelectedItemId((prev) => (prev === id ? null : prev));
+      setMonitoringSelection((selection) =>
+        selection?.kind === "device" && selection.deviceId === id ? null : selection,
+      );
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
-  const deleteItems = useCallback((ids: string[]) => {
-    if (ids.length === 0) return;
-    saveSnapshot();
-    const idSet = new Set(ids);
-    setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => !idSet.has(item.id))));
-    setSelectedItemId((prev) => (prev && idSet.has(prev) ? null : prev));
-    setMonitoringSelection((selection) =>
-      selection?.kind === "device" && idSet.has(selection.deviceId) ? null : selection,
-    );
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const deleteItems = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      saveSnapshot();
+      const idSet = new Set(ids);
+      setPlacedItems((prev) => recomputeZoneLinks(prev.filter((item) => !idSet.has(item.id))));
+      setSelectedItemId((prev) => (prev && idSet.has(prev) ? null : prev));
+      setMonitoringSelection((selection) =>
+        selection?.kind === "device" && idSet.has(selection.deviceId) ? null : selection,
+      );
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
-  const moveItemUp = useCallback((id: string) => {
-    saveSnapshot();
-    setPlacedItems((prev) => {
-      const idx = prev.findIndex((item) => item.id === id);
-      if (idx === -1 || idx >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-      return recomputeZoneLinks(next);
-    });
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const moveItemUp = useCallback(
+    (id: string) => {
+      saveSnapshot();
+      setPlacedItems((prev) => {
+        const idx = prev.findIndex((item) => item.id === id);
+        if (idx === -1 || idx >= prev.length - 1) return prev;
+        const next = [...prev];
+        [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+        return recomputeZoneLinks(next);
+      });
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
-  const moveItemDown = useCallback((id: string) => {
-    saveSnapshot();
-    setPlacedItems((prev) => {
-      const idx = prev.findIndex((item) => item.id === id);
-      if (idx <= 0) return prev;
-      const next = [...prev];
-      [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
-      return recomputeZoneLinks(next);
-    });
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const moveItemDown = useCallback(
+    (id: string) => {
+      saveSnapshot();
+      setPlacedItems((prev) => {
+        const idx = prev.findIndex((item) => item.id === id);
+        if (idx <= 0) return prev;
+        const next = [...prev];
+        [next[idx], next[idx - 1]] = [next[idx - 1], next[idx]];
+        return recomputeZoneLinks(next);
+      });
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
-  const moveItemToFront = useCallback((id: string) => {
-    saveSnapshot();
-    setPlacedItems((prev) => {
-      const idx = prev.findIndex((item) => item.id === id);
-      if (idx === -1 || idx === prev.length - 1) return prev;
-      const item = prev[idx];
-      const next = [...prev];
-      next.splice(idx, 1);
-      next.push(item);
-      return recomputeZoneLinks(next);
-    });
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const moveItemToFront = useCallback(
+    (id: string) => {
+      saveSnapshot();
+      setPlacedItems((prev) => {
+        const idx = prev.findIndex((item) => item.id === id);
+        if (idx === -1 || idx === prev.length - 1) return prev;
+        const item = prev[idx];
+        const next = [...prev];
+        next.splice(idx, 1);
+        next.push(item);
+        return recomputeZoneLinks(next);
+      });
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
-  const moveItemToBack = useCallback((id: string) => {
-    saveSnapshot();
-    setPlacedItems((prev) => {
-      const idx = prev.findIndex((item) => item.id === id);
-      if (idx <= 0) return prev;
-      const item = prev[idx];
-      const next = [...prev];
-      next.splice(idx, 1);
-      next.unshift(item);
-      return recomputeZoneLinks(next);
-    });
-    setIsDirty(true);
-  }, [saveSnapshot]);
+  const moveItemToBack = useCallback(
+    (id: string) => {
+      saveSnapshot();
+      setPlacedItems((prev) => {
+        const idx = prev.findIndex((item) => item.id === id);
+        if (idx <= 0) return prev;
+        const item = prev[idx];
+        const next = [...prev];
+        next.splice(idx, 1);
+        next.unshift(item);
+        return recomputeZoneLinks(next);
+      });
+      setIsDirty(true);
+    },
+    [saveSnapshot],
+  );
 
   // ── Undo / Redo ──────────────────────────────────────────────────────────
 
@@ -777,44 +798,47 @@ function Page() {
     }
   }, [facilityId, navigate]);
 
-  const processImport = useCallback(async (file: File) => {
-    const isJson = file.type === "application/json" || file.name.endsWith(".json");
+  const processImport = useCallback(
+    async (file: File) => {
+      const isJson = file.type === "application/json" || file.name.endsWith(".json");
 
-    setIsImporting(true);
-    try {
-      if (isJson) {
-        const text = await file.text();
-        const items = parseImportedFacilityLayout(JSON.parse(text), placedItemsRef.current);
-        saveSnapshot();
-        setPlacedItems(items);
-        setSelectedItemId(null);
-        setMonitoringSelection(null);
-        setIsDirty(true);
-        toast.success(`Imported layout with ${items.length} items.`, {
-          description: "Review the result. You can use Undo to restore the previous layout.",
-        });
-      } else {
-        const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
-        const payload = await generateFacilityLayoutFromFile(file, {
-          width: Math.round(canvasRect?.width ?? 1000),
-          height: Math.round(canvasRect?.height ?? 700),
-        });
+      setIsImporting(true);
+      try {
+        if (isJson) {
+          const text = await file.text();
+          const items = parseImportedFacilityLayout(JSON.parse(text), placedItemsRef.current);
+          saveSnapshot();
+          setPlacedItems(items);
+          setSelectedItemId(null);
+          setMonitoringSelection(null);
+          setIsDirty(true);
+          toast.success(`Imported layout with ${items.length} items.`, {
+            description: "Review the result. You can use Undo to restore the previous layout.",
+          });
+        } else {
+          const canvasRect = canvasAreaRef.current?.getBoundingClientRect();
+          const payload = await generateFacilityLayoutFromFile(file, {
+            width: Math.round(canvasRect?.width ?? 1000),
+            height: Math.round(canvasRect?.height ?? 700),
+          });
 
-        saveSnapshot();
-        setPlacedItems(payload.items);
-        setSelectedItemId(null);
-        setMonitoringSelection(null);
-        setIsDirty(true);
-        toast.success(`Built a layout with ${payload.items.length} items.`, {
-          description: "Review the result. You can use Undo to restore the previous layout.",
-        });
+          saveSnapshot();
+          setPlacedItems(payload.items);
+          setSelectedItemId(null);
+          setMonitoringSelection(null);
+          setIsDirty(true);
+          toast.success(`Built a layout with ${payload.items.length} items.`, {
+            description: "Review the result. You can use Undo to restore the previous layout.",
+          });
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to import the facility layout.");
+      } finally {
+        setIsImporting(false);
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to import the facility layout.");
-    } finally {
-      setIsImporting(false);
-    }
-  }, [saveSnapshot]);
+    },
+    [saveSnapshot],
+  );
 
   const handleImportFileSelected = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1168,7 +1192,7 @@ function Page() {
               showCloseButton={false}
               style={{ height: "90vh", width: "calc(100vw - 2rem)", maxWidth: "64rem" }}
             >
-              <header className="border-border flex h-12 shrink-0 items-center gap-3 border-b px-4">
+              <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-sm font-medium">Chat</h2>
                 </div>
@@ -1277,7 +1301,7 @@ function Page() {
                 <DialogTitle>Facility Settings</DialogTitle>
                 <DialogDescription>Edit facility metadata and preferences.</DialogDescription>
               </DialogHeader>
-              <div className="border-border flex border-b">
+              <div className="flex border-b border-border">
                 {[
                   { id: "general", label: "General" },
                   { id: "events", label: "Events" },
@@ -1286,7 +1310,7 @@ function Page() {
                   <button
                     className={`relative flex-1 px-4 py-3 text-center text-sm font-medium transition-colors ${
                       settingsTab === tab.id
-                        ? "border-primary text-foreground border-b-2"
+                        ? "border-b-2 border-primary text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                     key={tab.id}
@@ -1330,23 +1354,23 @@ function Page() {
                   <Separator />
                   {membersLoading ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="text-muted-foreground size-5 animate-spin" />
+                      <Loader2 className="size-5 animate-spin text-muted-foreground" />
                     </div>
                   ) : members.length === 0 ? (
-                    <p className="text-muted-foreground py-2 text-center text-xs">No members yet</p>
+                    <p className="py-2 text-center text-xs text-muted-foreground">No members yet</p>
                   ) : (
                     <div className="flex flex-col gap-1">
                       {members.map((member) => (
                         <div
-                          className="hover:bg-muted/50 flex items-center justify-between rounded-md px-2 py-1.5"
+                          className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50"
                           key={member.userId}
                         >
                           <div className="flex min-w-0 flex-col">
                             <span className="truncate text-sm font-medium">{member.userName}</span>
-                            <span className="text-muted-foreground truncate text-[11px]">
+                            <span className="truncate text-[11px] text-muted-foreground">
                               {member.userEmail}
                               {member.role === "admin" && (
-                                <span className="text-primary ml-1 font-medium">(admin)</span>
+                                <span className="ml-1 font-medium text-primary">(admin)</span>
                               )}
                             </span>
                           </div>
@@ -1367,14 +1391,14 @@ function Page() {
                 <div className="flex flex-col gap-4 p-4">
                   <div>
                     <h4 className="font-heading text-sm font-medium">Global Events</h4>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-[11px] text-muted-foreground">
                       Important logs are always shown. Enable additional log types you want to see in the Global Events
                       panel.
                     </p>
                   </div>
                   {Object.entries(logTypesByCategory()).map(([category, types]) => (
                     <div className="flex flex-col gap-2" key={category}>
-                      <h5 className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+                      <h5 className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
                         {category}
                       </h5>
                       <div className="flex flex-col gap-2">
@@ -1386,7 +1410,7 @@ function Page() {
                                 <Label className="text-xs font-medium" htmlFor={`log-${logType.type}`}>
                                   {logType.label}
                                   {logType.important && (
-                                    <span className="text-muted-foreground ml-1.5 text-[10px]">(always on)</span>
+                                    <span className="ml-1.5 text-[10px] text-muted-foreground">(always on)</span>
                                   )}
                                   {logType.highVolume && (
                                     <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400">
@@ -1394,7 +1418,7 @@ function Page() {
                                     </span>
                                   )}
                                 </Label>
-                                <span className="text-muted-foreground text-[11px]">{logType.description}</span>
+                                <span className="text-[11px] text-muted-foreground">{logType.description}</span>
                               </div>
                               <Switch
                                 checked={logType.important || enabled}
@@ -1564,7 +1588,7 @@ function Page() {
         </ResizablePanel>
 
         <ResizableHandle
-          className="hover:bg-accent/50 w-1.5 transition-colors after:w-2 data-[orientation=horizontal]:w-1.5"
+          className="w-1.5 transition-colors after:w-2 hover:bg-accent/50 data-[orientation=horizontal]:w-1.5"
           withHandle
         />
 
@@ -1572,14 +1596,14 @@ function Page() {
         <ResizablePanel defaultSize={56} minSize={30}>
           <div className="relative h-full w-full" ref={canvasAreaRef}>
             {isLoading ? (
-              <div className="bg-background flex h-full w-full items-center justify-center">
-                <span className="text-muted-foreground/50 text-xs">Loading facility…</span>
+              <div className="flex h-full w-full items-center justify-center bg-background">
+                <span className="text-xs text-muted-foreground/50">Loading facility…</span>
               </div>
             ) : layoutView === "3d" ? (
               <Suspense
                 fallback={
-                  <div className="bg-background flex h-full w-full items-center justify-center">
-                    <Loader2 className="text-muted-foreground size-8 animate-spin" />
+                  <div className="flex h-full w-full items-center justify-center bg-background">
+                    <Loader2 className="size-8 animate-spin text-muted-foreground" />
                   </div>
                 }
               >
@@ -1633,9 +1657,9 @@ function Page() {
               />
             )}
             {isImporting && (
-              <div className="bg-background/80 absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
-                <Loader2 className="text-primary size-8 animate-spin" />
-                <span className="text-muted-foreground text-sm">Importing facility layout…</span>
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Importing facility layout…</span>
               </div>
             )}
             <FacilityHoverCard
@@ -1648,7 +1672,7 @@ function Page() {
         </ResizablePanel>
 
         <ResizableHandle
-          className="hover:bg-accent/50 w-1.5 transition-colors after:w-2 data-[orientation=horizontal]:w-1.5"
+          className="w-1.5 transition-colors after:w-2 hover:bg-accent/50 data-[orientation=horizontal]:w-1.5"
           withHandle
         />
 

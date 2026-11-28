@@ -5,14 +5,14 @@ import {
   PlayIcon,
   SkipBackIcon,
   SkipForwardIcon,
+  VideoIcon,
   Volume2Icon,
   VolumeXIcon,
-  VideoIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ScrollArea } from "#/components/ui/scroll-area";
-import type { VideoFrameRow, RecordingRow } from "#/lib/functions/recordings";
+import type { RecordingRow, VideoFrameRow } from "#/lib/functions/recordings";
 import { cn } from "#/lib/utils";
 
 import { getDetectionRect } from "./detection-frame-utils";
@@ -353,8 +353,8 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
   if (segments.length === 0) {
     return (
       <div className={cn("flex h-full min-h-0 flex-col items-center justify-center gap-3", className)}>
-        <VideoIcon className="text-muted-foreground/30 size-8" />
-        <p className="text-muted-foreground/50 text-[11px]">No playable recordings.</p>
+        <VideoIcon className="size-8 text-muted-foreground/30" />
+        <p className="text-[11px] text-muted-foreground/50">No playable recordings.</p>
       </div>
     );
   }
@@ -366,7 +366,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
       {/* ─ Left: Video + Controls ──────────────────────────────────────── */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         {/* Video area */}
-        <div className="border-border bg-muted/40 relative min-h-0 flex-1 overflow-hidden rounded-none border">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-none border border-border bg-muted/40">
           <video
             className="size-full object-contain"
             crossOrigin="anonymous"
@@ -378,7 +378,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
           {/* Recorded time overlay */}
           {currentSegment && (
-            <div className="border-border bg-background/80 text-foreground/70 pointer-events-none absolute top-2 left-2 z-10 rounded-none border px-2 py-1 font-mono text-[10px] tabular-nums backdrop-blur-sm">
+            <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-none border border-border bg-background/80 px-2 py-1 font-mono text-[10px] text-foreground/70 tabular-nums backdrop-blur-sm">
               {formatTimestamp(
                 new Date(
                   new Date(currentSegment.recording.startedAt).getTime() +
@@ -390,39 +390,39 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
           {/* Loading overlay */}
           {playerState === "loading" && (
-            <div className="bg-muted/80 pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <div className="border-muted-foreground/30 border-t-muted-foreground size-5 animate-spin rounded-full border-2" />
-              <span className="text-muted-foreground/60 text-[11px]">Loading segment…</span>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80">
+              <div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+              <span className="text-[11px] text-muted-foreground/60">Loading segment…</span>
             </div>
           )}
 
           {/* Error overlay */}
           {playerState === "error" && (
-            <div className="bg-muted/80 absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <VideoIcon className="text-muted-foreground/40 size-6" />
-              <span className="text-muted-foreground/50 text-[11px]">Recording unavailable</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80">
+              <VideoIcon className="size-6 text-muted-foreground/40" />
+              <span className="text-[11px] text-muted-foreground/50">Recording unavailable</span>
             </div>
           )}
 
           {/* Ended overlay */}
           {playerState === "ended" && (
             <button
-              className="bg-muted/80 hover:bg-muted/60 absolute inset-0 flex flex-col items-center justify-center gap-2 transition-colors"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/80 transition-colors hover:bg-muted/60"
               onClick={togglePlay}
               type="button"
             >
-              <PlayIcon className="text-muted-foreground/60 size-8" />
-              <span className="text-muted-foreground/50 text-[11px]">Playback finished — click to replay</span>
+              <PlayIcon className="size-8 text-muted-foreground/60" />
+              <span className="text-[11px] text-muted-foreground/50">Playback finished — click to replay</span>
             </button>
           )}
         </div>
 
         {/* Custom controls bar */}
-        <div className="border-border bg-muted/20 flex shrink-0 flex-col gap-2 rounded-none border p-2">
+        <div className="flex shrink-0 flex-col gap-2 rounded-none border border-border bg-muted/20 p-2">
           {/* Seek bar */}
           <div className="group relative flex items-center">
             <div
-              className="bg-muted relative h-1.5 w-full cursor-pointer rounded-full transition-colors group-hover:h-2"
+              className="relative h-1.5 w-full cursor-pointer rounded-full bg-muted transition-colors group-hover:h-2"
               onMouseDown={onSeekMouseDown}
               ref={seekRef}
             >
@@ -432,7 +432,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
                 const pct = (seg.combinedStart / totalDuration) * 100;
                 return (
                   <div
-                    className="bg-foreground/20 absolute top-0 z-10 h-full w-px"
+                    className="absolute top-0 z-10 h-full w-px bg-foreground/20"
                     key={seg.recording.id}
                     style={{ left: `${pct}%` }}
                   />
@@ -441,13 +441,13 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
               {/* Progress fill */}
               <div
-                className="bg-foreground/60 absolute top-0 h-full rounded-full transition-[width] duration-75"
+                className="absolute top-0 h-full rounded-full bg-foreground/60 transition-[width] duration-75"
                 style={{ width: `${progressPct}%` }}
               />
 
               {/* Playhead */}
               <div
-                className="bg-foreground absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+                className="absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground opacity-0 transition-opacity group-hover:opacity-100"
                 style={{ left: `${progressPct}%` }}
               />
             </div>
@@ -457,7 +457,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
           <div className="flex items-center gap-1">
             {/* Play / Pause */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors"
+              className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={togglePlay}
               type="button"
               title={playerState === "playing" ? "Pause (Space)" : "Play (Space)"}
@@ -467,7 +467,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Skip back 10s */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors"
+              className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={skipBack}
               type="button"
               title="Back 10s (←)"
@@ -477,7 +477,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Skip forward 10s */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors"
+              className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={skipForward}
               type="button"
               title="Forward 10s (→)"
@@ -486,7 +486,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
             </button>
 
             {/* Time display */}
-            <span className="text-foreground/60 ml-1 font-mono text-[10px] tabular-nums">
+            <span className="ml-1 font-mono text-[10px] text-foreground/60 tabular-nums">
               {formatTime(currentTime)} / {formatTime(totalDuration)}
             </span>
 
@@ -495,7 +495,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Current segment info */}
             {currentSegment && (
-              <span className="text-foreground/40 mr-2 text-[9px]">
+              <span className="mr-2 text-[9px] text-foreground/40">
                 {formatTimestamp(currentSegment.recording.startedAt)}
                 {currentSegment.recording.endedAt ? ` – ${formatTimestamp(currentSegment.recording.endedAt)}` : ""}
               </span>
@@ -503,7 +503,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Speed */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex h-7 min-w-7 items-center justify-center rounded-none px-1 text-[10px] font-medium transition-colors"
+              className="flex h-7 min-w-7 items-center justify-center rounded-none px-1 text-[10px] font-medium text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={cycleSpeed}
               type="button"
               title="Playback speed"
@@ -513,7 +513,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Volume */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors"
+              className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={toggleMute}
               type="button"
               title={isMuted ? "Unmute (M)" : "Mute (M)"}
@@ -523,7 +523,7 @@ export function PlaybackPlayer({ recordings, detections = [], className }: Playb
 
             {/* Fullscreen */}
             <button
-              className="text-foreground/70 hover:bg-muted hover:text-foreground flex size-7 items-center justify-center rounded-none transition-colors"
+              className="flex size-7 items-center justify-center rounded-none text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
               onClick={toggleFullscreen}
               type="button"
               title={isFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
@@ -588,12 +588,12 @@ function AnalysisPanel({ segment, detections }: { segment: Segment; detections: 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
       {/* Detection summary */}
-      <div className="border-border bg-muted/20 shrink-0 rounded-none border p-3">
-        <h3 className="font-heading text-muted-foreground mb-2 text-[10px] font-medium tracking-wider uppercase">
+      <div className="shrink-0 rounded-none border border-border bg-muted/20 p-3">
+        <h3 className="mb-2 font-heading text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
           Detections
         </h3>
         {counts.length === 0 ? (
-          <p className="text-muted-foreground/50 text-[11px]">No detections for this segment.</p>
+          <p className="text-[11px] text-muted-foreground/50">No detections for this segment.</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {counts.map(([label, count]) => {
@@ -601,18 +601,18 @@ function AnalysisPanel({ segment, detections }: { segment: Segment; detections: 
               const pct = total > 0 ? Math.round((count / total) * 100) : 0;
               return (
                 <div
-                  className="border-border bg-background flex items-center justify-between rounded-none border px-2.5 py-1.5"
+                  className="flex items-center justify-between rounded-none border border-border bg-background px-2.5 py-1.5"
                   key={label}
                 >
-                  <span className="text-foreground/80 text-[11px] font-medium capitalize">{label}</span>
+                  <span className="text-[11px] font-medium text-foreground/80 capitalize">{label}</span>
                   <div className="flex items-center gap-2">
-                    <div className="bg-muted h-1 w-16 overflow-hidden rounded-full">
-                      <div className="bg-foreground/60 h-full rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="h-1 w-16 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-foreground/60" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-muted-foreground w-10 text-right font-mono text-[10px] tabular-nums">
+                    <span className="w-10 text-right font-mono text-[10px] text-muted-foreground tabular-nums">
                       {count}×
                     </span>
-                    <span className="text-muted-foreground/50 w-8 text-right font-mono text-[10px] tabular-nums">
+                    <span className="w-8 text-right font-mono text-[10px] text-muted-foreground/50 tabular-nums">
                       {pct}%
                     </span>
                   </div>
@@ -625,25 +625,25 @@ function AnalysisPanel({ segment, detections }: { segment: Segment; detections: 
 
       {/* Scene summary (collapsible, short) */}
       {sceneSummary && (
-        <details className="border-border bg-muted/20 shrink-0 rounded-none border">
-          <summary className="text-muted-foreground hover:text-foreground/70 cursor-pointer p-3 text-[10px] font-medium tracking-wider uppercase select-none">
+        <details className="shrink-0 rounded-none border border-border bg-muted/20">
+          <summary className="cursor-pointer p-3 text-[10px] font-medium tracking-wider text-muted-foreground uppercase select-none hover:text-foreground/70">
             Scene context
           </summary>
-          <p className="text-foreground/80 px-3 pb-3 text-[11px] leading-relaxed">{sceneSummary}</p>
+          <p className="px-3 pb-3 text-[11px] leading-relaxed text-foreground/80">{sceneSummary}</p>
         </details>
       )}
 
       {/* Predicted frames */}
-      <div className="border-border bg-muted/20 flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border p-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border bg-muted/20 p-3">
         <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-          <h3 className="font-heading text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+          <h3 className="font-heading text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
             Predicted Frames
           </h3>
-          <span className="text-muted-foreground/50 font-mono text-[9px] tabular-nums">{segmentDetections.length}</span>
+          <span className="font-mono text-[9px] text-muted-foreground/50 tabular-nums">{segmentDetections.length}</span>
         </div>
 
         {segmentDetections.length === 0 ? (
-          <p className="text-muted-foreground/50 text-[11px]">No predicted frames for this segment.</p>
+          <p className="text-[11px] text-muted-foreground/50">No predicted frames for this segment.</p>
         ) : (
           <ScrollArea className="min-h-0 flex-1 pr-2">
             <div className="flex flex-col gap-2 pb-px">
@@ -652,9 +652,9 @@ function AnalysisPanel({ segment, detections }: { segment: Segment; detections: 
                 const { width, height } = pred.image;
                 const strokeWidth = Math.max(1.5, Math.max(width, height) * 0.003);
                 return (
-                  <div className="border-border bg-background/50 rounded-none border" key={pred.id}>
+                  <div className="rounded-none border border-border bg-background/50" key={pred.id}>
                     <div
-                      className="bg-muted relative flex items-center justify-center overflow-hidden"
+                      className="relative flex items-center justify-center overflow-hidden bg-muted"
                       style={{ maxHeight: "120px" }}
                     >
                       <img
@@ -690,17 +690,17 @@ function AnalysisPanel({ segment, detections }: { segment: Segment; detections: 
                         </svg>
                       )}
                     </div>
-                    <div className="border-border border-t px-2.5 py-1.5">
+                    <div className="border-t border-border px-2.5 py-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
+                        <span className="font-mono text-[9px] text-muted-foreground tabular-nums">
                           Frame {pred.frameIndex} &middot; {pred.atSec.toFixed(1)}s
                         </span>
-                        <span className="text-muted-foreground/50 font-mono text-[9px]">
+                        <span className="font-mono text-[9px] text-muted-foreground/50">
                           {pred.detections.length} {pred.detections.length === 1 ? "detection" : "detections"}
                         </span>
                       </div>
                       {labels.length > 0 && (
-                        <p className="text-muted-foreground/60 mt-0.5 truncate text-[9px]">{labels.join(", ")}</p>
+                        <p className="mt-0.5 truncate text-[9px] text-muted-foreground/60">{labels.join(", ")}</p>
                       )}
                     </div>
                   </div>
